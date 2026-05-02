@@ -8,9 +8,8 @@
     :root {
       --safe: 24px;
       --gap: 18px;
-      --goal-width: 900px;
+      --goal-width: 980px;
       --goal-height: 120px;
-      --chat-width: 360px;
       --panel-bg: rgba(10, 14, 22, 0.28);
       --panel-border: rgba(255, 255, 255, 0.14);
       --text: rgba(255, 255, 255, 0.92);
@@ -46,7 +45,7 @@
       position: absolute;
       top: var(--safe);
       left: 50%;
-      width: min(var(--goal-width), calc(100vw - var(--chat-width) - 80px));
+      width: min(var(--goal-width), calc(100vw - 2 * var(--safe)));
       height: var(--goal-height);
       transform: translateX(-50%);
       z-index: 20;
@@ -60,20 +59,6 @@
       pointer-events: none;
     }
 
-    .chat-wrap {
-      position: absolute;
-      top: calc(var(--safe) + var(--goal-height) + var(--gap));
-      right: var(--safe);
-      width: min(var(--chat-width), calc(100vw - 2 * var(--safe)));
-      height: calc(100vh - var(--safe) * 2 - var(--goal-height) - var(--gap));
-      z-index: 10;
-      overflow: hidden;
-      border: 1px solid var(--panel-border);
-      border-radius: 18px;
-      background: var(--panel-bg);
-      backdrop-filter: blur(10px);
-    }
-
     iframe {
       width: 100%;
       height: 100%;
@@ -81,24 +66,12 @@
       background: transparent;
     }
 
-    .placeholder {
-      display: grid;
-      place-items: center;
-      width: 100%;
-      height: 100%;
-      padding: 18px;
-      text-align: center;
-      color: var(--muted);
-      font-size: 15px;
-      line-height: 1.45;
-    }
-
     .note {
       position: absolute;
       left: var(--safe);
       bottom: var(--safe);
       z-index: 30;
-      max-width: min(560px, calc(100vw - var(--chat-width) - 100px));
+      max-width: min(560px, calc(100vw - 2 * var(--safe)));
       padding: 10px 14px;
       border-radius: 14px;
       border: 1px solid var(--panel-border);
@@ -133,31 +106,20 @@
       </iframe>
     </div>
 
-    <div class="chat-wrap" id="chatWrap">
-      <iframe
-        id="chatFrame"
-        title="Chat widget"
-        loading="eager"
-        referrerpolicy="strict-origin-when-cross-origin">
-      </iframe>
-    </div>
-
     <div class="note">
       <strong>Шаблон собран.</strong><br>
-      Полоска, донаты и чат подключаются через конфиг. Если что-то не загрузится, значит проблема уже в политике встраивания конкретного сервиса.
+      Здесь только полоска и донаты. Если и так не загрузится, значит блокирует сам сервис, а не чат.
     </div>
   </div>
 
   <script>
     const CONFIG = {
       goalUrl: "https://streamdps.ru/widgets/superboss/?userid=65017&line=Stream+boss&start=0&price=10000&timer=5000&color2=FFB000&type1=off&fskin=685609&ftext=New+follower%21&fdmg=10&sskin=685711&stext=New+sub%21&sdmg=100&cskin=685611&ctext=New+cheer%21&type2=da&dskin=685610&dtext=New+donate%21&channelid=UCk-I3skHX-QRgIczun0fzZw&hash=710a925695550eb7fa8145541d9a5529b91d859fed4a8500c8a3865d2983710dd30da6bb8df1c777e7d3dd409a7f6eabd5695db2306d017c883f15afa6f4084e&frame=1",
-      alertsUrl: "https://streamdps.ru/widgets/show/?color1=0&hash=710a925695550eb7fa8145541d9a5529b91d859fed4a8500c8a3865d2983710dd30da6bb8df1c777e7d3dd409a7f6eabd5695db2306d017c883f15afa6f4084e&webm=723944&userid=65017&type=DA&min=1&max=1000000&delay=100&channelid=UCk-I3skHX-QRgIczun0fzZw&frame=1",
-      chatUrl: "https://chat.restream.io/embed?token=dc435aad-68b1-4e92-89ee-1ae26472f686"
+      alertsUrl: "https://streamdps.ru/widgets/show/?color1=0&hash=710a925695550eb7fa8145541d9a5529b91d859fed4a8500c8a3865d2983710dd30da6bb8df1c777e7d3dd409a7f6eabd5695db2306d017c883f15afa6f4084e&webm=723944&userid=65017&type=DA&min=1&max=1000000&delay=100&channelid=UCk-I3skHX-QRgIczun0fzZw&frame=1"
     };
 
     document.getElementById("goalFrame").src = CONFIG.goalUrl;
     document.getElementById("alertsFrame").src = CONFIG.alertsUrl;
-    document.getElementById("chatFrame").src = CONFIG.chatUrl;
   </script>
 </body>
 </html>
