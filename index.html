@@ -3,134 +3,490 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DonateX + Restream Test</title>
+  <title>Оценка альбома</title>
   <style>
-    html,
+    :root {
+      --bg: #f5f1e8;
+      --panel: #fffaf0;
+      --ink: #1f1b16;
+      --muted: #6c6257;
+      --line: #d4c5aa;
+      --accent: #a34b2a;
+      --accent-soft: #ead1c4;
+      --ok: #245c3f;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
     body {
-      width: 100%;
-      height: 100%;
       margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, #fbe6d7 0, transparent 28%),
+        radial-gradient(circle at bottom right, #efe2bf 0, transparent 32%),
+        var(--bg);
+    }
+
+    .wrap {
+      width: min(920px, calc(100% - 24px));
+      margin: 18px auto;
+    }
+
+    .card {
+      background: color-mix(in srgb, var(--panel) 92%, white);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: 0 16px 50px rgba(75, 47, 26, 0.08);
       overflow: hidden;
-      background: #d8d8d8;
-      font-family: Arial, sans-serif;
     }
 
-    .stage {
-      position: relative;
-      width: 100vw;
-      height: 100vh;
+    .hero {
+      padding: 18px 20px 14px;
+      background:
+        linear-gradient(135deg, rgba(163, 75, 42, 0.12), rgba(255, 250, 240, 0.2)),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.6), transparent);
+      border-bottom: 1px solid var(--line);
     }
 
-    .goal {
-      position: absolute;
-      top: 24px;
-      left: 24px;
-      width: calc(100vw - 500px);
-      height: 130px;
-      z-index: 3;
-      overflow: hidden;
-      border-radius: 8px;
-      background: rgba(0, 0, 0, 0.08);
+    h1 {
+      margin: 0 0 6px;
+      font-size: clamp(24px, 3.5vw, 34px);
+      line-height: 1;
+      letter-spacing: -0.03em;
     }
 
-    .donations {
-      position: absolute;
-      inset: 0;
-      z-index: 2;
-      pointer-events: none;
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      max-width: 680px;
+      font-size: 14px;
     }
 
-    .chat {
-      position: absolute;
-      right: 24px;
-      top: 24px;
-      width: 420px;
-      height: calc(100vh - 48px);
-      z-index: 4;
-      overflow: hidden;
-      border-radius: 8px;
-      background: rgba(0, 0, 0, 0.2);
+    .grid {
+      display: grid;
+      gap: 12px;
+      padding: 14px 20px 18px;
     }
 
-    iframe {
+    .meta {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .field,
+    .summary,
+    .import-box,
+    .table-box {
+      background: rgba(255, 255, 255, 0.58);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    input,
+    textarea,
+    button {
+      font: inherit;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    textarea {
       width: 100%;
-      height: 100%;
+      border: 1px solid #ccbba0;
+      border-radius: 10px;
+      padding: 9px 11px;
+      background: #fffdf8;
+      color: var(--ink);
+      font-size: 14px;
+    }
+
+    textarea {
+      min-height: 118px;
+      resize: vertical;
+    }
+
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 9px 14px;
+      background: var(--accent);
+      color: white;
+      cursor: pointer;
+      transition: transform 120ms ease, opacity 120ms ease;
+      font-size: 14px;
+      line-height: 1.1;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      opacity: 0.95;
+    }
+
+    .summary {
+      display: grid;
+      align-content: center;
+      gap: 6px;
+      background:
+        linear-gradient(160deg, rgba(234, 209, 196, 0.55), rgba(255, 255, 255, 0.7));
+    }
+
+    .summary-title {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .summary-value {
+      font-size: clamp(30px, 5vw, 46px);
+      line-height: 0.95;
+      font-weight: 700;
+      color: var(--ok);
+    }
+
+    .summary-raw {
+      margin-left: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .summary-note {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .secondary-btn {
+      background: var(--accent-soft);
+      color: var(--ink);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      padding: 8px 8px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: middle;
+      font-size: 14px;
+    }
+
+    th {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    tbody tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .track-cell input {
       border: 0;
       background: transparent;
+      padding: 0;
     }
 
-    .debug {
-      position: fixed;
-      left: 16px;
-      bottom: 16px;
-      z-index: 10;
-      width: min(720px, calc(100vw - 32px));
-      padding: 10px 12px;
-      border-radius: 8px;
-      background: rgba(0, 0, 0, 0.72);
-      color: white;
-      font: 13px/1.4 Arial, sans-serif;
+    .score-input {
+      max-width: 88px;
     }
 
-    .debug code {
-      color: white;
+    .remove-btn {
+      background: transparent;
+      color: var(--accent);
+      padding: 0;
+      border-radius: 0;
+    }
+
+    .empty {
+      color: var(--muted);
+      padding: 8px 0 2px;
+      font-size: 13px;
+    }
+
+    @media (max-width: 760px) {
+      .wrap {
+        width: min(100% - 12px, 920px);
+        margin: 12px auto;
+      }
+
+      .hero,
+      .grid {
+        padding-left: 12px;
+        padding-right: 12px;
+      }
+
+      .meta {
+        grid-template-columns: 1fr;
+      }
+
+      th:nth-child(3),
+      td:nth-child(3) {
+        width: 88px;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="stage">
-    <div class="goal">
-      <iframe
-        id="goalFrame"
-        src="https://donatex.gg/widgets/donation-goal/bdaad423-a4e5-49a0-b238-1ed3daf19b25"
-        title="DonateX goal"
-        loading="eager"
-        referrerpolicy="strict-origin-when-cross-origin">
-      </iframe>
-    </div>
+  <div class="wrap">
+    <div class="card">
+      <div class="hero">
+        <h1>Оценка альбома</h1>
+        <p class="subtitle">Вставь названия треков списком, проставь баллы, и страница сама посчитает среднюю оценку альбома.</p>
+      </div>
 
-    <div class="donations">
-      <iframe
-        id="donationsFrame"
-        src="https://donatex.gg/widgets/donations/02341f4c-b126-44c5-aa2e-77188e5907ed"
-        title="DonateX donations"
-        loading="eager"
-        referrerpolicy="strict-origin-when-cross-origin">
-      </iframe>
-    </div>
+      <div class="grid">
+        <div class="meta">
+          <div class="summary">
+            <div class="summary-title">Средняя оценка</div>
+            <div>
+              <span id="albumAverage" class="summary-value">0.0</span>
+              <span id="albumAverageRaw" class="summary-raw">точно 0.00</span>
+            </div>
+            <div id="summaryNote" class="summary-note">Пока нет оценённых треков</div>
+          </div>
+        </div>
 
-    <div class="chat">
-      <iframe
-        id="chatFrame"
-        src="https://chat.restream.io/embed?token=dc435aad-68b1-4e92-89ee-1ae26472f686"
-        title="Restream chat"
-        loading="eager"
-        referrerpolicy="strict-origin-when-cross-origin">
-      </iframe>
-    </div>
+        <div class="import-box">
+          <label for="trackList">Названия треков, по одному на строку</label>
+          <textarea id="trackList" placeholder="1. Intro&#10;2. Track Name&#10;3. Another Track"></textarea>
+          <div class="actions">
+            <button id="buildTableBtn" type="button">Создать таблицу из списка</button>
+            <button id="clearTrackListBtn" type="button" class="secondary-btn">Очистить поле</button>
+            <button id="addEmptyRowBtn" type="button">Добавить пустую строку</button>
+          </div>
+        </div>
 
-    <div class="debug">
-      Тест: <code>DonateX donations</code> + <code>DonateX goal</code> + <code>Restream chat</code>.
-      Если DonateX не загрузится, смотри Console: ищем <code>frame-ancestors</code>, <code>403/419</code> или другие ошибки.
+        <div class="table-box">
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 64px;">#</th>
+                <th>Трек</th>
+                <th style="width: 130px;">Оценка</th>
+                <th style="width: 90px;">Убрать</th>
+              </tr>
+            </thead>
+            <tbody id="tracksBody"></tbody>
+          </table>
+          <div id="emptyState" class="empty">Список ещё не добавлен.</div>
+        </div>
+      </div>
     </div>
   </div>
 
+  <template id="rowTemplate">
+    <tr>
+      <td class="row-number"></td>
+      <td class="track-cell">
+        <input type="text" class="track-input" placeholder="Название трека">
+      </td>
+      <td>
+        <input type="number" class="score-input" min="0" max="10" step="0.1" placeholder="0-10">
+      </td>
+      <td>
+        <button type="button" class="remove-btn">Удалить</button>
+      </td>
+    </tr>
+  </template>
+
   <script>
-    const frames = [
-      ["DonateX goal", document.getElementById("goalFrame")],
-      ["DonateX donations", document.getElementById("donationsFrame")],
-      ["Restream chat", document.getElementById("chatFrame")]
-    ];
+    const trackList = document.getElementById("trackList");
+    const tracksBody = document.getElementById("tracksBody");
+    const emptyState = document.getElementById("emptyState");
+    const albumAverage = document.getElementById("albumAverage");
+    const albumAverageRaw = document.getElementById("albumAverageRaw");
+    const summaryNote = document.getElementById("summaryNote");
+    const rowTemplate = document.getElementById("rowTemplate");
 
-    frames.forEach(([name, frame]) => {
-      frame.addEventListener("load", () => {
-        console.log(`${name} iframe load`);
-      });
+    function sanitizeTrackName(name) {
+      return name
+        .replace(/^\s*\d+[\.\)\-:]*\s*/, "")
+        .replace(/\s+Lyrics\s*$/i, "")
+        .trim();
+    }
 
-      frame.addEventListener("error", () => {
-        console.error(`${name} iframe error`);
+    function isTrackIndexLine(line) {
+      return /^\d+[\.\)\-:]*$/.test(line.trim());
+    }
+
+    function isNoiseLine(line) {
+      return /^\d+(?:\.\d+)?K$/i.test(line);
+    }
+
+    function isDurationLine(line) {
+      return /^\d{1,2}:\d{2}$/.test(line.trim());
+    }
+
+    function isServiceLine(line) {
+      const normalized = line.trim().toLowerCase();
+      const serviceLines = new Set([
+        "альбом",
+        "сингл",
+        "ep",
+        "слушать",
+        "трейлер"
+      ]);
+
+      return serviceLines.has(normalized);
+    }
+
+    function parseTrackList(rawText) {
+      const lines = rawText
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+      const names = [];
+      const headerLines = new Set();
+      let started = false;
+
+      for (let index = 0; index < lines.length; index += 1) {
+        const currentLine = lines[index];
+
+        if (isNoiseLine(currentLine) || isDurationLine(currentLine) || isServiceLine(currentLine)) {
+          continue;
+        }
+
+        if (isTrackIndexLine(currentLine)) {
+          started = true;
+          let lookAhead = index + 1;
+
+          while (lookAhead < lines.length) {
+            const nextLine = lines[lookAhead];
+
+            if (isNoiseLine(nextLine) || isDurationLine(nextLine) || isServiceLine(nextLine)) {
+              lookAhead += 1;
+              continue;
+            }
+
+            if (isTrackIndexLine(nextLine)) {
+              break;
+            }
+
+            names.push(sanitizeTrackName(nextLine));
+            index = lookAhead;
+            break;
+          }
+
+          if (lookAhead >= lines.length) {
+            continue;
+          }
+
+          continue;
+        }
+
+        if (!started) {
+          headerLines.add(sanitizeTrackName(currentLine));
+          continue;
+        }
+
+        const sanitizedName = sanitizeTrackName(currentLine);
+        if (!sanitizedName || headerLines.has(sanitizedName)) {
+          continue;
+        }
+
+        names.push(sanitizedName);
+      }
+
+      return names.filter(Boolean);
+    }
+
+    function updateRowNumbers() {
+      [...tracksBody.querySelectorAll("tr")].forEach((row, index) => {
+        row.querySelector(".row-number").textContent = index + 1;
       });
+      emptyState.style.display = tracksBody.children.length ? "none" : "block";
+    }
+
+    function updateAverage() {
+      const scores = [...document.querySelectorAll(".score-input")]
+        .map((input) => Number.parseFloat(input.value))
+        .filter((value) => Number.isFinite(value));
+
+      if (!scores.length) {
+        albumAverage.textContent = "0.0";
+        albumAverageRaw.textContent = "точно 0.00";
+        summaryNote.textContent = "Пока нет оценённых треков";
+        return;
+      }
+
+      const sum = scores.reduce((acc, value) => acc + value, 0);
+      const average = sum / scores.length;
+      albumAverage.textContent = average.toFixed(1);
+      albumAverageRaw.textContent = `точно ${average.toFixed(2)}`;
+      summaryNote.textContent = `Оценено треков: ${scores.length}`;
+    }
+
+    function attachRowHandlers(row) {
+      const scoreInput = row.querySelector(".score-input");
+
+      scoreInput.addEventListener("input", updateAverage);
+      scoreInput.addEventListener("wheel", () => {
+        scoreInput.blur();
+      }, { passive: true });
+
+      row.querySelector(".remove-btn").addEventListener("click", () => {
+        row.remove();
+        updateRowNumbers();
+        updateAverage();
+      });
+    }
+
+    function addRow(trackName = "") {
+      const row = rowTemplate.content.firstElementChild.cloneNode(true);
+      row.querySelector(".track-input").value = trackName;
+      attachRowHandlers(row);
+      tracksBody.appendChild(row);
+      updateRowNumbers();
+      updateAverage();
+    }
+
+    function buildRowsFromList() {
+      tracksBody.innerHTML = "";
+      const names = parseTrackList(trackList.value);
+
+      if (!names.length) {
+        updateRowNumbers();
+        updateAverage();
+        return;
+      }
+
+      names.forEach((name) => addRow(name));
+    }
+
+    document.getElementById("buildTableBtn").addEventListener("click", buildRowsFromList);
+    document.getElementById("clearTrackListBtn").addEventListener("click", () => {
+      trackList.value = "";
+      trackList.focus();
     });
+    document.getElementById("addEmptyRowBtn").addEventListener("click", () => addRow(""));
+
+    addRow("");
   </script>
 </body>
 </html>
