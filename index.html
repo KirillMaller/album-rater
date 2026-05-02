@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Restream + StreamDPS Test</title>
+  <title>DonateX + Restream Test</title>
   <style>
     html,
     body {
@@ -21,7 +21,19 @@
       height: 100vh;
     }
 
-    .donate {
+    .goal {
+      position: absolute;
+      top: 24px;
+      left: 24px;
+      width: calc(100vw - 500px);
+      height: 130px;
+      z-index: 3;
+      overflow: hidden;
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.08);
+    }
+
+    .donations {
       position: absolute;
       inset: 0;
       z-index: 2;
@@ -34,7 +46,7 @@
       top: 24px;
       width: 420px;
       height: calc(100vh - 48px);
-      z-index: 3;
+      z-index: 4;
       overflow: hidden;
       border-radius: 8px;
       background: rgba(0, 0, 0, 0.2);
@@ -52,7 +64,7 @@
       left: 16px;
       bottom: 16px;
       z-index: 10;
-      width: min(620px, calc(100vw - 32px));
+      width: min(720px, calc(100vw - 32px));
       padding: 10px 12px;
       border-radius: 8px;
       background: rgba(0, 0, 0, 0.72);
@@ -67,11 +79,21 @@
 </head>
 <body>
   <div class="stage">
-    <div class="donate">
+    <div class="goal">
       <iframe
-        id="donateFrame"
-        src="https://streamdps.ru/widgets/show/?color1=0&hash=710a925695550eb7fa8145541d9a5529b91d859fed4a8500c8a3865d2983710dd30da6bb8df1c777e7d3dd409a7f6eabd5695db2306d017c883f15afa6f4084e&webm=723944&userid=65017&type=DA&min=1&max=1000000&delay=100&channelid=UCk-I3skHX-QRgIczun0fzZw&frame=1"
-        title="StreamDPS donate"
+        id="goalFrame"
+        src="https://donatex.gg/widgets/donation-goal/bdaad423-a4e5-49a0-b238-1ed3daf19b25"
+        title="DonateX goal"
+        loading="eager"
+        referrerpolicy="strict-origin-when-cross-origin">
+      </iframe>
+    </div>
+
+    <div class="donations">
+      <iframe
+        id="donationsFrame"
+        src="https://donatex.gg/widgets/donations/02341f4c-b126-44c5-aa2e-77188e5907ed"
+        title="DonateX donations"
         loading="eager"
         referrerpolicy="strict-origin-when-cross-origin">
       </iframe>
@@ -88,21 +110,26 @@
     </div>
 
     <div class="debug">
-      Тест: <code>Restream chat</code> + <code>StreamDPS donate</code>.
-      Если донат не загрузится и в консоли будет <code>frame-ancestors</code>, значит StreamDPS блокирует встраивание.
+      Тест: <code>DonateX donations</code> + <code>DonateX goal</code> + <code>Restream chat</code>.
+      Если DonateX не загрузится, смотри Console: ищем <code>frame-ancestors</code>, <code>403/419</code> или другие ошибки.
     </div>
   </div>
 
   <script>
-    const donateFrame = document.getElementById("donateFrame");
-    const chatFrame = document.getElementById("chatFrame");
+    const frames = [
+      ["DonateX goal", document.getElementById("goalFrame")],
+      ["DonateX donations", document.getElementById("donationsFrame")],
+      ["Restream chat", document.getElementById("chatFrame")]
+    ];
 
-    donateFrame.addEventListener("load", () => {
-      console.log("StreamDPS donate iframe load");
-    });
+    frames.forEach(([name, frame]) => {
+      frame.addEventListener("load", () => {
+        console.log(`${name} iframe load`);
+      });
 
-    chatFrame.addEventListener("load", () => {
-      console.log("Restream chat iframe load");
+      frame.addEventListener("error", () => {
+        console.error(`${name} iframe error`);
+      });
     });
   </script>
 </body>
