@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DonatePay Debug</title>
+  <title>Restream + StreamDPS Test</title>
   <style>
     html,
     body {
@@ -15,9 +15,34 @@
       font-family: Arial, sans-serif;
     }
 
-    iframe {
+    .stage {
+      position: relative;
       width: 100vw;
       height: 100vh;
+    }
+
+    .donate {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    .chat {
+      position: absolute;
+      right: 24px;
+      top: 24px;
+      width: 420px;
+      height: calc(100vh - 48px);
+      z-index: 3;
+      overflow: hidden;
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    iframe {
+      width: 100%;
+      height: 100%;
       border: 0;
       background: transparent;
     }
@@ -27,103 +52,58 @@
       left: 16px;
       bottom: 16px;
       z-index: 10;
-      width: min(680px, calc(100vw - 32px));
-      max-height: 42vh;
-      overflow: auto;
-      padding: 12px 14px;
-      border: 1px solid rgba(255, 255, 255, 0.18);
+      width: min(620px, calc(100vw - 32px));
+      padding: 10px 12px;
       border-radius: 8px;
-      background: rgba(0, 0, 0, 0.78);
-      color: #fff;
+      background: rgba(0, 0, 0, 0.72);
+      color: white;
       font: 13px/1.4 Arial, sans-serif;
     }
 
-    .debug h1 {
-      margin: 0 0 8px;
-      font-size: 15px;
-    }
-
-    .log {
-      margin: 4px 0;
-      color: #d8d8d8;
-    }
-
-    .ok {
-      color: #8ee88e;
-    }
-
-    .warn {
-      color: #ffd36c;
-    }
-
-    .bad {
-      color: #ff8a8a;
-    }
-
-    code {
-      color: #fff;
+    .debug code {
+      color: white;
     }
   </style>
 </head>
 <body>
-  <iframe
-    id="testFrame"
-    src="https://widget.donatepay.ru/alert-box/widget/d06bf28652bc95b5787a97d391ffff90e5cd21a8ba4b23de934164a3fec9f34b"
-    title="DonatePay Widget"
-    loading="eager"
-    referrerpolicy="strict-origin-when-cross-origin">
-  </iframe>
+  <div class="stage">
+    <div class="donate">
+      <iframe
+        id="donateFrame"
+        src="https://streamdps.ru/widgets/show/?color1=0&hash=710a925695550eb7fa8145541d9a5529b91d859fed4a8500c8a3865d2983710dd30da6bb8df1c777e7d3dd409a7f6eabd5695db2306d017c883f15afa6f4084e&webm=723944&userid=65017&type=DA&min=1&max=1000000&delay=100&channelid=UCk-I3skHX-QRgIczun0fzZw&frame=1"
+        title="StreamDPS donate"
+        loading="eager"
+        referrerpolicy="strict-origin-when-cross-origin">
+      </iframe>
+    </div>
 
-  <div class="debug">
-    <h1>DonatePay debug</h1>
-    <div id="logs"></div>
+    <div class="chat">
+      <iframe
+        id="chatFrame"
+        src="https://chat.restream.io/embed?token=dc435aad-68b1-4e92-89ee-1ae26472f686"
+        title="Restream chat"
+        loading="eager"
+        referrerpolicy="strict-origin-when-cross-origin">
+      </iframe>
+    </div>
+
+    <div class="debug">
+      Тест: <code>Restream chat</code> + <code>StreamDPS donate</code>.
+      Если донат не загрузится и в консоли будет <code>frame-ancestors</code>, значит StreamDPS блокирует встраивание.
+    </div>
   </div>
 
   <script>
-    const logs = document.getElementById("logs");
-    const frame = document.getElementById("testFrame");
-    const startedAt = Date.now();
+    const donateFrame = document.getElementById("donateFrame");
+    const chatFrame = document.getElementById("chatFrame");
 
-    function addLog(text, type = "log") {
-      const row = document.createElement("div");
-      row.className = `log ${type}`;
-      row.innerHTML = text;
-      logs.appendChild(row);
-    }
-
-    addLog(`Страница: <code>${location.href}</code>`);
-    addLog(`Iframe: <code>${frame.src}</code>`);
-    addLog("Ожидаю событие загрузки iframe...");
-
-    frame.addEventListener("load", () => {
-      const ms = Date.now() - startedAt;
-      addLog(`Iframe прислал событие <code>load</code> через ${ms} мс. Это значит, что браузер попытался открыть страницу виджета.`, "ok");
-      addLog("Важно: <code>load</code> не гарантирует, что внутренний DonatePay-скрипт полностью заработал.", "warn");
+    donateFrame.addEventListener("load", () => {
+      console.log("StreamDPS donate iframe load");
     });
 
-    frame.addEventListener("error", () => {
-      addLog("Iframe прислал событие <code>error</code>. Это прямой сбой загрузки iframe.", "bad");
+    chatFrame.addEventListener("load", () => {
+      console.log("Restream chat iframe load");
     });
-
-    window.addEventListener("error", (event) => {
-      addLog(`JS error: <code>${event.message}</code>`, "bad");
-    });
-
-    window.addEventListener("unhandledrejection", (event) => {
-      const reason = event.reason && (event.reason.message || String(event.reason));
-      addLog(`Promise error: <code>${reason || "unknown rejection"}</code>`, "bad");
-    });
-
-    window.addEventListener("message", (event) => {
-      const origin = event.origin || "unknown origin";
-      addLog(`postMessage от <code>${origin}</code>`, "ok");
-    });
-
-    setTimeout(() => {
-      addLog("Если в консоли есть <code>frame-ancestors</code>, значит сервис запретил iframe-встраивание.", "warn");
-      addLog("Если в консоли есть <code>/socket/token 419</code>, значит iframe не заблокирован, но сам DonatePay не получил рабочий токен.", "warn");
-      addLog("Если есть <code>postMessage target origin</code>, значит внутри виджета ломается обмен между окнами/доменами.", "warn");
-    }, 2500);
   </script>
 </body>
 </html>
