@@ -3,20 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DonatePay Test</title>
+  <title>DonatePay Debug</title>
   <style>
-    html, body {
+    html,
+    body {
       width: 100%;
       height: 100%;
       margin: 0;
       overflow: hidden;
-      background: transparent;
-    }
-
-    body {
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      background: #d8d8d8;
+      font-family: Arial, sans-serif;
     }
 
     iframe {
@@ -26,29 +22,108 @@
       background: transparent;
     }
 
-    .note {
+    .debug {
       position: fixed;
       left: 16px;
       bottom: 16px;
-      max-width: 420px;
-      padding: 10px 12px;
-      border-radius: 12px;
-      background: rgba(0, 0, 0, 0.65);
-      color: white;
+      z-index: 10;
+      width: min(680px, calc(100vw - 32px));
+      max-height: 42vh;
+      overflow: auto;
+      padding: 12px 14px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.78);
+      color: #fff;
       font: 13px/1.4 Arial, sans-serif;
+    }
+
+    .debug h1 {
+      margin: 0 0 8px;
+      font-size: 15px;
+    }
+
+    .log {
+      margin: 4px 0;
+      color: #d8d8d8;
+    }
+
+    .ok {
+      color: #8ee88e;
+    }
+
+    .warn {
+      color: #ffd36c;
+    }
+
+    .bad {
+      color: #ff8a8a;
+    }
+
+    code {
+      color: #fff;
     }
   </style>
 </head>
 <body>
   <iframe
+    id="testFrame"
     src="https://widget.donatepay.ru/alert-box/widget/d06bf28652bc95b5787a97d391ffff90e5cd21a8ba4b23de934164a3fec9f34b"
     title="DonatePay Widget"
     loading="eager"
     referrerpolicy="strict-origin-when-cross-origin">
   </iframe>
 
-  <div class="note">
-    Тест одной ссылки DonatePay. Если не откроется, смотри F12 -> Console.
+  <div class="debug">
+    <h1>DonatePay debug</h1>
+    <div id="logs"></div>
   </div>
+
+  <script>
+    const logs = document.getElementById("logs");
+    const frame = document.getElementById("testFrame");
+    const startedAt = Date.now();
+
+    function addLog(text, type = "log") {
+      const row = document.createElement("div");
+      row.className = `log ${type}`;
+      row.innerHTML = text;
+      logs.appendChild(row);
+    }
+
+    addLog(`Страница: <code>${location.href}</code>`);
+    addLog(`Iframe: <code>${frame.src}</code>`);
+    addLog("Ожидаю событие загрузки iframe...");
+
+    frame.addEventListener("load", () => {
+      const ms = Date.now() - startedAt;
+      addLog(`Iframe прислал событие <code>load</code> через ${ms} мс. Это значит, что браузер попытался открыть страницу виджета.`, "ok");
+      addLog("Важно: <code>load</code> не гарантирует, что внутренний DonatePay-скрипт полностью заработал.", "warn");
+    });
+
+    frame.addEventListener("error", () => {
+      addLog("Iframe прислал событие <code>error</code>. Это прямой сбой загрузки iframe.", "bad");
+    });
+
+    window.addEventListener("error", (event) => {
+      addLog(`JS error: <code>${event.message}</code>`, "bad");
+    });
+
+    window.addEventListener("unhandledrejection", (event) => {
+      const reason = event.reason && (event.reason.message || String(event.reason));
+      addLog(`Promise error: <code>${reason || "unknown rejection"}</code>`, "bad");
+    });
+
+    window.addEventListener("message", (event) => {
+      const origin = event.origin || "unknown origin";
+      addLog(`postMessage от <code>${origin}</code>`, "ok");
+    });
+
+    setTimeout(() => {
+      addLog("Если в консоли есть <code>frame-ancestors</code>, значит сервис запретил iframe-встраивание.", "warn");
+      addLog("Если в консоли есть <code>/socket/token 419</code>, значит iframe не заблокирован, но сам DonatePay не получил рабочий токен.", "warn");
+      addLog("Если есть <code>postMessage target origin</code>, значит внутри виджета ломается обмен между окнами/доменами.", "warn");
+    }, 2500);
+  </script>
 </body>
 </html>
