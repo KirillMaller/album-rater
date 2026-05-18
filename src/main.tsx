@@ -555,6 +555,17 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   };
 
+  const checkAdmin = async (userId: string) => {
+    if (!supabase) return false;
+    const { data, error } = await supabase
+      .from('admin_users')
+      .select('user_id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error) throw error;
+    return Boolean(data);
+  };
+
   useEffect(() => {
     if (!supabase) return;
 
@@ -578,12 +589,9 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    supabase
-      .from('admin_users')
-      .select('user_id')
-      .eq('user_id', user.id)
-      .maybeSingle()
-      .then(({ data }) => setAdminState(Boolean(data)));
+    checkAdmin(user.id)
+      .then(setAdminState)
+      .catch(() => setAdminState(false));
   }, [user]);
 
   const value = useMemo<Store>(() => ({
@@ -604,8 +612,17 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
+      const nextUser = data.user;
+      if (!nextUser) throw new Error('Supabase не вернул пользователя после входа');
+      const isAdmin = await checkAdmin(nextUser.id);
+      if (!isAdmin) {
+        await supabase.auth.signOut();
+        throw new Error('Этот аккаунт не добавлен в список админов');
+      }
+      setUser(nextUser);
+      setAdminState(true);
     },
     async signOut() {
       if (supabase) await supabase.auth.signOut();
