@@ -1923,6 +1923,15 @@ function EditorPage() {
   };
 
   const [saveError, setSaveError] = useState('');
+  const extractErrorMessage = (error: unknown) => {
+    if (error instanceof Error) return error.message;
+    if (error && typeof error === 'object') {
+      const obj = error as { message?: string; details?: string; hint?: string; code?: string };
+      const parts = [obj.message, obj.details, obj.hint, obj.code ? `код ${obj.code}` : null].filter(Boolean);
+      if (parts.length) return parts.join(' — ');
+    }
+    return 'Не удалось сохранить запись';
+  };
   const submitItem = async (published: boolean) => {
     setSaveError('');
     try {
@@ -1930,7 +1939,8 @@ function EditorPage() {
       localStorage.removeItem(editorDraftKey);
       navigate('/admin');
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : 'Не удалось сохранить запись');
+      console.error('saveItem failed:', error);
+      setSaveError(extractErrorMessage(error));
     }
   };
 
@@ -1965,7 +1975,7 @@ function EditorPage() {
           {draftBackupStatus && (
             <div className="form-note draft-backup-note">
               <span>{draftBackupStatus}</span>
-              <button type="button" className="ghost" onClick={resetLocalDraft}>Сбросить локальный черновик</button>
+              <button type="button" className="ghost icon-btn" title="Сбросить черновик" onClick={resetLocalDraft}><Trash2 size={14} /></button>
             </div>
           )}
           <div className="form-grid">

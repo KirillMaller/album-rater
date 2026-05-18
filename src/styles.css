@@ -601,7 +601,7 @@ nav .nav-soon { cursor: help; opacity: .85; }
   gap: 10px;
   flex-wrap: wrap;
 }
-.draft-backup-note button { min-height: 32px; }
+.draft-backup-note .icon-btn { min-height: 28px; width: 28px; min-width: 28px; padding: 0; }
 .import-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
