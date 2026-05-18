@@ -100,6 +100,49 @@ function todayInMoscow() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Moscow' });
 }
 
+function parseScoreInput(text: string): number | '' {
+  const cleaned = text.replace(',', '.').trim();
+  if (cleaned === '') return '';
+  const num = Number.parseFloat(cleaned);
+  if (Number.isNaN(num)) return '';
+  return num;
+}
+
+function formatScoreValue(value: number | '') {
+  return value === '' ? '' : String(value).replace('.', ',');
+}
+
+function ScoreInput({ value, onChange, disabled, placeholder }: {
+  value: number | '';
+  onChange: (next: number | '') => void;
+  disabled?: boolean;
+  placeholder?: string;
+}) {
+  const [text, setText] = useState<string>(formatScoreValue(value));
+  useEffect(() => {
+    const current = parseScoreInput(text);
+    if (current !== value) {
+      setText(formatScoreValue(value));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={text}
+      placeholder={placeholder}
+      disabled={disabled}
+      onChange={(event) => {
+        const raw = event.target.value;
+        setText(raw);
+        onChange(parseScoreInput(raw));
+      }}
+      onWheel={(event) => (event.currentTarget as HTMLInputElement).blur()}
+    />
+  );
+}
+
 function formatMSKDate(value: string) {
   if (!value) return '';
   const [y, m, d] = value.split('-').map(Number);
@@ -1987,12 +2030,6 @@ function EditorPage() {
         <section className="panel">
           <h1>{existing ? 'Редактирование' : `Оценка: ${itemTypeLabel(draft.type).toLowerCase()}`}</h1>
           {saveError && <p className="form-error">{saveError}</p>}
-          {draftBackupStatus && (
-            <div className="form-note draft-backup-note">
-              <span>{draftBackupStatus}</span>
-              <button type="button" className="ghost icon-btn" title="Сбросить черновик" onClick={resetLocalDraft}><Trash2 size={14} /></button>
-            </div>
-          )}
           <div className="form-grid">
             <select value={draft.type} disabled={Boolean(existing)} onChange={(event) => handleTypeChange(event.target.value as ItemType)}><option value="album">Альбом</option><option value="battle">Баттл</option><option value="track">Трек</option></select>
             <input value={draft.title} onChange={(event) => patch({ title: event.target.value, slug: draft.slug || normalizeSlug(event.target.value) })} placeholder="Название" required />
@@ -2070,7 +2107,7 @@ function EditorPage() {
             <div className="track-edit" key={track.id}>
               <span>{index + 1}</span>
               <input value={track.title} onChange={(event) => updateTrack(index, { title: event.target.value })} />
-              <input type="number" min="0" max="10" step="0.1" value={track.score} onChange={(event) => updateTrack(index, { score: event.target.value === '' ? '' : Number(event.target.value) })} />
+              <ScoreInput value={track.score} onChange={(next) => updateTrack(index, { score: next })} />
               <div className="track-row-actions">
                 <button type="button" className="ghost icon-btn" disabled={index === 0} onClick={() => moveTrack(index, -1)} title="Поднять трек"><ArrowUp size={16} /></button>
                 <button type="button" className="ghost icon-btn" disabled={index === draft.tracks.length - 1} onClick={() => moveTrack(index, 1)} title="Опустить трек"><ArrowDown size={16} /></button>
@@ -2089,8 +2126,8 @@ function EditorPage() {
           {battle.rounds.map((round, index) => (
             <div className="battle-round" key={round.id}>
               <strong>Раунд {index + 1}</strong>
-              <input type="number" min="0" max="10" step="0.1" value={round.scoreA} onChange={(event) => updateBattleRound(index, { scoreA: event.target.value === '' ? '' : Number(event.target.value) })} placeholder={`Очки: ${battle.sideA || 'A'}`} />
-              <input type="number" min="0" max="10" step="0.1" value={round.scoreB} onChange={(event) => updateBattleRound(index, { scoreB: event.target.value === '' ? '' : Number(event.target.value) })} placeholder={`Очки: ${battle.sideB || 'B'}`} />
+              <ScoreInput value={round.scoreA} onChange={(next) => updateBattleRound(index, { scoreA: next })} placeholder={`Очки: ${battle.sideA || 'A'}`} />
+              <ScoreInput value={round.scoreB} onChange={(next) => updateBattleRound(index, { scoreB: next })} placeholder={`Очки: ${battle.sideB || 'B'}`} />
               <select value={round.winner} onChange={(event) => updateBattleRound(index, { winner: event.target.value as BattleSideKey })}>
                 <option value="draw">Ничья / спорно</option>
                 <option value="a">Раунд за {battle.sideA || 'A'}</option>
@@ -2124,7 +2161,7 @@ function EditorPage() {
             </div>
             <div>
               <select value={draft.scoreMode} disabled={isTrackItem || isBattleItem} onChange={(event) => patch({ scoreMode: event.target.value as ScoreMode })}><option value="auto">Среднее по трекам</option><option value="manual">Вручную</option></select>
-              <input type="number" min="0" max="10" step="0.1" value={albumScore} disabled={draft.scoreMode === 'auto'} onChange={(event) => patch({ finalScore: Number(event.target.value) })} />
+              <ScoreInput value={albumScore} disabled={draft.scoreMode === 'auto'} onChange={(next) => patch({ finalScore: next === '' ? 0 : next })} />
             </div>
           </div>
           <textarea className="review-input" value={draft.review || ''} onChange={(event) => patch({ review: event.target.value })} placeholder="Markdown-рецензия" />
