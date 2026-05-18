@@ -1034,7 +1034,7 @@ function HomePage() {
 
       {featured.length > 0 && (
         <section className="featured-strip" aria-label="Лучшее в каталоге">
-          {featured.map((item) => <FeaturedCard key={item.id} item={item} />)}
+          {featured.map((item) => <FeaturedCard key={item.id} item={item} admin={admin} />)}
         </section>
       )}
 
@@ -1077,7 +1077,7 @@ function HomePage() {
               <div className="empty">По этим фильтрам пока нет опубликованных записей.</div>
             ) : (
               <div className="catalog-grid">
-                {visibleItems.map((item) => <ItemCard key={item.id} item={item} />)}
+                {visibleItems.map((item) => <ItemCard key={item.id} item={item} admin={admin} />)}
               </div>
             )}
           </div>
@@ -1101,41 +1101,47 @@ function HomePage() {
   );
 }
 
-function FeaturedCard({ item }: { item: RatedItem }) {
+function FeaturedCard({ item, admin }: { item: RatedItem; admin?: boolean }) {
   return (
-    <Link to={`/item/${item.slug}`} className={`featured-card featured-${item.type}`}>
-      <CardCover item={item} />
-      <div className="featured-veil" />
-      <span className={`${scoreClass(item.finalScore)} score-pos`}>{item.finalScore.toFixed(1)}</span>
-      <span className={`type-chip type-${item.type} card-type-chip`}><ItemTypeIcon type={item.type} /><span>{itemTypeLabel(item.type)}</span></span>
-      <div className="featured-body">
-        <div className="featured-meta">
-          <span>{cardDateLabel(item)}</span>
+    <div className="featured-card-shell">
+      <Link to={`/item/${item.slug}`} className={`featured-card featured-${item.type}`}>
+        <CardCover item={item} />
+        <div className="featured-veil" />
+        <span className={`${scoreClass(item.finalScore)} score-pos`}>{item.finalScore.toFixed(1)}</span>
+        <span className={`type-chip type-${item.type} card-type-chip`}><ItemTypeIcon type={item.type} /><span>{itemTypeLabel(item.type)}</span></span>
+        <div className="featured-body">
+          <div className="featured-meta">
+            <span>{cardDateLabel(item)}</span>
+          </div>
+          <h2>{item.title}</h2>
+          <p>{catalogSubtitle(item)}</p>
         </div>
-        <h2>{item.title}</h2>
-        <p>{catalogSubtitle(item)}</p>
-      </div>
-    </Link>
+      </Link>
+      {admin && <Link className="card-edit-button" to={`/admin/edit/${item.id}`} title="Редактировать"><Edit3 size={15} /><span>Править</span></Link>}
+    </div>
   );
 }
 
-function ItemCard({ item }: { item: RatedItem }) {
+function ItemCard({ item, admin }: { item: RatedItem; admin?: boolean }) {
   return (
-    <Link to={`/item/${item.slug}`} className="catalog-card">
-      <div className="catalog-thumb">
-        <CardCover item={item} />
-        <span className={`type-chip type-${item.type} card-type-chip`}><ItemTypeIcon type={item.type} /><span>{itemTypeLabel(item.type)}</span></span>
-        <span className={scoreClass(item.finalScore)}>{item.finalScore.toFixed(1)}</span>
-      </div>
-      <div className="catalog-card-body">
-        <h2>{item.title}</h2>
-        <p>{catalogSubtitle(item)}</p>
-      </div>
-      <div className="catalog-card-foot">
-        <span>{cardDateLabel(item)}</span>
-        <span>{item.links.length ? `${item.links.length} ссыл.` : 'без ссылок'}</span>
-      </div>
-    </Link>
+    <div className="catalog-card-shell">
+      <Link to={`/item/${item.slug}`} className="catalog-card">
+        <div className="catalog-thumb">
+          <CardCover item={item} />
+          <span className={`type-chip type-${item.type} card-type-chip`}><ItemTypeIcon type={item.type} /><span>{itemTypeLabel(item.type)}</span></span>
+          <span className={scoreClass(item.finalScore)}>{item.finalScore.toFixed(1)}</span>
+        </div>
+        <div className="catalog-card-body">
+          <h2>{item.title}</h2>
+          <p>{catalogSubtitle(item)}</p>
+        </div>
+        <div className="catalog-card-foot">
+          <span>{cardDateLabel(item)}</span>
+          <span>{item.links.length ? `${item.links.length} ссыл.` : 'без ссылок'}</span>
+        </div>
+      </Link>
+      {admin && <Link className="card-edit-button" to={`/admin/edit/${item.id}`} title="Редактировать"><Edit3 size={15} /><span>Править</span></Link>}
+    </div>
   );
 }
 
@@ -1244,7 +1250,8 @@ function relativeDate(value: string) {
 
 function ItemPage() {
   const { slug } = useParams();
-  const item = useStore().items.find((entry) => entry.slug === slug);
+  const { items, admin } = useStore();
+  const item = items.find((entry) => entry.slug === slug);
   if (!item || !item.published) return <main><div className="empty">Запись не найдена или ещё не опубликована.</div></main>;
   const originals = item.links.filter((link) => link.kind === 'original');
   const reactions = item.links.filter((link) => link.kind === 'reaction');
@@ -1259,6 +1266,7 @@ function ItemPage() {
           <h1>{item.title}</h1>
           <p>{item.releaseYear || 'Без года'} · {item.genre || 'Без жанра'}{item.reviewedAt ? ` · оценено ${formatMSKDate(item.reviewedAt)}` : ''}</p>
           <span className={scoreClass(item.finalScore)}>{item.finalScore.toFixed(1)}</span>
+          {admin && <p><Link className="button detail-edit-link" to={`/admin/edit/${item.id}`}><Edit3 size={16} /> Редактировать оценку</Link></p>}
           {item.description && <p className="lead">{item.description}</p>}
         </div>
       </section>

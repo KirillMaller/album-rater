@@ -1,6 +1,6 @@
 :root {
   color-scheme: dark;
-  --bg: #090b12;
+  --bg: #0d101a;
   --panel: #121623;
   --panel-2: #191d2d;
   --line: #2a3147;
@@ -27,8 +27,8 @@ body {
   margin: 0;
   min-width: 320px;
   background:
-    linear-gradient(135deg, rgba(145, 70, 255, 0.14), transparent 32%),
-    linear-gradient(210deg, rgba(0, 229, 255, 0.1), transparent 35%),
+    linear-gradient(135deg, rgba(145, 70, 255, 0.16), transparent 32%),
+    linear-gradient(210deg, rgba(0, 229, 255, 0.12), transparent 35%),
     var(--bg);
   color: var(--text);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -279,8 +279,14 @@ nav .nav-soon { cursor: help; opacity: .85; }
   gap: 16px;
   margin: 10px 0 22px;
 }
+.featured-card-shell,
+.catalog-card-shell {
+  position: relative;
+  min-width: 0;
+}
 .featured-card {
   position: relative;
+  display: block;
   min-height: 240px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, .08);
@@ -469,12 +475,40 @@ nav .nav-soon { cursor: help; opacity: .85; }
   gap: 16px;
 }
 .catalog-card {
+  display: block;
   min-width: 0;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, .08);
   border-radius: 8px;
   background: rgba(18, 22, 35, .62);
   transition: transform .22s var(--ease), border-color .22s var(--ease), box-shadow .22s var(--ease);
+}
+.card-edit-button {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 6px 10px;
+  border: 1px solid rgba(0, 229, 255, .42);
+  border-radius: 8px;
+  background: rgba(9, 11, 18, .84);
+  color: #e8f6ff;
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow: none;
+  backdrop-filter: blur(8px);
+}
+.card-edit-button:hover {
+  border-color: rgba(0, 229, 255, .72);
+  background: rgba(0, 229, 255, .14);
+}
+.detail-edit-link {
+  width: fit-content;
+  margin-top: 6px;
 }
 .catalog-thumb {
   position: relative;
