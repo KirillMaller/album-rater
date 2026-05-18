@@ -495,7 +495,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(Boolean(supabase));
   const [error, setError] = useState<string>();
   const [user, setUser] = useState<User | null>(null);
-  const [admin, setAdminState] = useState(localStorage.getItem(authKey) === '1');
+  const [admin, setAdminState] = useState(!supabase && localStorage.getItem(authKey) === '1');
 
   const persist = (next: RatedItem[]) => {
     setItems(next);
@@ -557,6 +557,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
     admin,
     user,
     setAdmin(value) {
+      if (supabase) return;
       setAdminState(value);
       localStorage.setItem(authKey, value ? '1' : '0');
     },
@@ -574,7 +575,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
       if (supabase) await supabase.auth.signOut();
       setUser(null);
       setAdminState(false);
-      localStorage.setItem(authKey, '0');
+      if (!supabase) localStorage.setItem(authKey, '0');
     },
     async saveItem(item) {
       const normalized = {
