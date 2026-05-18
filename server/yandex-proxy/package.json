@@ -1,0 +1,7 @@
+{
+  "name": "yandex-music-proxy",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.mjs",
+  "description": "Прокси для импорта метаданных альбомов из Яндекс.Музыки. Деплоится на VPS в РФ (см. server/yandex-proxy/README.md)."
+}

@@ -1,0 +1,15 @@
+195.208.3.209.sslip.io {
+    encode gzip
+
+    handle /yandex-music/* {
+        reverse_proxy 127.0.0.1:3001
+    }
+
+    handle /health {
+        reverse_proxy 127.0.0.1:3001
+    }
+
+    handle {
+        respond "yandex-music-proxy" 200
+    }
+}
