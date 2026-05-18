@@ -4,7 +4,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "backup:supabase": "node scripts/backup-supabase.mjs",
-    "check:proxy": "node scripts/check-yandex-proxy.mjs"
+    "check:proxy": "node scripts/check-yandex-proxy.mjs",
+    "audit:admins": "node scripts/audit-admins.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
