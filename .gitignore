@@ -7,3 +7,5 @@ vite.config.js
 vite.config.d.ts
 supabase/.temp/
 .vscode/
+db/snapshots/*
+!db/snapshots/README.md

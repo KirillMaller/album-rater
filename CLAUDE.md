@@ -110,15 +110,30 @@ YouTube oEmbed (https://www.youtube.com/oembed)
 - Ветка `main` → автодеплой на GitHub Pages. **Сначала проверка в браузере, потом коммит** — это правило из глобального CLAUDE.md.
 - Не коммитить без явного «коммить» от Кирилла.
 - В этом репо нет PR-флоу с Никитой — Кирилл единственный мейнтейнер, пушит в `main` напрямую.
-- Не коммитить `.env.local`, `dist/`, `node_modules/`, `supabase/.temp/`.
+- Не коммитить `.env.local`, `dist/`, `node_modules/`, `supabase/.temp/`, `db/snapshots/*` (кроме README).
+
+## ⚠️ Безопасность данных — обязательно прочитать перед опасными операциями
+
+**Главное правило:** обновление фронта (`git push`) НИКОГДА не трогает данные на Supabase. Это безопасная операция. Что **может** разрушить данные — миграции БД с `DROP` / `TRUNCATE` / `ALTER ... DROP COLUMN`, и удаление через Dashboard.
+
+**Перед любой потенциально разрушающей операцией:**
+
+1. Прочитать [docs/DATA_SAFETY.md](docs/DATA_SAFETY.md) — там полный runbook со списком опасных операций, как делать снапшоты, как восстанавливаться.
+2. Сделать локальный JSON-снапшот данных через Supabase Management API (команда в DATA_SAFETY.md).
+3. Получить от Кирилла **явное подтверждение** что эта операция нужна и риск понятен.
+4. Никогда не катить `DROP TABLE` / `TRUNCATE` / `git push --force в main` / `supabase db reset` без явного «да».
+5. Все новые миграции — **только additive** (`CREATE TABLE`, `ADD COLUMN`, etc.). Никаких `DROP` / `RENAME`.
+
+**Если что-то пошло не так** — стоп, сразу к Кириллу. Не пытаться чинить молча.
 
 ## Что читать при старте сессии
 
 1. Этот `CLAUDE.md`.
-2. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — продуктовая логика и доменные понятия.
-3. [docs/BACKLOG.md](docs/BACKLOG.md) — что в очереди.
-4. Свежий спринт в [team/sprints/](team/sprints/).
-5. [docs/CHANGELOG.md](docs/CHANGELOG.md) — что менялось для пользователя.
+2. [docs/DATA_SAFETY.md](docs/DATA_SAFETY.md) — **обязательно** перед любой работой с БД.
+3. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — продуктовая логика и доменные понятия.
+4. [docs/BACKLOG.md](docs/BACKLOG.md) — что в очереди.
+5. Свежий спринт в [team/sprints/](team/sprints/).
+6. [docs/CHANGELOG.md](docs/CHANGELOG.md) — что менялось для пользователя.
 
 ## Чего тут **нет** (чтобы не искать)
 
