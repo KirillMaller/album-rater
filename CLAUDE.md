@@ -6,7 +6,7 @@
 
 **R1fрейтинг** — сайт-каталог оценок стримера **Рифмабеса**. Он стримит на YouTube / Twitch / Boosty: баттл-рэп (сам баттлер), реакции на баттлы и треки, обзоры альбомов, фильмы и аниме по донатам, плюс свои треки.
 
-Прод: **https://kirillmaller.github.io/album-rater/**.
+Прод: **https://rifmabes.ru/**.
 
 Сайт нужен чтобы:
 
@@ -21,18 +21,22 @@
 - **Frontend:** React 18 + Vite 6 + TypeScript, React Router, lucide-react, react-markdown.
 - **Backend:** Supabase Cloud (Postgres + Auth + RLS, проект `nfekasqbzwjelrwyxqmv` под аккаунтом `KirillMaller's Org`). В демо-режиме (без `.env.local`) данные живут в `localStorage`.
 - **Яндекс-импорт:** отдельный Node.js-прокси на VPS в РФ (см. ниже).
-- **Деплой:** GitHub Pages, ветка `main` → workflow `.github/workflows/deploy.yml`. Vite собирает с `base: '/album-rater/'`.
+- **Деплой:** GitHub Pages, ветка `main` → workflow `.github/workflows/deploy.yml`, кастомный домен `rifmabes.ru`. Vite собирает с `base: '/'`.
 - **SPA-фоллбек на Pages:** `public/404.html` перехватывает прямые ссылки.
 
 ## Карта файлов
 
 | Файл / папка | Что внутри |
 |---|---|
-| [src/main.tsx](src/main.tsx) | **Вся логика SPA**: типы, маршруты, страницы, редактор, импорт Яндекса. ~1300 строк, монолит. |
+| [src/main.tsx](src/main.tsx) | **Вся логика SPA**: типы, маршруты, страницы, редактор, импорт Яндекса, аукционы. ~2350 строк, монолит. |
 | [src/styles.css](src/styles.css) | Все стили. |
-| [vite.config.ts](vite.config.ts) | Vite-конфиг. Минимальный — только React-плагин и base-путь. |
+| [vite.config.ts](vite.config.ts) | Vite-конфиг. Минимальный — только React-плагин и `base: '/'` (с момента переезда на кастомный домен). |
 | [db/migrations/001_init.sql](db/migrations/001_init.sql) | Базовая схема: `rated_items`, `track_scores`, `media_links`, `admin_users`, RLS, `is_admin()`. |
-| [db/migrations/002_add_track_type.sql](db/migrations/002_add_track_type.sql) | Добавляет тип `track` и колонку `metadata jsonb`. На живой Supabase **ещё не накачено** — задача в спринте. |
+| [db/migrations/002_add_track_type.sql](db/migrations/002_add_track_type.sql) | Добавляет тип `track` и колонку `metadata jsonb`. |
+| [db/migrations/003_auction_items.sql](db/migrations/003_auction_items.sql) | Таблица очереди аукционов (`auction_items`) + RLS. |
+| [db/migrations/004_auction_rules.sql](db/migrations/004_auction_rules.sql) | Таблица правил аукционов (markdown по `scope`). |
+| [db/migrations/005_reviewed_at.sql](db/migrations/005_reviewed_at.sql) | Поле `reviewed_at date` в `rated_items`. |
+| [db/migrations/006_score_up_to_11.sql](db/migrations/006_score_up_to_11.sql) | Расширение границ оценки до 0..11. Все шесть миграций накачены на проде вручную через Management API/SQL Editor. |
 | [server/yandex-proxy/](server/yandex-proxy/) | **Код прокси для Яндекс.Музыки** (бэкап того что крутится на VPS). См. подробный README в этой папке. |
 | [supabase/](supabase/) | Конфиг для Supabase CLI (`config.toml`, привязка к проекту). Edge Functions не используем — провалились на гео-блоке Яндекса. |
 | [public/404.html](public/404.html) | SPA-фоллбек для GitHub Pages. |
@@ -46,8 +50,8 @@
 - URL: `https://nfekasqbzwjelrwyxqmv.supabase.co`
 - Регион: West EU (Ireland), Free Tier.
 - Доступ через CLI: `npx supabase` (поставлен как dev-зависимость в `package.json`). Auth-token хранится у Кирилла, у Claude — через env-переменную `SUPABASE_ACCESS_TOKEN`.
-- **Миграции 001 и 002 уже накачены** (накатывались через SQL Editor вручную, поэтому Supabase Dashboard на главной странице показывает «No migrations» — он считает только то, что катилось через `supabase db push`). Проверить состояние схемы можно SQL-запросом через Management API: `POST https://api.supabase.com/v1/projects/nfekasqbzwjelrwyxqmv/database/query`.
-- В `admin_users` сейчас один email — `kirillmakarov820@gmail.com`. Это admin-аккаунт Кирилла на проде.
+- **Миграции 001-006 накачены на проде** (через SQL Editor / Management API, не через `supabase db push` — поэтому Supabase Dashboard на главной странице показывает «No migrations»). Проверить состояние схемы: `POST https://api.supabase.com/v1/projects/nfekasqbzwjelrwyxqmv/database/query`.
+- В `admin_users` два email: `kirillmakarov820@gmail.com` (Кирилл) и `r1fmabes.rating@gmail.com` (Рифмабес-стример).
 - Edge Functions **не используем** для Яндекса — гео-блок не пускает к `api.music.yandex.net` из EU.
 
 ### VPS `bot-napominalka` на reg.cloud
@@ -62,16 +66,18 @@
 
 ### GitHub Pages (фронт)
 
-- Прод-URL: `https://kirillmaller.github.io/album-rater/`.
+- Прод-URL: `https://rifmabes.ru/` (кастомный домен).
 - Репо: [github.com/KirillMaller/album-rater](https://github.com/KirillMaller/album-rater) (публичный).
 - Деплоится автоматически при push в `main` через `.github/workflows/deploy.yml`.
 - Секреты в репо (все три заведены): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_YANDEX_PROXY_URL`.
+- **Кастомный домен `rifmabes.ru`** куплен на reg.ru 2026-05-18. DNS: 4 A-записи на 185.199.108-111.153 (IP GitHub Pages) + CNAME `www` на `kirillmaller.github.io.`. Файл `public/CNAME` в репо. `vite.config.ts` base=`/`, роутер без basename.
+- Старая ссылка `kirillmaller.github.io/album-rater/` теперь редиректит на новый домен (GitHub Pages обслуживает только cname).
 
 ## Запуск локально
 
 ```bash
 npm install
-npm run dev   # http://127.0.0.1:5173/album-rater/
+npm run dev   # http://127.0.0.1:5173/
 npm run build # tsc + vite build → dist/
 ```
 
