@@ -40,6 +40,68 @@ type ItemType = 'album' | 'battle' | 'track';
 type ScoreMode = 'auto' | 'manual';
 type LinkKind = 'original' | 'reaction';
 
+type AuctionCategory = 'album' | 'series' | 'film' | 'anime' | 'game' | 'battle';
+
+type AuctionItem = {
+  id: string;
+  category: AuctionCategory;
+  title: string;
+  artist?: string;
+  amount: number;
+  note?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type AuctionRules = {
+  scope: string;
+  content: string;
+  updatedAt: string;
+};
+
+const auctionCategoryLabel: Record<AuctionCategory, string> = {
+  album: 'Альбомы',
+  series: 'Сериалы',
+  film: 'Фильмы',
+  anime: 'Аниме',
+  game: 'Игры',
+  battle: 'Баттлы',
+};
+
+const auctionCategoryOrder: AuctionCategory[] = ['album', 'series', 'film', 'anime', 'game', 'battle'];
+
+const auctionCategoryHasArtist: Record<AuctionCategory, boolean> = {
+  album: true,
+  battle: true,
+  series: false,
+  film: false,
+  anime: false,
+  game: false,
+};
+
+function monthsSince(value: string) {
+  const time = Date.parse(value);
+  if (Number.isNaN(time)) return 0;
+  const diffDays = (Date.now() - time) / (24 * 60 * 60 * 1000);
+  return Math.floor(diffDays / 30);
+}
+
+function auctionStaleLevel(item: AuctionItem): 'fresh' | 'warning' | 'danger' {
+  if (item.amount > 500) return 'fresh';
+  const months = monthsSince(item.updatedAt);
+  if (months >= 6) return 'danger';
+  if (months >= 3) return 'warning';
+  return 'fresh';
+}
+
+function auctionStaleLabel(item: AuctionItem) {
+  const level = auctionStaleLevel(item);
+  if (level === 'fresh') return '';
+  const months = monthsSince(item.updatedAt);
+  if (level === 'danger') return `давно не обновлялся (${months} мес.), можно убрать`;
+  return `давно не обновлялся (${months} мес.)`;
+}
+
 type BattleSideKey = 'a' | 'b' | 'draw';
 
 type BattleRound = {
@@ -431,6 +493,12 @@ function itemTypeLabel(type: ItemType) {
   return 'Трек';
 }
 
+function itemTypeIcon(type: ItemType) {
+  if (type === 'album') return '●';
+  if (type === 'battle') return '⚔';
+  return '♪';
+}
+
 function itemCredit(item: RatedItem) {
   if (item.type === 'battle') return item.participants || 'Участники не указаны';
   return item.artist || 'Артист не указан';
@@ -516,7 +584,38 @@ type Store = {
   signOut: () => Promise<void>;
   saveItem: (item: RatedItem) => Promise<void>;
   deleteItem: (id: string) => Promise<void>;
+  auctions: AuctionItem[];
+  auctionRules: AuctionRules | null;
+  auctionsLoading: boolean;
+  auctionsError?: string;
+  saveAuction: (item: AuctionItem) => Promise<void>;
+  deleteAuction: (id: string) => Promise<void>;
+  saveAuctionRules: (content: string) => Promise<void>;
 };
+
+function fromDbAuction(row: any): AuctionItem {
+  return {
+    id: row.id,
+    category: row.category,
+    title: row.title,
+    artist: row.artist ?? undefined,
+    amount: Number(row.amount ?? 0),
+    note: row.note ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function toDbAuction(item: AuctionItem) {
+  return {
+    id: item.id,
+    category: item.category,
+    title: item.title,
+    artist: item.artist || null,
+    amount: item.amount,
+    note: item.note || null,
+  };
+}
 
 const StoreContext = createContext<Store | null>(null);
 
@@ -532,6 +631,35 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string>();
   const [user, setUser] = useState<User | null>(null);
   const [admin, setAdminState] = useState(!supabase && localStorage.getItem(authKey) === '1');
+  const [auctions, setAuctions] = useState<AuctionItem[]>([]);
+  const [auctionRules, setAuctionRules] = useState<AuctionRules | null>(null);
+  const [auctionsLoading, setAuctionsLoading] = useState(Boolean(supabase));
+  const [auctionsError, setAuctionsError] = useState<string>();
+
+  const loadAuctions = async () => {
+    if (!supabase) return;
+    setAuctionsLoading(true);
+    setAuctionsError(undefined);
+    const [itemsResult, rulesResult] = await Promise.all([
+      supabase.from('auction_items').select('*').order('amount', { ascending: false }),
+      supabase.from('auction_rules').select('*').eq('scope', 'global').maybeSingle(),
+    ]);
+    if (itemsResult.error) {
+      setAuctionsError(itemsResult.error.message);
+    } else {
+      setAuctions((itemsResult.data ?? []).map(fromDbAuction));
+    }
+    if (rulesResult.error) {
+      setAuctionsError((prev) => prev ?? rulesResult.error.message);
+    } else if (rulesResult.data) {
+      setAuctionRules({
+        scope: rulesResult.data.scope,
+        content: rulesResult.data.content ?? '',
+        updatedAt: rulesResult.data.updated_at,
+      });
+    }
+    setAuctionsLoading(false);
+  };
 
   const persist = (next: RatedItem[]) => {
     setItems(next);
@@ -580,6 +708,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!supabase) return;
     loadItems();
+    loadAuctions();
   }, [user]);
 
   useEffect(() => {
@@ -698,7 +827,29 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
       if (error) throw error;
       await loadItems();
     },
-  }), [admin, error, items, loading, user]);
+    auctions,
+    auctionRules,
+    auctionsLoading,
+    auctionsError,
+    async saveAuction(item) {
+      if (!supabase) throw new Error('Аукционы доступны только с Supabase');
+      const { error } = await supabase.from('auction_items').upsert(toDbAuction(item));
+      if (error) throw error;
+      await loadAuctions();
+    },
+    async deleteAuction(id) {
+      if (!supabase) throw new Error('Аукционы доступны только с Supabase');
+      const { error } = await supabase.from('auction_items').delete().eq('id', id);
+      if (error) throw error;
+      await loadAuctions();
+    },
+    async saveAuctionRules(content) {
+      if (!supabase) throw new Error('Аукционы доступны только с Supabase');
+      const { error } = await supabase.from('auction_rules').upsert({ scope: 'global', content });
+      if (error) throw error;
+      await loadAuctions();
+    },
+  }), [admin, error, items, loading, user, auctions, auctionRules, auctionsLoading, auctionsError]);
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
@@ -718,18 +869,23 @@ function Shell() {
   return (
     <>
       <header className="topbar">
-        <Link to="/" className="brand"><Library size={22} /> R1fрейтинг</Link>
+        <Link to="/" className="brand"><span className="brand-mark">R1</span> R1fрейтинг</Link>
         <nav>
-          <Link to="/">Каталог</Link>
-          {admin && <Link to="/admin">Админка</Link>}
+          <Link to="/" className="nav-link">Каталог</Link>
+          <Link to="/auctions" className="nav-link">Аукционы</Link>
+          <Link to="/auctions/rules" className="nav-link">Правила</Link>
+          {admin && <Link to="/admin" className="nav-link">Админка</Link>}
           {admin && <button className="ghost" onClick={() => signOut()}><LogOut size={16} /> Выйти</button>}
         </nav>
       </header>
       <Routes>
         <Route path="/" element={<HomePage />} />
+        <Route path="/auctions" element={<AuctionsPage />} />
+        <Route path="/auctions/rules" element={<AuctionRulesPage />} />
         <Route path="/item/:slug" element={<ItemPage />} />
         <Route path="/admin/login" element={<LoginPage />} />
         <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
+        <Route path="/admin/auctions" element={<AdminRoute><AdminAuctionsPage /></AdminRoute>} />
         <Route path="/admin/new" element={<AdminRoute><TypePickerPage /></AdminRoute>} />
         <Route path="/admin/new/:type" element={<AdminRoute><EditorPage /></AdminRoute>} />
         <Route path="/admin/edit/:id" element={<AdminRoute><EditorPage /></AdminRoute>} />
@@ -763,6 +919,7 @@ function HomePage() {
   const visibleItems = sortCatalog(visibleBase, sort);
   const monthItems = published.filter((item) => matchesPeriod(item, 'month'));
   const topMonth = [...monthItems].sort((a, b) => b.finalScore - a.finalScore).slice(0, 5);
+  const bestMonth = topMonth[0];
   const freshBattles = [...published].filter((item) => item.type === 'battle').sort(byNewestCreated).slice(0, 3);
   const reactionItems = published.filter((item) => item.links.some((link) => link.kind === 'reaction')).sort(byNewestCreated).slice(0, 3);
   const weekItems = published.filter((item) => matchesPeriod(item, 'week'));
@@ -780,13 +937,7 @@ function HomePage() {
           <p className="eyebrow">Оценки Рифмабеса</p>
           <h1>Каталог</h1>
           <p className="lead">Альбомы, треки, баттлы и ссылки на реакции в одном месте: что Рифмабес слушал, смотрел и разбирал на стримах.</p>
-          {admin && (
-            <div className="hero-actions">
-              <Link className="button" to="/admin/new"><Plus size={16} /> Начать оценку</Link>
-            </div>
-          )}
         </div>
-        <div className="home-stat"><strong>{published.length}</strong><span>опубликовано</span></div>
       </section>
 
       {featured.length > 0 && (
@@ -812,6 +963,7 @@ function HomePage() {
       <section className="type-tabs" aria-label="Типы записей">
         {homeTypeTabs.map((tab) => (
           <button key={tab.value} className={activeType === tab.value ? 'on' : ''} onClick={() => setActiveType(tab.value)}>
+            {tab.value !== 'all' && <span className="type-tab-icon">{itemTypeIcon(tab.value as ItemType)}</span>}
             {tab.label} <span>{counts[tab.value]}</span>
           </button>
         ))}
@@ -849,10 +1001,17 @@ function HomePage() {
       )}
 
       <section className="activity-strip">
-        <div><strong>{weekItems.filter((item) => item.type === 'album').length}</strong><small>альбомов за неделю</small></div>
-        <div><strong>{weekItems.filter((item) => item.type === 'battle').length}</strong><small>баттлов за неделю</small></div>
-        <div><strong>{weekItems.filter((item) => item.type === 'track').length}</strong><small>треков за неделю</small></div>
-        <div><strong>{published.length}</strong><small>всего опубликовано</small></div>
+        <div className="activity-nums">
+          <div><strong>{weekItems.filter((item) => item.type === 'album').length}</strong><small>альбомов за неделю</small></div>
+          <div><strong>{weekItems.filter((item) => item.type === 'battle').length}</strong><small>баттлов за неделю</small></div>
+          <div><strong>{weekItems.filter((item) => item.type === 'track').length}</strong><small>треков за неделю</small></div>
+          <div><strong>{published.length}</strong><small>всего опубликовано</small></div>
+        </div>
+        {bestMonth && (
+          <div className="activity-note">
+            Самая высокая оценка месяца — <b>{bestMonth.finalScore.toFixed(1)}</b> «{bestMonth.title}», {catalogSubtitle(bestMonth)}
+          </div>
+        )}
       </section>
     </main>
   );
@@ -860,13 +1019,13 @@ function HomePage() {
 
 function FeaturedCard({ item, large }: { item: RatedItem; large?: boolean }) {
   return (
-    <Link to={`/item/${item.slug}`} className={`featured-card${large ? ' large' : ''}`}>
+    <Link to={`/item/${item.slug}`} className={`featured-card${large ? ' large' : ''} featured-${item.type}`}>
       <CardCover item={item} />
       <div className="featured-veil" />
       <span className={`${scoreClass(item.finalScore)} score-pos`}>{item.finalScore.toFixed(1)}</span>
       <div className="featured-body">
         <div className="featured-meta">
-          <span className={`type-chip ${item.type}`}>{itemTypeLabel(item.type)}</span>
+          <span className={`type-chip ${item.type}`}><span className="type-chip-icon">{itemTypeIcon(item.type)}</span> {itemTypeLabel(item.type)}</span>
           <span>{relativeDate(item.createdAt)}</span>
         </div>
         <h2>{item.title}</h2>
@@ -881,7 +1040,7 @@ function ItemCard({ item }: { item: RatedItem }) {
     <Link to={`/item/${item.slug}`} className="catalog-card">
       <div className="catalog-thumb">
         <CardCover item={item} />
-        <span className={`type-chip ${item.type}`}>{itemTypeLabel(item.type)}</span>
+        <span className={`type-chip ${item.type}`}><span className="type-chip-icon">{itemTypeIcon(item.type)}</span> {itemTypeLabel(item.type)}</span>
         <span className={scoreClass(item.finalScore)}>{item.finalScore.toFixed(1)}</span>
       </div>
       <div className="catalog-card-body">
@@ -920,9 +1079,17 @@ function RailItem({ item, rank }: { item: RatedItem; rank?: number }) {
         <strong>{item.title}</strong>
         <small>{catalogSubtitle(item)} · {itemTypeLabel(item.type).toLowerCase()}</small>
       </div>
-      <span className="rail-score">{item.finalScore.toFixed(1)}</span>
+      <span className="rail-score" style={{ color: scoreColor(item.finalScore) }}>{item.finalScore.toFixed(1)}</span>
     </Link>
   );
+}
+
+function scoreColor(score: number) {
+  if (score >= 9) return '#ffe600';
+  if (score >= 7.5) return '#4ade80';
+  if (score >= 6) return '#00e5ff';
+  if (score >= 4) return '#ff9f45';
+  return '#ff4d6d';
 }
 
 function CardCover({ item }: { item: RatedItem }) {
@@ -1102,7 +1269,10 @@ function AdminPage() {
           <p className="eyebrow">Управление каталогом</p>
           <h1>Админка</h1>
         </div>
-        <Link className="button" to="/admin/new"><Plus size={16} /> Начать оценку</Link>
+        <div className="admin-head-actions">
+          <Link className="ghost" to="/admin/auctions">Аукционы и правила</Link>
+          <Link className="button" to="/admin/new"><Plus size={16} /> Начать оценку</Link>
+        </div>
       </section>
       <section className="filters">
         <label><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Поиск по названию, артисту или жанру" /></label>
@@ -1132,6 +1302,356 @@ function AdminPage() {
           </div>
         ))}
       </section>
+    </main>
+  );
+}
+
+function AuctionsPage() {
+  const { auctions, auctionsLoading, auctionsError, admin, saveAuction, deleteAuction } = useStore();
+  const [activeCategory, setActiveCategory] = useState<AuctionCategory>('album');
+  const [editing, setEditing] = useState<AuctionItem | null>(null);
+  const counts = auctionCategoryOrder.reduce((acc, category) => {
+    acc[category] = auctions.filter((item) => item.category === category).length;
+    return acc;
+  }, {} as Record<AuctionCategory, number>);
+  const list = auctions.filter((item) => item.category === activeCategory);
+
+  const startNew = () => {
+    setEditing({
+      id: crypto.randomUUID(),
+      category: activeCategory,
+      title: '',
+      artist: '',
+      amount: 0,
+      note: '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+  };
+
+  const handleSave = async () => {
+    if (!editing || !editing.title.trim()) return;
+    await saveAuction({ ...editing, title: editing.title.trim(), artist: editing.artist?.trim() || undefined, note: editing.note?.trim() || undefined });
+    setEditing(null);
+  };
+
+  const handleDelete = async (item: AuctionItem) => {
+    if (!window.confirm(`Удалить «${item.title}» из очереди? Это не вернёшь.`)) return;
+    await deleteAuction(item.id);
+  };
+
+  return (
+    <main className="auctions">
+      <section className="auctions-head">
+        <p className="eyebrow">Очередь на разбор</p>
+        <h1>Аукционы</h1>
+        <p className="lead">Зрители скидывают донаты — чем больше собрано, тем раньше разбор. После того как Рифмабес разобрал — запись уходит в каталог с оценкой.</p>
+        <div className="auctions-meta">
+          <span>Всего в очереди: <b>{auctions.length}</b></span>
+          <Link to="/auctions/rules" className="auctions-rules-link">Правила →</Link>
+        </div>
+      </section>
+
+      <section className="type-tabs" aria-label="Категории аукционов">
+        {auctionCategoryOrder.map((category) => (
+          <button key={category} className={activeCategory === category ? 'on' : ''} onClick={() => setActiveCategory(category)}>
+            {auctionCategoryLabel[category]} <span>{counts[category]}</span>
+          </button>
+        ))}
+      </section>
+
+      {admin && (
+        <div className="auction-admin-bar">
+          <button onClick={startNew}><Plus size={16} /> Добавить в «{auctionCategoryLabel[activeCategory].toLowerCase()}»</button>
+        </div>
+      )}
+
+      {auctionsLoading && <div className="empty">Загружаем очередь...</div>}
+      {auctionsError && <div className="empty">Ошибка загрузки: {auctionsError}</div>}
+
+      {!auctionsLoading && !auctionsError && (
+        list.length === 0 ? (
+          <p className="auction-empty">В категории «{auctionCategoryLabel[activeCategory].toLowerCase()}» пока пусто.</p>
+        ) : (
+          <table className="auction-table">
+            <thead>
+              <tr>
+                <th className="auction-rank">#</th>
+                <th>Название</th>
+                <th className="auction-amount">Сумма</th>
+                {admin && <th className="auction-actions-col">Действия</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((item, index) => {
+                const stale = auctionStaleLevel(item);
+                const staleLabel = auctionStaleLabel(item);
+                return (
+                  <tr key={item.id} className={stale !== 'fresh' ? `stale-${stale}` : ''}>
+                    <td className="auction-rank">{index + 1}</td>
+                    <td>
+                      <div className="auction-title">
+                        {auctionCategoryHasArtist[item.category] && item.artist
+                          ? <span><b>{item.artist}</b> — {item.title}</span>
+                          : <b>{item.title}</b>}
+                      </div>
+                      {staleLabel && <div className={`auction-age auction-age-${stale}`}>{staleLabel}</div>}
+                      {item.note && <div className="auction-note">{item.note}</div>}
+                    </td>
+                    <td className="auction-amount">{item.amount.toLocaleString('ru-RU')} ₽</td>
+                    {admin && (
+                      <td className="auction-actions-col">
+                        <div className="auction-row-actions">
+                          <button className="ghost icon-btn" title="Изменить" onClick={() => setEditing({ ...item })}><Edit3 size={16} /></button>
+                          <button className="danger icon-btn" title="Удалить" onClick={() => handleDelete(item)}><Trash2 size={16} /></button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )
+      )}
+
+      {editing && (
+        <AuctionEditorModal
+          item={editing}
+          isNew={!auctions.some((a) => a.id === editing.id)}
+          onChange={setEditing}
+          onClose={() => setEditing(null)}
+          onSave={handleSave}
+        />
+      )}
+    </main>
+  );
+}
+
+function AuctionEditorModal({ item, isNew, onChange, onClose, onSave }: {
+  item: AuctionItem;
+  isNew: boolean;
+  onChange: (item: AuctionItem) => void;
+  onClose: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={(event) => event.stopPropagation()}>
+        <h2>{isNew ? 'Добавить' : 'Изменить'} — {auctionCategoryLabel[item.category].toLowerCase()}</h2>
+        <div className="modal-grid">
+          <label>
+            Категория
+            <select value={item.category} onChange={(event) => onChange({ ...item, category: event.target.value as AuctionCategory })}>
+              {auctionCategoryOrder.map((category) => (
+                <option key={category} value={category}>{auctionCategoryLabel[category]}</option>
+              ))}
+            </select>
+          </label>
+          {auctionCategoryHasArtist[item.category] && (
+            <label>
+              Артист
+              <input value={item.artist ?? ''} onChange={(event) => onChange({ ...item, artist: event.target.value })} placeholder="например, Каспийский Груз" />
+            </label>
+          )}
+          <label>
+            Название
+            <input value={item.title} onChange={(event) => onChange({ ...item, title: event.target.value })} placeholder="что разбирать" />
+          </label>
+          <label>
+            Сумма донатов, ₽
+            <input type="number" min={0} step={50} value={item.amount} onChange={(event) => onChange({ ...item, amount: Number(event.target.value) || 0 })} />
+          </label>
+          <label className="modal-full">
+            Комментарий (опционально)
+            <input value={item.note ?? ''} onChange={(event) => onChange({ ...item, note: event.target.value })} placeholder="например, пожелание зрителя" />
+          </label>
+        </div>
+        <div className="modal-actions">
+          <button className="ghost" onClick={onClose}>Отмена</button>
+          <button onClick={onSave} disabled={!item.title.trim()}><Save size={16} /> Сохранить</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AuctionRulesPage() {
+  const { auctionRules, auctionsLoading, admin } = useStore();
+  return (
+    <main>
+      <section className="rules-head">
+        <p className="eyebrow">Аукционы</p>
+        <h1>Правила</h1>
+        {admin && <Link to="/admin/auctions" className="auctions-rules-link">Редактировать →</Link>}
+      </section>
+      <section className="panel">
+        {auctionsLoading && !auctionRules ? (
+          <p className="muted">Загружаем правила...</p>
+        ) : auctionRules?.content ? (
+          <div className="markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{auctionRules.content}</ReactMarkdown></div>
+        ) : (
+          <p className="muted">Правила пока не заполнены.</p>
+        )}
+      </section>
+    </main>
+  );
+}
+
+function AdminAuctionsPage() {
+  const { auctions, auctionRules, saveAuction, deleteAuction, saveAuctionRules } = useStore();
+  const [editing, setEditing] = useState<AuctionItem | null>(null);
+  const [activeCategory, setActiveCategory] = useState<AuctionCategory>('album');
+  const [rulesDraft, setRulesDraft] = useState<string>('');
+  const [rulesSaving, setRulesSaving] = useState(false);
+  const [rulesSavedAt, setRulesSavedAt] = useState<string>('');
+
+  const counts = auctionCategoryOrder.reduce((acc, category) => {
+    acc[category] = auctions.filter((item) => item.category === category).length;
+    return acc;
+  }, {} as Record<AuctionCategory, number>);
+  const activeList = auctions.filter((item) => item.category === activeCategory).sort((a, b) => b.amount - a.amount);
+
+  useEffect(() => {
+    if (auctionRules) setRulesDraft(auctionRules.content);
+  }, [auctionRules?.scope]);
+
+  const startNew = (category: AuctionCategory) => {
+    setEditing({
+      id: crypto.randomUUID(),
+      category,
+      title: '',
+      artist: '',
+      amount: 0,
+      note: '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+  };
+
+  const handleSave = async () => {
+    if (!editing || !editing.title.trim()) return;
+    await saveAuction({ ...editing, title: editing.title.trim(), artist: editing.artist?.trim() || undefined, note: editing.note?.trim() || undefined });
+    setEditing(null);
+  };
+
+  const handleDelete = async (item: AuctionItem) => {
+    if (!window.confirm(`Удалить «${item.title}» из очереди? Это не вернёшь.`)) return;
+    await deleteAuction(item.id);
+  };
+
+  const handleRulesSave = async () => {
+    setRulesSaving(true);
+    try {
+      await saveAuctionRules(rulesDraft);
+      setRulesSavedAt(new Date().toLocaleTimeString('ru-RU'));
+    } finally {
+      setRulesSaving(false);
+    }
+  };
+
+  return (
+    <main>
+      <section className="admin-head">
+        <div>
+          <p className="eyebrow">Управление</p>
+          <h1>Аукционы</h1>
+        </div>
+        <Link to="/auctions" className="ghost">Публичная страница</Link>
+      </section>
+
+      <section className="panel">
+        <h2>Правила</h2>
+        <p className="muted">Markdown поддерживается. Появится на странице «Правила».</p>
+        <textarea value={rulesDraft} onChange={(event) => setRulesDraft(event.target.value)} className="rules-textarea" />
+        <div className="rules-save">
+          <button onClick={handleRulesSave} disabled={rulesSaving}><Save size={16} /> Сохранить правила</button>
+          {rulesSavedAt && <span className="muted">сохранено в {rulesSavedAt}</span>}
+        </div>
+      </section>
+
+      <section className="type-tabs" aria-label="Категории аукционов">
+        {auctionCategoryOrder.map((category) => (
+          <button key={category} className={activeCategory === category ? 'on' : ''} onClick={() => setActiveCategory(category)}>
+            {auctionCategoryLabel[category]} <span>{counts[category]}</span>
+          </button>
+        ))}
+      </section>
+
+      <section className="panel admin-auction-block">
+        <div className="admin-auction-head">
+          <h2>{auctionCategoryLabel[activeCategory]} <span className="muted">({activeList.length})</span></h2>
+          <button onClick={() => startNew(activeCategory)}><Plus size={16} /> Добавить</button>
+        </div>
+        {activeList.length === 0 ? (
+          <p className="muted">Пока ничего нет.</p>
+        ) : (
+          <div className="admin-auction-list">
+            {activeList.map((item) => {
+              const stale = auctionStaleLevel(item);
+              const staleLabel = auctionStaleLabel(item);
+              return (
+                <div className={`admin-auction-row${stale !== 'fresh' ? ` stale-${stale}` : ''}`} key={item.id}>
+                  <div className="admin-auction-main">
+                    <strong>
+                      {auctionCategoryHasArtist[item.category] && item.artist
+                        ? `${item.artist} — ${item.title}`
+                        : item.title}
+                    </strong>
+                    {staleLabel && <small className={`auction-age-${stale}`}>{staleLabel}</small>}
+                    {item.note && <small>{item.note}</small>}
+                  </div>
+                  <div className="admin-auction-amount">{item.amount.toLocaleString('ru-RU')} ₽</div>
+                  <div className="admin-actions">
+                    <button className="ghost" onClick={() => setEditing({ ...item })}><Edit3 size={16} /> Изменить</button>
+                    <button className="danger" onClick={() => handleDelete(item)}><Trash2 size={16} /> Удалить</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {editing && (
+        <div className="modal-backdrop" onClick={() => setEditing(null)}>
+          <div className="modal" onClick={(event) => event.stopPropagation()}>
+            <h2>{auctions.some((a) => a.id === editing.id) ? 'Редактировать' : 'Добавить'} — {auctionCategoryLabel[editing.category].toLowerCase().replace(/ы$/, '')}</h2>
+            <div className="modal-grid">
+              <label>
+                Категория
+                <select value={editing.category} onChange={(event) => setEditing({ ...editing, category: event.target.value as AuctionCategory })}>
+                  {auctionCategoryOrder.map((category) => (
+                    <option key={category} value={category}>{auctionCategoryLabel[category]}</option>
+                  ))}
+                </select>
+              </label>
+              {auctionCategoryHasArtist[editing.category] && (
+                <label>
+                  Артист
+                  <input value={editing.artist ?? ''} onChange={(event) => setEditing({ ...editing, artist: event.target.value })} placeholder="например, Каспийский Груз" />
+                </label>
+              )}
+              <label>
+                Название
+                <input value={editing.title} onChange={(event) => setEditing({ ...editing, title: event.target.value })} placeholder="что разбирать" />
+              </label>
+              <label>
+                Сумма донатов, ₽
+                <input type="number" min={0} step={50} value={editing.amount} onChange={(event) => setEditing({ ...editing, amount: Number(event.target.value) || 0 })} />
+              </label>
+              <label className="modal-full">
+                Комментарий (опционально)
+                <input value={editing.note ?? ''} onChange={(event) => setEditing({ ...editing, note: event.target.value })} placeholder="например, пожелание зрителя" />
+              </label>
+            </div>
+            <div className="modal-actions">
+              <button className="ghost" onClick={() => setEditing(null)}>Отмена</button>
+              <button onClick={handleSave} disabled={!editing.title.trim()}><Save size={16} /> Сохранить</button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
