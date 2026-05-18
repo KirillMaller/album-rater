@@ -738,93 +738,235 @@ function Shell() {
   );
 }
 
+type HomeTypeFilter = 'all' | ItemType;
+type HomeSort = 'new' | 'best' | 'worst';
+type HomePeriod = 'all' | 'month' | 'week';
+
+const homeTypeTabs: Array<{ value: HomeTypeFilter; label: string }> = [
+  { value: 'all', label: 'Все' },
+  { value: 'album', label: 'Альбомы' },
+  { value: 'battle', label: 'Баттлы' },
+  { value: 'track', label: 'Треки' },
+];
+
 function HomePage() {
   const { items, loading, error, admin } = useStore();
   const [query, setQuery] = useState('');
-  const [activeType, setActiveType] = useState<ItemType>('album');
-  const [sort, setSort] = useState<'new' | 'best' | 'worst'>('best');
+  const [activeType, setActiveType] = useState<HomeTypeFilter>('all');
+  const [sort, setSort] = useState<HomeSort>('new');
+  const [period, setPeriod] = useState<HomePeriod>('all');
   const published = items.filter((item) => item.published);
-  const filtered = published.filter((item) => `${item.title} ${item.artist} ${item.participants} ${item.genre}`.toLowerCase().includes(query.toLowerCase()));
-  const sortItems = (list: RatedItem[]) => [...list].sort((a, b) => (
-    sort === 'new' ? b.updatedAt.localeCompare(a.updatedAt) : sort === 'best' ? b.finalScore - a.finalScore : a.finalScore - b.finalScore
-  ));
-  const albums = sortItems(filtered.filter((item) => item.type === 'album'));
-  const battles = sortItems(filtered.filter((item) => item.type === 'battle'));
-  const tracks = sortItems(filtered.filter((item) => item.type === 'track'));
-  const activeItems = activeType === 'album' ? albums : activeType === 'battle' ? battles : tracks;
-  const activeTitle = activeType === 'album' ? 'Альбомы' : activeType === 'battle' ? 'Баттлы' : 'Треки';
-  const activeEmpty = activeType === 'album' ? 'Опубликованных альбомов пока нет.' : activeType === 'battle' ? 'Опубликованных баттлов пока нет.' : 'Опубликованных треков пока нет.';
+  const featured = [...published].sort(byNewestCreated).slice(0, 3);
+  const searched = published.filter((item) => `${item.title} ${item.artist ?? ''} ${item.participants ?? ''} ${item.genre ?? ''}`.toLowerCase().includes(query.toLowerCase()));
+  const periodItems = searched.filter((item) => matchesPeriod(item, period));
+  const visibleBase = activeType === 'all' ? periodItems : periodItems.filter((item) => item.type === activeType);
+  const visibleItems = sortCatalog(visibleBase, sort);
+  const monthItems = published.filter((item) => matchesPeriod(item, 'month'));
+  const topMonth = [...monthItems].sort((a, b) => b.finalScore - a.finalScore).slice(0, 5);
+  const freshBattles = [...published].filter((item) => item.type === 'battle').sort(byNewestCreated).slice(0, 3);
+  const reactionItems = published.filter((item) => item.links.some((link) => link.kind === 'reaction')).sort(byNewestCreated).slice(0, 3);
+  const weekItems = published.filter((item) => matchesPeriod(item, 'week'));
+  const counts = {
+    all: periodItems.length,
+    album: periodItems.filter((item) => item.type === 'album').length,
+    battle: periodItems.filter((item) => item.type === 'battle').length,
+    track: periodItems.filter((item) => item.type === 'track').length,
+  };
 
   return (
-    <main>
-      <section className="hero">
+    <main className="home">
+      <section className="home-intro">
         <div>
           <p className="eyebrow">Оценки Рифмабеса</p>
-          <h1>R1fрейтинг</h1>
-          <p>Альбомы, треки, баттлы, рецензии и ссылки на реакции в одном месте.</p>
+          <h1>Каталог</h1>
+          <p className="lead">Альбомы, треки, баттлы и ссылки на реакции в одном месте: что Рифмабес слушал, смотрел и разбирал на стримах.</p>
           {admin && (
             <div className="hero-actions">
               <Link className="button" to="/admin/new"><Plus size={16} /> Начать оценку</Link>
             </div>
           )}
         </div>
-        <div className="stat"><strong>{published.length}</strong><span>опубликовано</span></div>
+        <div className="home-stat"><strong>{published.length}</strong><span>опубликовано</span></div>
       </section>
 
-      <section className="filters">
-        <label><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Поиск по артисту, названию или жанру" /></label>
-        <select value={sort} onChange={(event) => setSort(event.target.value as 'new' | 'best' | 'worst')}>
-          <option value="best">Лучшие</option>
-          <option value="worst">Спорные</option>
-          <option value="new">Новые</option>
+      {featured.length > 0 && (
+        <section className="featured-strip" aria-label="Последние записи">
+          {featured.map((item, index) => <FeaturedCard key={item.id} item={item} large={index === 0} />)}
+        </section>
+      )}
+
+      <section className="home-tools">
+        <label className="home-search"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Поиск по артисту, названию или жанру" /></label>
+        <div className="pillbar" aria-label="Сортировка">
+          <button className={sort === 'new' ? 'on' : ''} onClick={() => setSort('new')}>Новые</button>
+          <button className={sort === 'best' ? 'on' : ''} onClick={() => setSort('best')}>Лучшие</button>
+          <button className={sort === 'worst' ? 'on' : ''} onClick={() => setSort('worst')}>Спорные</button>
+        </div>
+        <select value={period} onChange={(event) => setPeriod(event.target.value as HomePeriod)} aria-label="Период">
+          <option value="all">За всё время</option>
+          <option value="month">За 30 дней</option>
+          <option value="week">За 7 дней</option>
         </select>
       </section>
 
-      <section className="catalog-tabs" aria-label="Раздел каталога">
-        <button className={activeType === 'album' ? 'active' : ''} onClick={() => setActiveType('album')}>Альбомы <span>{albums.length}</span></button>
-        <button className={activeType === 'battle' ? 'active' : ''} onClick={() => setActiveType('battle')}>Баттлы <span>{battles.length}</span></button>
-        <button className={activeType === 'track' ? 'active' : ''} onClick={() => setActiveType('track')}>Треки <span>{tracks.length}</span></button>
+      <section className="type-tabs" aria-label="Типы записей">
+        {homeTypeTabs.map((tab) => (
+          <button key={tab.value} className={activeType === tab.value ? 'on' : ''} onClick={() => setActiveType(tab.value)}>
+            {tab.label} <span>{counts[tab.value]}</span>
+          </button>
+        ))}
       </section>
 
       {loading && <div className="empty">Загружаем каталог из Supabase...</div>}
       {error && <div className="empty">Ошибка загрузки: {error}</div>}
-      {!loading && !error && !filtered.length && <div className="empty">Пока нет опубликованных записей по этому поиску.</div>}
-      {!loading && !error && Boolean(filtered.length) && <RankingSection title={activeTitle} items={activeItems} empty={activeEmpty} />}
+
+      {!loading && !error && (
+        <section className="catalog-split">
+          <div>
+            {!visibleItems.length ? (
+              <div className="empty">По этим фильтрам пока нет опубликованных записей.</div>
+            ) : (
+              <div className="catalog-grid">
+                {visibleItems.map((item) => <ItemCard key={item.id} item={item} />)}
+              </div>
+            )}
+          </div>
+          <aside className="home-rail">
+            <RailPanel title="Топ месяца" items={topMonth} ranked empty="За последние 30 дней оценок пока нет." />
+            <RailPanel title="Свежие баттлы" items={freshBattles} empty="Опубликованных баттлов пока нет." />
+            <section className="rail-panel reactions-panel">
+              <h3>На реакции</h3>
+              {reactionItems.length ? (
+                <div className="rail-list">
+                  {reactionItems.map((item) => <RailItem key={item.id} item={item} />)}
+                </div>
+              ) : (
+                <p className="rail-empty">Реакции появятся позже. Сейчас в каталоге нет записей с прикреплённым видео-разбором.</p>
+              )}
+            </section>
+          </aside>
+        </section>
+      )}
+
+      <section className="activity-strip">
+        <div><strong>{weekItems.filter((item) => item.type === 'album').length}</strong><small>альбомов за неделю</small></div>
+        <div><strong>{weekItems.filter((item) => item.type === 'battle').length}</strong><small>баттлов за неделю</small></div>
+        <div><strong>{weekItems.filter((item) => item.type === 'track').length}</strong><small>треков за неделю</small></div>
+        <div><strong>{published.length}</strong><small>всего опубликовано</small></div>
+      </section>
     </main>
   );
 }
 
-function RankingSection({ title, items, empty }: { title: string; items: RatedItem[]; empty: string }) {
+function FeaturedCard({ item, large }: { item: RatedItem; large?: boolean }) {
   return (
-    <section className="ranking-section">
-      <div className="section-head">
-        <h2>{title}</h2>
-        <span>{items.length}</span>
-      </div>
-      {items.length ? (
-        <div className="grid">
-          {items.map((item) => <ItemCard key={item.id} item={item} />)}
+    <Link to={`/item/${item.slug}`} className={`featured-card${large ? ' large' : ''}`}>
+      <CardCover item={item} />
+      <div className="featured-veil" />
+      <span className={`${scoreClass(item.finalScore)} score-pos`}>{item.finalScore.toFixed(1)}</span>
+      <div className="featured-body">
+        <div className="featured-meta">
+          <span className={`type-chip ${item.type}`}>{itemTypeLabel(item.type)}</span>
+          <span>{relativeDate(item.createdAt)}</span>
         </div>
-      ) : (
-        <div className="empty">{empty}</div>
-      )}
-    </section>
+        <h2>{item.title}</h2>
+        <p>{catalogSubtitle(item)}</p>
+      </div>
+    </Link>
   );
 }
 
 function ItemCard({ item }: { item: RatedItem }) {
   return (
-    <Link to={`/item/${item.slug}`} className="item-card">
-      <div className="cover-wrap">
-        {item.coverUrl ? <img src={item.coverUrl} alt="" /> : <div className="cover-placeholder"><Star /></div>}
+    <Link to={`/item/${item.slug}`} className="catalog-card">
+      <div className="catalog-thumb">
+        <CardCover item={item} />
+        <span className={`type-chip ${item.type}`}>{itemTypeLabel(item.type)}</span>
         <span className={scoreClass(item.finalScore)}>{item.finalScore.toFixed(1)}</span>
       </div>
-      <p>{itemCredit(item)}</p>
-      {item.type === 'battle' && <span className="winner-line">Победитель: {battleWinnerLabel(item.metadata?.battle)}</span>}
-      <h2>{item.title}</h2>
-      <span>{item.releaseYear || 'Без года'} · {item.genre || 'Без жанра'}</span>
+      <div className="catalog-card-body">
+        <h2>{item.title}</h2>
+        <p>{catalogSubtitle(item)}</p>
+      </div>
+      <div className="catalog-card-foot">
+        <span>{relativeDate(item.createdAt)}</span>
+        <span>{item.links.length ? `${item.links.length} ссыл.` : 'без ссылок'}</span>
+      </div>
     </Link>
   );
+}
+
+function RailPanel({ title, items, ranked, empty }: { title: string; items: RatedItem[]; ranked?: boolean; empty: string }) {
+  return (
+    <section className="rail-panel">
+      <h3>{title}</h3>
+      {items.length ? (
+        <div className="rail-list">
+          {items.map((item, index) => <RailItem key={item.id} item={item} rank={ranked ? index + 1 : undefined} />)}
+        </div>
+      ) : (
+        <p className="rail-empty">{empty}</p>
+      )}
+    </section>
+  );
+}
+
+function RailItem({ item, rank }: { item: RatedItem; rank?: number }) {
+  return (
+    <Link to={`/item/${item.slug}`} className="rail-item">
+      <span className="rail-rank">{rank ?? '•'}</span>
+      <div className="rail-mini"><CardCover item={item} /></div>
+      <div className="rail-copy">
+        <strong>{item.title}</strong>
+        <small>{catalogSubtitle(item)} · {itemTypeLabel(item.type).toLowerCase()}</small>
+      </div>
+      <span className="rail-score">{item.finalScore.toFixed(1)}</span>
+    </Link>
+  );
+}
+
+function CardCover({ item }: { item: RatedItem }) {
+  return item.coverUrl ? <img src={item.coverUrl} alt="" /> : <div className="cover-placeholder"><Star /></div>;
+}
+
+function sortCatalog(items: RatedItem[], sort: HomeSort) {
+  return [...items].sort((a, b) => {
+    if (sort === 'best') return b.finalScore - a.finalScore;
+    if (sort === 'worst') return a.finalScore - b.finalScore;
+    return byNewestCreated(a, b);
+  });
+}
+
+function byNewestCreated(a: RatedItem, b: RatedItem) {
+  return b.createdAt.localeCompare(a.createdAt);
+}
+
+function matchesPeriod(item: RatedItem, period: HomePeriod) {
+  if (period === 'all') return true;
+  const created = Date.parse(item.createdAt);
+  if (Number.isNaN(created)) return false;
+  const days = period === 'month' ? 30 : 7;
+  return Date.now() - created <= days * 24 * 60 * 60 * 1000;
+}
+
+function catalogSubtitle(item: RatedItem) {
+  if (item.type === 'battle') {
+    const rounds = item.metadata?.battle?.rounds.length;
+    return [item.participants || 'Участники не указаны', rounds ? `${rounds} раунд.` : undefined].filter(Boolean).join(' · ');
+  }
+  return item.artist || 'Артист не указан';
+}
+
+function relativeDate(value: string) {
+  const time = Date.parse(value);
+  if (Number.isNaN(time)) return 'без даты';
+  const diffDays = Math.max(0, Math.floor((Date.now() - time) / (24 * 60 * 60 * 1000)));
+  if (diffDays === 0) return 'сегодня';
+  if (diffDays === 1) return 'вчера';
+  if (diffDays < 7) return `${diffDays} дн. назад`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} нед. назад`;
+  if (diffDays < 365) return `${Math.floor(diffDays / 30)} мес. назад`;
+  return `${Math.floor(diffDays / 365)} г. назад`;
 }
 
 function ItemPage() {
