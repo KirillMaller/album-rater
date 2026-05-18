@@ -108,7 +108,9 @@ function parseScoreInput(text: string): number | '' {
   if (cleaned === '') return '';
   const num = Number.parseFloat(cleaned);
   if (Number.isNaN(num)) return '';
-  return num;
+  if (num < 0) return 0;
+  if (num > 11) return 11;
+  return Math.round(num * 10) / 10;
 }
 
 function formatScoreValue(value: number | '') {
