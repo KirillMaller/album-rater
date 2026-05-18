@@ -231,6 +231,14 @@ nav { gap: 14px; color: var(--muted); }
   background: rgba(0, 229, 255, .09);
   color: #c7f8ff;
 }
+.draft-backup-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.draft-backup-note button { min-height: 32px; }
 .import-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

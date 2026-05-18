@@ -170,10 +170,46 @@ type RatedItem = {
 
 const storageKey = 'r1frating-items-v1';
 const authKey = 'r1frating-demo-admin';
+const editorDraftPrefix = 'r1frating-editor-draft';
 const hasSupabaseEnv = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 const supabase = hasSupabaseEnv
   ? createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY)
   : null;
+
+type EditorDraftBackup = {
+  draft: RatedItem;
+  trackText: string;
+  yandexUrl: string;
+  youtubeUrl: string;
+  savedAt: string;
+};
+
+function readEditorDraftBackup(key: string): EditorDraftBackup | null {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) as EditorDraftBackup : null;
+  } catch {
+    return null;
+  }
+}
+
+function hasMeaningfulEditorDraft(draft: RatedItem, trackText: string, yandexUrl: string, youtubeUrl: string) {
+  return Boolean(
+    draft.title.trim() ||
+    draft.slug.trim() ||
+    draft.artist?.trim() ||
+    draft.participants?.trim() ||
+    draft.coverUrl?.trim() ||
+    draft.description?.trim() ||
+    draft.review?.trim() ||
+    draft.releaseYear ||
+    draft.tracks.length ||
+    draft.links.length ||
+    trackText.trim() ||
+    yandexUrl.trim() ||
+    youtubeUrl.trim()
+  );
+}
 
 function extractYoutubeId(rawUrl: string): string {
   const u = new URL(rawUrl);
@@ -975,7 +1011,8 @@ function EditorPage() {
   const navigate = useNavigate();
   const existing = items.find((item) => item.id === id);
   const newItemType: ItemType = type === 'battle' || type === 'track' ? type : 'album';
-  const [draft, setDraft] = useState<RatedItem>(existing ?? {
+  const editorDraftKey = `${editorDraftPrefix}:${id ? `edit:${id}` : `new:${newItemType}`}`;
+  const baseDraft: RatedItem = existing ?? {
     id: crypto.randomUUID(),
     type: newItemType,
     slug: '',
@@ -989,16 +1026,49 @@ function EditorPage() {
     metadata: newItemType === 'battle' ? { battle: createDefaultBattle() } : undefined,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-  });
-  const [trackText, setTrackText] = useState('');
-  const [yandexUrl, setYandexUrl] = useState('');
+  };
+  const restoredEditorDraft = readEditorDraftBackup(editorDraftKey);
+  const [draft, setDraft] = useState<RatedItem>(restoredEditorDraft?.draft ?? baseDraft);
+  const [trackText, setTrackText] = useState(restoredEditorDraft?.trackText ?? '');
+  const [yandexUrl, setYandexUrl] = useState(restoredEditorDraft?.yandexUrl ?? '');
   const [importStatus, setImportStatus] = useState('');
   const [isImporting, setIsImporting] = useState(false);
-  const [youtubeUrl, setYoutubeUrl] = useState('');
+  const [youtubeUrl, setYoutubeUrl] = useState(restoredEditorDraft?.youtubeUrl ?? '');
   const [youtubeImportStatus, setYoutubeImportStatus] = useState('');
   const [isYoutubeImporting, setIsYoutubeImporting] = useState(false);
+  const [draftBackupStatus, setDraftBackupStatus] = useState(restoredEditorDraft ? `Восстановлен локальный черновик от ${new Date(restoredEditorDraft.savedAt).toLocaleString('ru-RU')}.` : '');
 
   const patch = (value: Partial<RatedItem>) => setDraft((current) => ({ ...current, ...value }));
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      if (!hasMeaningfulEditorDraft(draft, trackText, yandexUrl, youtubeUrl)) {
+        localStorage.removeItem(editorDraftKey);
+        return;
+      }
+
+      const backup: EditorDraftBackup = {
+        draft,
+        trackText,
+        yandexUrl,
+        youtubeUrl,
+        savedAt: new Date().toISOString(),
+      };
+      localStorage.setItem(editorDraftKey, JSON.stringify(backup));
+      setDraftBackupStatus('Локальный черновик автосохранён в этом браузере.');
+    }, 600);
+
+    return () => window.clearTimeout(timeout);
+  }, [draft, trackText, yandexUrl, youtubeUrl, editorDraftKey]);
+
+  const resetLocalDraft = () => {
+    localStorage.removeItem(editorDraftKey);
+    setDraft(baseDraft);
+    setTrackText('');
+    setYandexUrl('');
+    setYoutubeUrl('');
+    setDraftBackupStatus('');
+  };
+
   const addLink = (kind: LinkKind) => patch({ links: [...draft.links, { id: crypto.randomUUID(), kind, platform: '', url: '' }] });
   const addTrack = () => patch({ tracks: normalizeTrackPositions([...draft.tracks, { id: crypto.randomUUID(), position: draft.tracks.length + 1, title: '', score: '' }]) });
   const removeTrack = (index: number) => patch({ tracks: normalizeTrackPositions(draft.tracks.filter((_, i) => i !== index)) });
@@ -1168,6 +1238,7 @@ function EditorPage() {
     setSaveError('');
     try {
       await saveItem({ ...draft, slug: draft.slug || createItemSlug(draft), finalScore: albumScore, published });
+      localStorage.removeItem(editorDraftKey);
       navigate('/admin');
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : 'Не удалось сохранить запись');
@@ -1202,6 +1273,12 @@ function EditorPage() {
         <section className="panel">
           <h1>{existing ? 'Редактирование' : `Оценка: ${itemTypeLabel(draft.type).toLowerCase()}`}</h1>
           {saveError && <p className="form-error">{saveError}</p>}
+          {draftBackupStatus && (
+            <div className="form-note draft-backup-note">
+              <span>{draftBackupStatus}</span>
+              <button type="button" className="ghost" onClick={resetLocalDraft}>Сбросить локальный черновик</button>
+            </div>
+          )}
           <div className="form-grid">
             <select value={draft.type} disabled={Boolean(existing)} onChange={(event) => handleTypeChange(event.target.value as ItemType)}><option value="album">Альбом</option><option value="battle">Баттл</option><option value="track">Трек</option></select>
             <input value={draft.title} onChange={(event) => patch({ title: event.target.value, slug: draft.slug || normalizeSlug(event.target.value) })} placeholder="Название" required />
