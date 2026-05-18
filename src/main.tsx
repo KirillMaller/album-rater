@@ -86,6 +86,16 @@ function monthsSince(value: string) {
   return Math.floor(diffDays / 30);
 }
 
+function formatMSK(value: string | Date, options: Intl.DateTimeFormatOptions = { dateStyle: 'short', timeStyle: 'short' }) {
+  const date = typeof value === 'string' ? new Date(value) : value;
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', ...options });
+}
+
+function formatMSKTime(value: string | Date) {
+  return formatMSK(value, { hour: '2-digit', minute: '2-digit' });
+}
+
 function auctionStaleLevel(item: AuctionItem): 'fresh' | 'warning' | 'danger' {
   if (item.amount > 500) return 'fresh';
   const months = monthsSince(item.updatedAt);
@@ -1544,7 +1554,7 @@ function AdminAuctionsPage() {
     setRulesSaving(true);
     try {
       await saveAuctionRules(rulesDraft);
-      setRulesSavedAt(new Date().toLocaleTimeString('ru-RU'));
+      setRulesSavedAt(formatMSKTime(new Date()) + ' МСК');
     } finally {
       setRulesSaving(false);
     }
@@ -1715,7 +1725,7 @@ function EditorPage() {
   const [youtubeUrl, setYoutubeUrl] = useState(restoredEditorDraft?.youtubeUrl ?? '');
   const [youtubeImportStatus, setYoutubeImportStatus] = useState('');
   const [isYoutubeImporting, setIsYoutubeImporting] = useState(false);
-  const [draftBackupStatus, setDraftBackupStatus] = useState(restoredEditorDraft ? `Восстановлен локальный черновик от ${new Date(restoredEditorDraft.savedAt).toLocaleString('ru-RU')}.` : '');
+  const [draftBackupStatus, setDraftBackupStatus] = useState(restoredEditorDraft ? `Восстановлен локальный черновик от ${formatMSK(restoredEditorDraft.savedAt)} МСК.` : '');
 
   const patch = (value: Partial<RatedItem>) => setDraft((current) => ({ ...current, ...value }));
   useEffect(() => {
