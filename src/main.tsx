@@ -15,16 +15,19 @@ import {
 import {
   ArrowDown,
   ArrowUp,
+  Disc3,
   Edit3,
   ExternalLink,
   Headphones,
   Library,
   Lock,
   LogOut,
+  Music,
   Plus,
   Save,
   Search,
   Star,
+  Swords,
   Trash2,
   Video,
 } from 'lucide-react';
@@ -558,15 +561,25 @@ function itemTypeLabel(type: ItemType) {
   return 'Трек';
 }
 
-function itemTypeIcon(type: ItemType) {
-  if (type === 'album') return '●';
-  if (type === 'battle') return '⚔';
-  return '♪';
+function ItemTypeIcon({ type, size = 11 }: { type: ItemType; size?: number }) {
+  if (type === 'album') return <Disc3 size={size} strokeWidth={2.4} />;
+  if (type === 'battle') return <Swords size={size} strokeWidth={2.4} />;
+  return <Music size={size} strokeWidth={2.4} />;
 }
 
 function itemCredit(item: RatedItem) {
   if (item.type === 'battle') return item.participants || 'Участники не указаны';
   return item.artist || 'Артист не указан';
+}
+
+function releaseLabel(item: RatedItem) {
+  return item.releaseYear ? String(item.releaseYear) : relativeDate(item.createdAt);
+}
+
+function cardDateLabel(item: RatedItem) {
+  const released = item.releaseYear ? `вышел: ${item.releaseYear}` : 'выход: без даты';
+  const reviewed = item.reviewedAt ? `оценён: ${formatMSKDate(item.reviewedAt)}` : `добавлен: ${relativeDate(item.createdAt)}`;
+  return `${released} · ${reviewed}`;
 }
 
 function scoreClass(score: number) {
@@ -963,7 +976,8 @@ function Shell() {
 
 type HomeTypeFilter = 'all' | ItemType;
 type HomeSort = 'new' | 'best' | 'worst';
-type HomePeriod = 'all' | 'month' | 'week';
+type HomePeriod = 'all' | 'month' | 'week' | 'year' | 'last-year';
+type HomeDateBasis = 'reviewed' | 'released';
 
 const homeTypeTabs: Array<{ value: HomeTypeFilter; label: string }> = [
   { value: 'all', label: 'Все' },
@@ -978,18 +992,29 @@ function HomePage() {
   const [activeType, setActiveType] = useState<HomeTypeFilter>('all');
   const [sort, setSort] = useState<HomeSort>('new');
   const [period, setPeriod] = useState<HomePeriod>('all');
+  const [dateBasis, setDateBasis] = useState<HomeDateBasis>('reviewed');
   const published = items.filter((item) => item.published);
-  const featured = [...published].sort(byNewestCreated).slice(0, 3);
+  const bestAlbum = [...published].filter((item) => item.type === 'album').sort((a, b) => b.finalScore - a.finalScore)[0];
+  const bestBattle = [...published].filter((item) => item.type === 'battle').sort((a, b) => b.finalScore - a.finalScore)[0];
+  const bestTrack = [...published].filter((item) => item.type === 'track').sort((a, b) => b.finalScore - a.finalScore)[0];
+  const featured = [bestAlbum, bestBattle, bestTrack].filter(Boolean) as RatedItem[];
   const searched = published.filter((item) => `${item.title} ${item.artist ?? ''} ${item.participants ?? ''} ${item.genre ?? ''}`.toLowerCase().includes(query.toLowerCase()));
-  const periodItems = searched.filter((item) => matchesPeriod(item, period));
+  const periodItems = searched.filter((item) => matchesPeriod(item, period, dateBasis));
   const visibleBase = activeType === 'all' ? periodItems : periodItems.filter((item) => item.type === activeType);
-  const visibleItems = sortCatalog(visibleBase, sort);
-  const monthItems = published.filter((item) => matchesPeriod(item, 'month'));
-  const topMonth = [...monthItems].sort((a, b) => b.finalScore - a.finalScore).slice(0, 5);
-  const bestMonth = topMonth[0];
-  const freshBattles = [...published].filter((item) => item.type === 'battle').sort(byNewestCreated).slice(0, 3);
-  const reactionItems = published.filter((item) => item.links.some((link) => link.kind === 'reaction')).sort(byNewestCreated).slice(0, 3);
-  const weekItems = published.filter((item) => matchesPeriod(item, 'week'));
+  const visibleItems = sortCatalog(visibleBase, sort, dateBasis);
+  const periodScopedItems = published.filter((item) => matchesPeriod(item, period, dateBasis));
+  const topAlbums = [...periodScopedItems].filter((item) => item.type === 'album').sort((a, b) => b.finalScore - a.finalScore).slice(0, 3);
+  const topBattles = [...periodScopedItems].filter((item) => item.type === 'battle').sort((a, b) => b.finalScore - a.finalScore).slice(0, 3);
+  const topTracks = [...periodScopedItems].filter((item) => item.type === 'track').sort((a, b) => b.finalScore - a.finalScore).slice(0, 3);
+  const bestMonth = [...periodScopedItems].sort((a, b) => b.finalScore - a.finalScore)[0];
+  const periodTitle =
+    period === 'week' ? 'за неделю' :
+    period === 'month' ? 'за месяц' :
+    period === 'year' ? 'в этом году' :
+    period === 'last-year' ? 'за прошлый год' :
+    'за всё время';
+  const topTitlePrefix = dateBasis === 'released' ? 'Лучшие вышедшие' : 'Лучшие оценённые';
+  const weekItems = published.filter((item) => matchesPeriod(item, 'week', 'reviewed'));
   const counts = {
     all: periodItems.length,
     album: periodItems.filter((item) => item.type === 'album').length,
@@ -1008,8 +1033,8 @@ function HomePage() {
       </section>
 
       {featured.length > 0 && (
-        <section className="featured-strip" aria-label="Последние записи">
-          {featured.map((item, index) => <FeaturedCard key={item.id} item={item} large={index === 0} />)}
+        <section className="featured-strip" aria-label="Лучшее в каталоге">
+          {featured.map((item) => <FeaturedCard key={item.id} item={item} />)}
         </section>
       )}
 
@@ -1018,19 +1043,25 @@ function HomePage() {
         <div className="pillbar" aria-label="Сортировка">
           <button className={sort === 'new' ? 'on' : ''} onClick={() => setSort('new')}>Новые</button>
           <button className={sort === 'best' ? 'on' : ''} onClick={() => setSort('best')}>Лучшие</button>
-          <button className={sort === 'worst' ? 'on' : ''} onClick={() => setSort('worst')}>Спорные</button>
+          <button className={sort === 'worst' ? 'on' : ''} onClick={() => setSort('worst')}>Худшие</button>
+        </div>
+        <div className="pillbar" aria-label="Какую дату учитывать">
+          <button className={dateBasis === 'reviewed' ? 'on' : ''} onClick={() => setDateBasis('reviewed')}>Оценённые</button>
+          <button className={dateBasis === 'released' ? 'on' : ''} onClick={() => setDateBasis('released')}>Вышедшие</button>
         </div>
         <select value={period} onChange={(event) => setPeriod(event.target.value as HomePeriod)} aria-label="Период">
           <option value="all">За всё время</option>
-          <option value="month">За 30 дней</option>
+          <option value="month">За месяц</option>
           <option value="week">За 7 дней</option>
+          <option value="year">В этом году</option>
+          <option value="last-year">За прошлый год</option>
         </select>
       </section>
 
       <section className="type-tabs" aria-label="Типы записей">
         {homeTypeTabs.map((tab) => (
           <button key={tab.value} className={activeType === tab.value ? 'on' : ''} onClick={() => setActiveType(tab.value)}>
-            {tab.value !== 'all' && <span className="type-tab-icon">{itemTypeIcon(tab.value as ItemType)}</span>}
+            {tab.value !== 'all' && <ItemTypeIcon type={tab.value as ItemType} size={12} />}
             {tab.label} <span>{counts[tab.value]}</span>
           </button>
         ))}
@@ -1051,18 +1082,9 @@ function HomePage() {
             )}
           </div>
           <aside className="home-rail">
-            <RailPanel title="Топ месяца" items={topMonth} ranked empty="За последние 30 дней оценок пока нет." />
-            <RailPanel title="Свежие баттлы" items={freshBattles} empty="Опубликованных баттлов пока нет." />
-            <section className="rail-panel reactions-panel">
-              <h3>На реакции</h3>
-              {reactionItems.length ? (
-                <div className="rail-list">
-                  {reactionItems.map((item) => <RailItem key={item.id} item={item} />)}
-                </div>
-              ) : (
-                <p className="rail-empty">Реакции появятся позже. Сейчас в каталоге нет записей с прикреплённым видео-разбором.</p>
-              )}
-            </section>
+            <RailPanel title={`${topTitlePrefix} альбомы ${periodTitle}`} items={topAlbums} ranked empty="Альбомов в этот период нет." />
+            <RailPanel title={`${topTitlePrefix} баттлы ${periodTitle}`} items={topBattles} ranked empty="Баттлов в этот период нет." />
+            <RailPanel title={`${topTitlePrefix} треки ${periodTitle}`} items={topTracks} ranked empty="Треков в этот период нет." />
           </aside>
         </section>
       )}
@@ -1074,26 +1096,21 @@ function HomePage() {
           <div><strong>{weekItems.filter((item) => item.type === 'track').length}</strong><small>треков за неделю</small></div>
           <div><strong>{published.length}</strong><small>всего опубликовано</small></div>
         </div>
-        {bestMonth && (
-          <div className="activity-note">
-            Самая высокая оценка месяца — <b>{bestMonth.finalScore.toFixed(1)}</b> «{bestMonth.title}», {catalogSubtitle(bestMonth)}
-          </div>
-        )}
       </section>
     </main>
   );
 }
 
-function FeaturedCard({ item, large }: { item: RatedItem; large?: boolean }) {
+function FeaturedCard({ item }: { item: RatedItem }) {
   return (
-    <Link to={`/item/${item.slug}`} className={`featured-card${large ? ' large' : ''} featured-${item.type}`}>
+    <Link to={`/item/${item.slug}`} className={`featured-card featured-${item.type}`}>
       <CardCover item={item} />
       <div className="featured-veil" />
       <span className={`${scoreClass(item.finalScore)} score-pos`}>{item.finalScore.toFixed(1)}</span>
+      <span className={`type-chip type-${item.type} card-type-chip`}><ItemTypeIcon type={item.type} /><span>{itemTypeLabel(item.type)}</span></span>
       <div className="featured-body">
         <div className="featured-meta">
-          <span className={`type-chip ${item.type}`}><span className="type-chip-icon">{itemTypeIcon(item.type)}</span> {itemTypeLabel(item.type)}</span>
-          <span>{relativeDate(item.createdAt)}</span>
+          <span>{cardDateLabel(item)}</span>
         </div>
         <h2>{item.title}</h2>
         <p>{catalogSubtitle(item)}</p>
@@ -1107,7 +1124,7 @@ function ItemCard({ item }: { item: RatedItem }) {
     <Link to={`/item/${item.slug}`} className="catalog-card">
       <div className="catalog-thumb">
         <CardCover item={item} />
-        <span className={`type-chip ${item.type}`}><span className="type-chip-icon">{itemTypeIcon(item.type)}</span> {itemTypeLabel(item.type)}</span>
+        <span className={`type-chip type-${item.type} card-type-chip`}><ItemTypeIcon type={item.type} /><span>{itemTypeLabel(item.type)}</span></span>
         <span className={scoreClass(item.finalScore)}>{item.finalScore.toFixed(1)}</span>
       </div>
       <div className="catalog-card-body">
@@ -1115,7 +1132,7 @@ function ItemCard({ item }: { item: RatedItem }) {
         <p>{catalogSubtitle(item)}</p>
       </div>
       <div className="catalog-card-foot">
-        <span>{relativeDate(item.createdAt)}</span>
+        <span>{cardDateLabel(item)}</span>
         <span>{item.links.length ? `${item.links.length} ссыл.` : 'без ссылок'}</span>
       </div>
     </Link>
@@ -1163,11 +1180,12 @@ function CardCover({ item }: { item: RatedItem }) {
   return item.coverUrl ? <img src={item.coverUrl} alt="" /> : <div className="cover-placeholder"><Star /></div>;
 }
 
-function sortCatalog(items: RatedItem[], sort: HomeSort) {
+function sortCatalog(items: RatedItem[], sort: HomeSort, basis: HomeDateBasis) {
   return [...items].sort((a, b) => {
     if (sort === 'best') return b.finalScore - a.finalScore;
     if (sort === 'worst') return a.finalScore - b.finalScore;
-    return byNewestCreated(a, b);
+    if (basis === 'released') return (b.releaseYear ?? 0) - (a.releaseYear ?? 0) || byNewestCreated(a, b);
+    return itemReviewedTime(b) - itemReviewedTime(a) || byNewestCreated(a, b);
   });
 }
 
@@ -1175,12 +1193,33 @@ function byNewestCreated(a: RatedItem, b: RatedItem) {
   return b.createdAt.localeCompare(a.createdAt);
 }
 
-function matchesPeriod(item: RatedItem, period: HomePeriod) {
+function itemReviewedTime(item: RatedItem) {
+  return Date.parse(item.reviewedAt || item.createdAt);
+}
+
+function itemReleasedTime(item: RatedItem) {
+  const metadata = item.metadata as (ItemMetadata & { releaseDate?: string }) | undefined;
+  const releaseDate = metadata?.releaseDate;
+  return releaseDate ? Date.parse(releaseDate) : NaN;
+}
+
+function matchesPeriod(item: RatedItem, period: HomePeriod, basis: HomeDateBasis) {
   if (period === 'all') return true;
-  const created = Date.parse(item.createdAt);
-  if (Number.isNaN(created)) return false;
+  const currentYear = new Date().getFullYear();
+  if (basis === 'released') {
+    if (period === 'year') return item.releaseYear === currentYear;
+    if (period === 'last-year') return item.releaseYear === currentYear - 1;
+    const released = itemReleasedTime(item);
+    if (Number.isNaN(released)) return false;
+    const days = period === 'month' ? 30 : 7;
+    return Date.now() - released <= days * 24 * 60 * 60 * 1000;
+  }
+  const reviewed = itemReviewedTime(item);
+  if (Number.isNaN(reviewed)) return false;
+  if (period === 'year') return new Date(reviewed).getFullYear() === currentYear;
+  if (period === 'last-year') return new Date(reviewed).getFullYear() === currentYear - 1;
   const days = period === 'month' ? 30 : 7;
-  return Date.now() - created <= days * 24 * 60 * 60 * 1000;
+  return Date.now() - reviewed <= days * 24 * 60 * 60 * 1000;
 }
 
 function catalogSubtitle(item: RatedItem) {
@@ -1346,7 +1385,7 @@ function AdminPage() {
         <select value={sort} onChange={(event) => setSort(event.target.value as 'new' | 'best' | 'worst')}>
           <option value="new">Новые</option>
           <option value="best">Лучшие</option>
-          <option value="worst">Спорные</option>
+          <option value="worst">Худшие</option>
         </select>
       </section>
       <section className="catalog-tabs" aria-label="Раздел админки">
