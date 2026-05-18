@@ -6,6 +6,8 @@
 
 **R1fрейтинг** — сайт-каталог оценок стримера **Рифмабеса**. Он стримит на YouTube / Twitch / Boosty: баттл-рэп (сам баттлер), реакции на баттлы и треки, обзоры альбомов, фильмы и аниме по донатам, плюс свои треки.
 
+Прод: **https://kirillmaller.github.io/album-rater/**.
+
 Сайт нужен чтобы:
 
 - Рифмабесу было **удобно вести каталог** того что он оценивает (вставил ссылку — всё заполнилось само).
@@ -44,6 +46,8 @@
 - URL: `https://nfekasqbzwjelrwyxqmv.supabase.co`
 - Регион: West EU (Ireland), Free Tier.
 - Доступ через CLI: `npx supabase` (поставлен как dev-зависимость в `package.json`). Auth-token хранится у Кирилла, у Claude — через env-переменную `SUPABASE_ACCESS_TOKEN`.
+- **Миграции 001 и 002 уже накачены** (накатывались через SQL Editor вручную, поэтому Supabase Dashboard на главной странице показывает «No migrations» — он считает только то, что катилось через `supabase db push`). Проверить состояние схемы можно SQL-запросом через Management API: `POST https://api.supabase.com/v1/projects/nfekasqbzwjelrwyxqmv/database/query`.
+- В `admin_users` сейчас один email — `kirillmakarov820@gmail.com`. Это admin-аккаунт Кирилла на проде.
 - Edge Functions **не используем** для Яндекса — гео-блок не пускает к `api.music.yandex.net` из EU.
 
 ### VPS `bot-napominalka` на reg.cloud
@@ -58,8 +62,10 @@
 
 ### GitHub Pages (фронт)
 
+- Прод-URL: `https://kirillmaller.github.io/album-rater/`.
+- Репо: [github.com/KirillMaller/album-rater](https://github.com/KirillMaller/album-rater) (публичный).
 - Деплоится автоматически при push в `main` через `.github/workflows/deploy.yml`.
-- Секреты в репо: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_YANDEX_PROXY_URL`.
+- Секреты в репо (все три заведены): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_YANDEX_PROXY_URL`.
 
 ## Запуск локально
 
@@ -86,6 +92,18 @@ api.music.yandex.net (видит русский IP, отдаёт JSON)
 ```
 
 Код прокси и инструкции по поддержке — в [server/yandex-proxy/README.md](server/yandex-proxy/README.md).
+
+## Импорт с YouTube — для баттлов
+
+```
+Браузер пользователя
+  ↓ fetch напрямую (CORS открыт для нашего домена)
+YouTube oEmbed (https://www.youtube.com/oembed)
+  ↓ парсинг в parseBattleTitle()
+заполнение формы редактора баттла
+```
+
+**VPS-прокси для YouTube НЕ используется** — VPS на reg.cloud режет трафик к YouTube (как и к Telegram), а из браузера CORS открыт, всё работает напрямую. Подробности — в [docs/ARCHITECTURE.md → Импорт баттлов с YouTube](docs/ARCHITECTURE.md#импорт-баттлов-с-youtube).
 
 ## Git и workflow
 

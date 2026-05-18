@@ -65,6 +65,25 @@ type ItemMetadata = {
     trackId?: string;
     sourceUrl: string;
   };
+  youtube?: {
+    videoId: string;
+    sourceUrl: string;
+  };
+};
+
+type ParsedBattleTitle =
+  | { format: 'standard'; sideA: string[]; sideB: string[]; tournament: string; stage: string }
+  | { format: 'deathmatch'; participants: string[]; tournament: string; stage: string }
+  | { format: 'unknown'; raw: string; tournament: string; stage: string };
+
+type YoutubeImportResult = {
+  videoId: string;
+  sourceUrl: string;
+  title: string;
+  author: string;
+  authorUrl: string;
+  thumbnailUrl: string;
+  parsed: ParsedBattleTitle;
 };
 
 type TrackScore = {
@@ -127,6 +146,114 @@ const hasSupabaseEnv = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.
 const supabase = hasSupabaseEnv
   ? createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY)
   : null;
+
+function extractYoutubeId(rawUrl: string): string {
+  const u = new URL(rawUrl);
+  if (u.hostname === 'youtu.be') {
+    const id = u.pathname.slice(1).split('/')[0];
+    if (!id) throw new Error('В ссылке YouTube не найден ID видео');
+    return id;
+  }
+  if (u.hostname === 'www.youtube.com' || u.hostname === 'youtube.com' || u.hostname === 'm.youtube.com') {
+    const id = u.searchParams.get('v');
+    if (id) return id;
+    const m = u.pathname.match(/^\/(?:shorts|embed)\/([\w-]+)/);
+    if (m) return m[1];
+  }
+  throw new Error('Это не ссылка YouTube');
+}
+
+function parseBattleTitle(title: string, author: string): ParsedBattleTitle {
+  let t = title
+    .replace(/\s*#[\wА-яёЁ]+/g, '')
+    .replace(/\s*\|\s*\d{4}\s*$/, '')
+    .trim();
+
+  let fighters = t;
+  let tail = '';
+  for (const sep of [' | ', ' - ', ' — ']) {
+    const i = t.indexOf(sep);
+    if (i > 0) {
+      fighters = t.slice(0, i);
+      tail = t.slice(i + sep.length);
+      break;
+    }
+  }
+
+  let tournament = '';
+  let stage = '';
+  const paren = fighters.match(/^(.+?)\s*\(([^)]+)\)\s*(.*)$/);
+  if (paren) {
+    fighters = paren[1].trim();
+    tournament = paren[2].trim();
+    stage = paren[3].trim();
+  }
+
+  if (!tournament && tail) {
+    const m = tail.match(/^([^:]+?)(?::\s*(.+))?$/);
+    tournament = m?.[1]?.trim() || tail.trim();
+    stage = m?.[2]?.trim() || stage;
+  }
+
+  const split = (s: string) =>
+    s
+      .split(/\s+(?:x|х|&|\+)\s+/i)
+      .map((p) => p.replace(/\s+aka\s+.+$/i, '').trim())
+      .filter(Boolean);
+
+  const vsMatch = fighters.match(/^(.+?)\s+(?:vs|VS|Vs|против)\s+(.+)$/);
+  if (vsMatch) {
+    return {
+      format: 'standard',
+      sideA: split(vsMatch[1]),
+      sideB: split(vsMatch[2]),
+      tournament,
+      stage,
+    };
+  }
+
+  const haystack = `${author} ${title}`;
+  if (/БОЛЬШЕ\s+ЧЕМ\s+БАТТЛ|DEATHMATCH|ДЕЗМАТЧ/i.test(haystack)) {
+    return {
+      format: 'deathmatch',
+      participants: split(fighters),
+      tournament: tournament || author,
+      stage,
+    };
+  }
+
+  return {
+    format: 'unknown',
+    raw: fighters,
+    tournament: tournament || author,
+    stage,
+  };
+}
+
+async function fetchYoutubeBattle(rawUrl: string): Promise<YoutubeImportResult> {
+  const videoId = extractYoutubeId(rawUrl);
+  const canonical = `https://www.youtube.com/watch?v=${videoId}`;
+  const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(canonical)}&format=json`;
+  const response = await fetch(oembedUrl);
+  if (response.status === 404 || response.status === 401) {
+    throw new Error('Ролик не найден или закрыт от встраивания');
+  }
+  if (!response.ok) {
+    throw new Error(`YouTube вернул HTTP ${response.status}`);
+  }
+  const data = await response.json();
+  const title = String(data.title ?? '');
+  const author = String(data.author_name ?? '');
+  return {
+    videoId,
+    sourceUrl: canonical,
+    title,
+    author,
+    authorUrl: String(data.author_url ?? ''),
+    thumbnailUrl: String(data.thumbnail_url ?? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`),
+    parsed: parseBattleTitle(title, author),
+  };
+}
 
 const starterItems: RatedItem[] = [
   {
@@ -834,6 +961,9 @@ function EditorPage() {
   const [yandexUrl, setYandexUrl] = useState('');
   const [importStatus, setImportStatus] = useState('');
   const [isImporting, setIsImporting] = useState(false);
+  const [youtubeUrl, setYoutubeUrl] = useState('');
+  const [youtubeImportStatus, setYoutubeImportStatus] = useState('');
+  const [isYoutubeImporting, setIsYoutubeImporting] = useState(false);
 
   const patch = (value: Partial<RatedItem>) => setDraft((current) => ({ ...current, ...value }));
   const addLink = (kind: LinkKind) => patch({ links: [...draft.links, { id: crypto.randomUUID(), kind, platform: '', url: '' }] });
@@ -928,6 +1058,64 @@ function EditorPage() {
       setIsImporting(false);
     }
   };
+
+  const importFromYoutube = async () => {
+    setYoutubeImportStatus('');
+    setIsYoutubeImporting(true);
+    try {
+      const result = await fetchYoutubeBattle(youtubeUrl);
+
+      let nextSideA = battle.sideA;
+      let nextSideB = battle.sideB;
+      let formatHint = '';
+
+      if (result.parsed.format === 'standard') {
+        nextSideA = result.parsed.sideA.join(' & ');
+        nextSideB = result.parsed.sideB.join(' & ');
+      } else if (result.parsed.format === 'deathmatch') {
+        nextSideA = result.parsed.participants.join(' & ');
+        nextSideB = '';
+        formatHint = ' Это дезматч — поддержка формата ещё в работе, участники собраны в стороне A, поправь руками.';
+      } else {
+        nextSideA = result.parsed.raw;
+        formatHint = ' Не получилось автоматически разобрать формат — заполни стороны вручную.';
+      }
+
+      const nextBattle: BattleMetadata = {
+        ...battle,
+        sideA: nextSideA,
+        sideB: nextSideB,
+      };
+
+      patch({
+        type: 'battle',
+        title: draft.title || result.title,
+        coverUrl: draft.coverUrl || result.thumbnailUrl,
+        participants: `${nextSideA || 'Сторона A'} vs ${nextSideB || 'Сторона B'}`,
+        links: [
+          ...draft.links,
+          {
+            id: crypto.randomUUID(),
+            kind: 'original',
+            platform: 'YouTube',
+            url: result.sourceUrl,
+            label: result.author || 'Видео',
+          },
+        ],
+        metadata: {
+          ...draft.metadata,
+          battle: nextBattle,
+          youtube: { videoId: result.videoId, sourceUrl: result.sourceUrl },
+        },
+      });
+      setYoutubeImportStatus(`Импортировано: ${result.title}.${formatHint}`);
+    } catch (error) {
+      setYoutubeImportStatus(error instanceof Error ? error.message : 'Ошибка импорта');
+    } finally {
+      setIsYoutubeImporting(false);
+    }
+  };
+
   const [saveError, setSaveError] = useState('');
   const submitItem = async (published: boolean) => {
     setSaveError('');
@@ -942,14 +1130,27 @@ function EditorPage() {
   return (
     <main>
       <form className="editor" onSubmit={(event) => { event.preventDefault(); submitItem(true); }}>
-        <section className="panel">
-          <h2>Импорт из Яндекс.Музыки</h2>
-          <div className="import-row">
-            <input value={yandexUrl} onChange={(event) => setYandexUrl(event.target.value)} placeholder="Вставь ссылку Яндекс.Музыки на альбом или трек" />
-            <button type="button" disabled={!yandexUrl || isImporting} onClick={importFromYandex}>{isImporting ? 'Импорт...' : 'Импортировать'}</button>
-          </div>
-          {importStatus && <p className={importStatus.includes('Ошибка') || importStatus.includes('капчу') || importStatus.includes('Не удалось') ? 'form-error' : 'form-note'}>{importStatus}</p>}
-        </section>
+        {draft.type !== 'battle' && (
+          <section className="panel">
+            <h2>Импорт из Яндекс.Музыки</h2>
+            <div className="import-row">
+              <input value={yandexUrl} onChange={(event) => setYandexUrl(event.target.value)} placeholder="Вставь ссылку Яндекс.Музыки на альбом или трек" />
+              <button type="button" disabled={!yandexUrl || isImporting} onClick={importFromYandex}>{isImporting ? 'Импорт...' : 'Импортировать'}</button>
+            </div>
+            {importStatus && <p className={importStatus.includes('Ошибка') || importStatus.includes('капчу') || importStatus.includes('Не удалось') ? 'form-error' : 'form-note'}>{importStatus}</p>}
+          </section>
+        )}
+
+        {draft.type === 'battle' && (
+          <section className="panel">
+            <h2>Импорт с YouTube</h2>
+            <div className="import-row">
+              <input value={youtubeUrl} onChange={(event) => setYoutubeUrl(event.target.value)} placeholder="Вставь ссылку на YouTube — Кубок МЦ, Versus, и т.п." />
+              <button type="button" disabled={!youtubeUrl || isYoutubeImporting} onClick={importFromYoutube}>{isYoutubeImporting ? 'Импорт...' : 'Импортировать'}</button>
+            </div>
+            {youtubeImportStatus && <p className={youtubeImportStatus.startsWith('Импортировано') ? 'form-note' : 'form-error'}>{youtubeImportStatus}</p>}
+          </section>
+        )}
 
         <section className="panel">
           <h1>{existing ? 'Редактирование' : `Оценка: ${itemTypeLabel(draft.type).toLowerCase()}`}</h1>
