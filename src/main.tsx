@@ -193,6 +193,8 @@ type BattleMetadata = {
   format?: BattleFormat;
   style?: BattleStyle;
   stage?: string;
+  tournament?: string;
+  season?: string;
 };
 
 type ItemMetadata = {
@@ -995,6 +997,8 @@ function HomePage() {
   const [sort, setSort] = useState<HomeSort>('new');
   const [period, setPeriod] = useState<HomePeriod>('all');
   const [dateBasis, setDateBasis] = useState<HomeDateBasis>('reviewed');
+  const [activeTournament, setActiveTournament] = useState<string>('');
+  const [activeSeason, setActiveSeason] = useState<string>('');
   const published = items.filter((item) => item.published);
   const bestAlbum = [...published].filter((item) => item.type === 'album').sort((a, b) => b.finalScore - a.finalScore)[0];
   const bestBattle = [...published].filter((item) => item.type === 'battle').sort((a, b) => b.finalScore - a.finalScore)[0];
@@ -1002,7 +1006,19 @@ function HomePage() {
   const featured = [bestAlbum, bestBattle, bestTrack].filter(Boolean) as RatedItem[];
   const searched = published.filter((item) => `${item.title} ${item.artist ?? ''} ${item.participants ?? ''} ${item.genre ?? ''}`.toLowerCase().includes(query.toLowerCase()));
   const periodItems = searched.filter((item) => matchesPeriod(item, period, dateBasis));
-  const visibleBase = activeType === 'all' ? periodItems : periodItems.filter((item) => item.type === activeType);
+  const typeFiltered = activeType === 'all' ? periodItems : periodItems.filter((item) => item.type === activeType);
+  const battleTournaments = activeType === 'battle'
+    ? Array.from(new Set(typeFiltered.flatMap((item) => item.metadata?.battle?.tournament ? [item.metadata.battle.tournament] : []))).sort()
+    : [];
+  const tournamentFiltered = activeType === 'battle' && activeTournament
+    ? typeFiltered.filter((item) => item.metadata?.battle?.tournament === activeTournament)
+    : typeFiltered;
+  const battleSeasons = activeType === 'battle' && activeTournament
+    ? Array.from(new Set(tournamentFiltered.flatMap((item) => item.metadata?.battle?.season ? [item.metadata.battle.season] : []))).sort()
+    : [];
+  const visibleBase = activeType === 'battle' && activeTournament && activeSeason
+    ? tournamentFiltered.filter((item) => item.metadata?.battle?.season === activeSeason)
+    : tournamentFiltered;
   const visibleItems = sortCatalog(visibleBase, sort, dateBasis);
   const periodScopedItems = published.filter((item) => matchesPeriod(item, period, dateBasis));
   const topAlbums = [...periodScopedItems].filter((item) => item.type === 'album').sort((a, b) => b.finalScore - a.finalScore).slice(0, 3);
@@ -1062,12 +1078,32 @@ function HomePage() {
 
       <section className="type-tabs" aria-label="Типы записей">
         {homeTypeTabs.map((tab) => (
-          <button key={tab.value} className={activeType === tab.value ? 'on' : ''} onClick={() => setActiveType(tab.value)}>
+          <button key={tab.value} className={activeType === tab.value ? 'on' : ''} onClick={() => { setActiveType(tab.value); setActiveTournament(''); setActiveSeason(''); }}>
             {tab.value !== 'all' && <ItemTypeIcon type={tab.value as ItemType} size={12} />}
             {tab.label} <span>{counts[tab.value]}</span>
           </button>
         ))}
       </section>
+      {activeType === 'battle' && battleTournaments.length > 0 && (
+        <section className="type-tabs type-subtabs" aria-label="Площадка баттла">
+          <button className={activeTournament === '' ? 'on' : ''} onClick={() => { setActiveTournament(''); setActiveSeason(''); }}>Все площадки <span>{typeFiltered.length}</span></button>
+          {battleTournaments.map((t) => (
+            <button key={t} className={activeTournament === t ? 'on' : ''} onClick={() => { setActiveTournament(t); setActiveSeason(''); }}>
+              {t} <span>{typeFiltered.filter((item) => item.metadata?.battle?.tournament === t).length}</span>
+            </button>
+          ))}
+        </section>
+      )}
+      {activeType === 'battle' && activeTournament && battleSeasons.length > 0 && (
+        <section className="type-tabs type-subtabs" aria-label="Сезон">
+          <button className={activeSeason === '' ? 'on' : ''} onClick={() => setActiveSeason('')}>Все сезоны <span>{tournamentFiltered.length}</span></button>
+          {battleSeasons.map((s) => (
+            <button key={s} className={activeSeason === s ? 'on' : ''} onClick={() => setActiveSeason(s)}>
+              {s} <span>{tournamentFiltered.filter((item) => item.metadata?.battle?.season === s).length}</span>
+            </button>
+          ))}
+        </section>
+      )}
 
       {loading && <div className="empty">Загружаем каталог из Supabase...</div>}
       {error && <div className="empty">Ошибка загрузки: {error}</div>}
@@ -1363,8 +1399,22 @@ function AdminPage() {
   const [activeType, setActiveType] = useState<ItemType>('album');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<'new' | 'best' | 'worst'>('new');
+  const [activeTournament, setActiveTournament] = useState<string>('');
+  const [activeSeason, setActiveSeason] = useState<string>('');
   const typeItems = items.filter((item) => item.type === activeType);
-  const filteredItems = typeItems
+  const battleTournaments = activeType === 'battle'
+    ? Array.from(new Set(typeItems.flatMap((item) => item.metadata?.battle?.tournament ? [item.metadata.battle.tournament] : []))).sort()
+    : [];
+  const tournamentFilteredItems = activeType === 'battle' && activeTournament
+    ? typeItems.filter((item) => item.metadata?.battle?.tournament === activeTournament)
+    : typeItems;
+  const battleSeasons = activeType === 'battle' && activeTournament
+    ? Array.from(new Set(tournamentFilteredItems.flatMap((item) => item.metadata?.battle?.season ? [item.metadata.battle.season] : []))).sort()
+    : [];
+  const seasonFilteredItems = activeType === 'battle' && activeTournament && activeSeason
+    ? tournamentFilteredItems.filter((item) => item.metadata?.battle?.season === activeSeason)
+    : tournamentFilteredItems;
+  const filteredItems = seasonFilteredItems
     .filter((item) => `${item.title} ${item.artist} ${item.participants} ${item.genre}`.toLowerCase().includes(query.toLowerCase()))
     .sort((a, b) => sort === 'new' ? b.updatedAt.localeCompare(a.updatedAt) : sort === 'best' ? b.finalScore - a.finalScore : a.finalScore - b.finalScore);
   const counts = {
@@ -1399,10 +1449,30 @@ function AdminPage() {
         </select>
       </section>
       <section className="catalog-tabs" aria-label="Раздел админки">
-        <button className={activeType === 'album' ? 'active' : ''} onClick={() => setActiveType('album')}>Альбомы <span>{counts.album}</span></button>
-        <button className={activeType === 'battle' ? 'active' : ''} onClick={() => setActiveType('battle')}>Баттлы <span>{counts.battle}</span></button>
-        <button className={activeType === 'track' ? 'active' : ''} onClick={() => setActiveType('track')}>Треки <span>{counts.track}</span></button>
+        <button className={activeType === 'album' ? 'active' : ''} onClick={() => { setActiveType('album'); setActiveTournament(''); setActiveSeason(''); }}>Альбомы <span>{counts.album}</span></button>
+        <button className={activeType === 'battle' ? 'active' : ''} onClick={() => { setActiveType('battle'); setActiveTournament(''); setActiveSeason(''); }}>Баттлы <span>{counts.battle}</span></button>
+        <button className={activeType === 'track' ? 'active' : ''} onClick={() => { setActiveType('track'); setActiveTournament(''); setActiveSeason(''); }}>Треки <span>{counts.track}</span></button>
       </section>
+      {activeType === 'battle' && battleTournaments.length > 0 && (
+        <section className="catalog-tabs catalog-subtabs" aria-label="Площадка баттла">
+          <button className={activeTournament === '' ? 'active' : ''} onClick={() => { setActiveTournament(''); setActiveSeason(''); }}>Все площадки <span>{typeItems.length}</span></button>
+          {battleTournaments.map((t) => (
+            <button key={t} className={activeTournament === t ? 'active' : ''} onClick={() => { setActiveTournament(t); setActiveSeason(''); }}>
+              {t} <span>{typeItems.filter((item) => item.metadata?.battle?.tournament === t).length}</span>
+            </button>
+          ))}
+        </section>
+      )}
+      {activeType === 'battle' && activeTournament && battleSeasons.length > 0 && (
+        <section className="catalog-tabs catalog-subtabs" aria-label="Сезон">
+          <button className={activeSeason === '' ? 'active' : ''} onClick={() => setActiveSeason('')}>Все сезоны <span>{tournamentFilteredItems.length}</span></button>
+          {battleSeasons.map((s) => (
+            <button key={s} className={activeSeason === s ? 'active' : ''} onClick={() => setActiveSeason(s)}>
+              {s} <span>{tournamentFilteredItems.filter((item) => item.metadata?.battle?.season === s).length}</span>
+            </button>
+          ))}
+        </section>
+      )}
       <section className="panel table">
         {loading && <div className="empty">Загружаем записи...</div>}
         {error && <div className="empty">Ошибка загрузки: {error}</div>}
@@ -2051,8 +2121,17 @@ function EditorPage() {
     }
   };
 
+  const tournamentSuggestions = Array.from(new Set(items.flatMap((item) => item.metadata?.battle?.tournament ? [item.metadata.battle.tournament] : []))).sort();
+  const seasonSuggestions = Array.from(new Set(items.flatMap((item) => item.metadata?.battle?.season ? [item.metadata.battle.season] : []))).sort();
+
   return (
     <main>
+      <datalist id="battle-tournament-options">
+        {tournamentSuggestions.map((t) => <option key={t} value={t} />)}
+      </datalist>
+      <datalist id="battle-season-options">
+        {seasonSuggestions.map((s) => <option key={s} value={s} />)}
+      </datalist>
       <form className="editor" onSubmit={(event) => { event.preventDefault(); submitItem(true); }}>
         {draft.type !== 'battle' && (
           <section className="panel">
@@ -2133,6 +2212,18 @@ function EditorPage() {
                   value={battle.stage || ''}
                   onChange={(event) => updateBattle({ stage: event.target.value })}
                   placeholder="Стадия (1/4, Финал, Fresh Blood, Титульный…)"
+                />
+                <input
+                  value={battle.tournament || ''}
+                  onChange={(event) => updateBattle({ tournament: event.target.value })}
+                  placeholder="Площадка (Versus, SLOVO, Кубок МЦ, 140 BPM…)"
+                  list="battle-tournament-options"
+                />
+                <input
+                  value={battle.season || ''}
+                  onChange={(event) => updateBattle({ season: event.target.value })}
+                  placeholder="Сезон (Fresh Blood 4, опционально)"
+                  list="battle-season-options"
                 />
               </>
             )}

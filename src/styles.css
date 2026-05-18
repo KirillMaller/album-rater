@@ -113,8 +113,9 @@ nav a, nav .nav-link { color: var(--muted); cursor: pointer; }
 nav a:hover, nav .nav-link:hover { color: var(--text); }
 nav .active-link { color: var(--text); }
 nav .nav-soon { cursor: help; opacity: .85; }
-.ghost { min-height: 36px; background: transparent; border: 1px solid var(--line); color: var(--text); }
-.ghost:hover { border-color: rgba(0, 229, 255, .4); background: rgba(0, 229, 255, .08); box-shadow: none; }
+.ghost { min-height: 36px; background: rgba(0, 229, 255, .08); border: 1px solid rgba(0, 229, 255, .35); border-radius: 8px; color: #c7f8ff; padding: 8px 14px; }
+.ghost:hover { border-color: rgba(0, 229, 255, .65); background: rgba(0, 229, 255, .14); color: #fff; box-shadow: 0 6px 18px rgba(0, 229, 255, .15); }
+.ghost:active { transform: translateY(0); }
 .danger { min-height: 36px; background: rgba(255, 77, 109, .14); border: 1px solid rgba(255, 77, 109, .4); color: #ffd3dc; }
 .danger:hover { border-color: rgba(255, 77, 109, .72); background: rgba(255, 77, 109, .2); box-shadow: none; }
 
@@ -208,6 +209,8 @@ nav .nav-soon { cursor: help; opacity: .85; }
   color: #c7cde0;
 }
 .catalog-tabs button.active span { background: rgba(255, 255, 255, .14); color: #fff; }
+.catalog-subtabs, .type-subtabs { margin-top: -8px; margin-bottom: 16px; opacity: .92; }
+.catalog-subtabs button, .type-subtabs button { font-size: 12px; padding: 6px 12px; min-height: 32px; }
 .catalog-tabs button:not(.active):not(:hover) span {
   color: #c7cde0;
   font-weight: 800;
