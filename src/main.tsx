@@ -51,7 +51,8 @@ type BattleRound = {
   comment?: string;
 };
 
-type BattleFormat = '1v1' | '2v2' | '3v3' | 'deathmatch' | 'other';
+type BattleFormat = '1v1' | '2v2' | '3v3' | 'triple' | 'deathmatch' | 'other';
+type BattleStyle = 'acapella' | 'bpm' | 'mixed' | 'freestyle' | 'thematic' | 'other';
 
 type BattleMetadata = {
   sideA: string;
@@ -59,6 +60,8 @@ type BattleMetadata = {
   rounds: BattleRound[];
   finalWinner: BattleSideKey;
   format?: BattleFormat;
+  style?: BattleStyle;
+  stage?: string;
 };
 
 type ItemMetadata = {
@@ -114,8 +117,18 @@ const battleFormatOptions: Array<{ value: BattleFormat; label: string }> = [
   { value: '1v1', label: '1 на 1' },
   { value: '2v2', label: '2 на 2' },
   { value: '3v3', label: '3 на 3' },
-  { value: 'deathmatch', label: 'Дезматч (все против всех)' },
+  { value: 'triple', label: 'Triple Threat (1 vs 1 vs 1)' },
+  { value: 'deathmatch', label: 'Дезматч (4+, все против всех)' },
   { value: 'other', label: 'Свой формат' },
+];
+
+const battleStyleOptions: Array<{ value: BattleStyle; label: string }> = [
+  { value: 'acapella', label: 'A Capella (без бита)' },
+  { value: 'bpm', label: 'BPM (с битом)' },
+  { value: 'mixed', label: 'BPM + A Capella' },
+  { value: 'freestyle', label: 'Фристайл / Импровизация' },
+  { value: 'thematic', label: 'Тематический' },
+  { value: 'other', label: 'Свой стиль' },
 ];
 
 const battleGenre = 'Баттл-рэп';
@@ -1090,14 +1103,20 @@ function EditorPage() {
 
       let nextSideA = battle.sideA;
       let nextSideB = battle.sideB;
+      let nextFormat: BattleFormat | undefined = battle.format;
       let formatHint = '';
 
       if (result.parsed.format === 'standard') {
         nextSideA = result.parsed.sideA.join(' & ');
         nextSideB = result.parsed.sideB.join(' & ');
+        const aSize = result.parsed.sideA.length;
+        const bSize = result.parsed.sideB.length;
+        const maxSize = Math.max(aSize, bSize);
+        nextFormat = maxSize >= 3 ? '3v3' : maxSize === 2 ? '2v2' : '1v1';
       } else if (result.parsed.format === 'deathmatch') {
         nextSideA = result.parsed.participants.join(' & ');
         nextSideB = '';
+        nextFormat = 'deathmatch';
         formatHint = ' Это дезматч — поддержка формата ещё в работе, участники собраны в стороне A, поправь руками.';
       } else {
         nextSideA = result.parsed.raw;
@@ -1108,6 +1127,8 @@ function EditorPage() {
         ...battle,
         sideA: nextSideA,
         sideB: nextSideB,
+        format: nextFormat,
+        stage: result.parsed.stage || battle.stage,
       };
 
       patch({
@@ -1214,12 +1235,26 @@ function EditorPage() {
               );
             })()}
             {draft.type === 'battle' && (
-              <select
-                value={battle.format || '1v1'}
-                onChange={(event) => updateBattle({ format: event.target.value as BattleFormat })}
-              >
-                {battleFormatOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-              </select>
+              <>
+                <select
+                  value={battle.format || '1v1'}
+                  onChange={(event) => updateBattle({ format: event.target.value as BattleFormat })}
+                >
+                  {battleFormatOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                </select>
+                <select
+                  value={battle.style || ''}
+                  onChange={(event) => updateBattle({ style: (event.target.value || undefined) as BattleStyle | undefined })}
+                >
+                  <option value="">Стиль…</option>
+                  {battleStyleOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                </select>
+                <input
+                  value={battle.stage || ''}
+                  onChange={(event) => updateBattle({ stage: event.target.value })}
+                  placeholder="Стадия (1/4, Финал, Fresh Blood, Титульный…)"
+                />
+              </>
             )}
             <input value={draft.coverUrl || ''} onChange={(event) => patch({ coverUrl: event.target.value })} placeholder="URL обложки" />
           </div>
