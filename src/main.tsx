@@ -96,6 +96,17 @@ function formatMSKTime(value: string | Date) {
   return formatMSK(value, { hour: '2-digit', minute: '2-digit' });
 }
 
+function todayInMoscow() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Moscow' });
+}
+
+function formatMSKDate(value: string) {
+  if (!value) return '';
+  const [y, m, d] = value.split('-').map(Number);
+  if (!y || !m || !d) return value;
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Moscow' });
+}
+
 function auctionStaleLevel(item: AuctionItem): 'fresh' | 'warning' | 'danger' {
   if (item.amount > 500) return 'fresh';
   const months = monthsSince(item.updatedAt);
@@ -236,6 +247,7 @@ type RatedItem = {
   tracks: TrackScore[];
   links: MediaLink[];
   metadata?: ItemMetadata;
+  reviewedAt?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -558,6 +570,7 @@ function fromDbItem(row: any): RatedItem {
         startsAt: link.starts_at ?? undefined,
       })),
     metadata: row.metadata ?? undefined,
+    reviewedAt: row.reviewed_at ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -580,6 +593,7 @@ function toDbItem(item: RatedItem) {
     score_mode: item.scoreMode,
     published: item.published,
     metadata: item.metadata ?? null,
+    reviewed_at: item.reviewedAt || null,
   };
 }
 
@@ -1161,7 +1175,7 @@ function ItemPage() {
         <div>
           <p className="eyebrow">{itemCredit(item)}</p>
           <h1>{item.title}</h1>
-          <p>{item.releaseYear || 'Без года'} · {item.genre || 'Без жанра'}</p>
+          <p>{item.releaseYear || 'Без года'} · {item.genre || 'Без жанра'}{item.reviewedAt ? ` · оценено ${formatMSKDate(item.reviewedAt)}` : ''}</p>
           <span className={scoreClass(item.finalScore)}>{item.finalScore.toFixed(1)}</span>
           {item.description && <p className="lead">{item.description}</p>}
         </div>
@@ -1713,6 +1727,7 @@ function EditorPage() {
     links: [],
     genre: newItemType === 'battle' ? battleGenre : undefined,
     metadata: newItemType === 'battle' ? { battle: createDefaultBattle() } : undefined,
+    reviewedAt: todayInMoscow(),
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -2036,6 +2051,10 @@ function EditorPage() {
               </>
             )}
             <input value={draft.coverUrl || ''} onChange={(event) => patch({ coverUrl: event.target.value })} placeholder="URL обложки" />
+            <label className="field-label">
+              <span>Дата оценки</span>
+              <input type="date" value={draft.reviewedAt || ''} onChange={(event) => patch({ reviewedAt: event.target.value || undefined })} />
+            </label>
           </div>
           <textarea value={draft.description || ''} onChange={(event) => patch({ description: event.target.value })} placeholder="Короткое описание" />
         </section>
