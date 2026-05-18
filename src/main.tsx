@@ -51,11 +51,14 @@ type BattleRound = {
   comment?: string;
 };
 
+type BattleFormat = '1v1' | '2v2' | '3v3' | 'deathmatch' | 'other';
+
 type BattleMetadata = {
   sideA: string;
   sideB: string;
   rounds: BattleRound[];
   finalWinner: BattleSideKey;
+  format?: BattleFormat;
 };
 
 type ItemMetadata = {
@@ -104,6 +107,18 @@ type MediaLink = {
 };
 
 const originalPlatforms = ['Яндекс.Музыка', 'Spotify', 'Apple Music', 'YouTube Music', 'VK Музыка', 'SoundCloud', 'Bandcamp', 'Другое'];
+
+const genreOptions = ['Рэп', 'Поп', 'R&B / соул', 'Рок', 'Электроника', 'Инди', 'Метал', 'Экспериментальный', 'Свой'];
+
+const battleFormatOptions: Array<{ value: BattleFormat; label: string }> = [
+  { value: '1v1', label: '1 на 1' },
+  { value: '2v2', label: '2 на 2' },
+  { value: '3v3', label: '3 на 3' },
+  { value: 'deathmatch', label: 'Дезматч (все против всех)' },
+  { value: 'other', label: 'Свой формат' },
+];
+
+const battleGenre = 'Баттл-рэп';
 const reactionPlatforms = ['YouTube', 'Boosty', 'Twitch', 'VK Видео', 'Rutube', 'Другое'];
 
 type YandexImportResult = {
@@ -344,6 +359,7 @@ function createDefaultBattle(): BattleMetadata {
     sideB: '',
     rounds: [createBattleRound(1), createBattleRound(2), createBattleRound(3)],
     finalWinner: 'draw',
+    format: '1v1',
   };
 }
 
@@ -953,6 +969,7 @@ function EditorPage() {
     published: false,
     tracks: [],
     links: [],
+    genre: newItemType === 'battle' ? battleGenre : undefined,
     metadata: newItemType === 'battle' ? { battle: createDefaultBattle() } : undefined,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -999,11 +1016,17 @@ function EditorPage() {
   const addBattleRound = () => updateBattle({ rounds: normalizeBattleRounds([...battle.rounds, createBattleRound(battle.rounds.length + 1)]) });
   const removeBattleRound = (index: number) => updateBattle({ rounds: normalizeBattleRounds(battle.rounds.filter((_, i) => i !== index)) });
   const handleTypeChange = (nextType: ItemType) => {
+    const wasBattle = draft.type === 'battle';
+    const becomesBattle = nextType === 'battle';
+    let nextGenre = draft.genre;
+    if (becomesBattle) nextGenre = battleGenre;
+    else if (wasBattle && draft.genre === battleGenre) nextGenre = undefined;
     patch({
       type: nextType,
       scoreMode: nextType === 'album' ? 'auto' : 'manual',
       tracks: nextType === 'album' ? draft.tracks : [],
-      metadata: nextType === 'battle' ? { ...draft.metadata, battle: draft.metadata?.battle ?? createDefaultBattle() } : undefined,
+      genre: nextGenre,
+      metadata: becomesBattle ? { ...draft.metadata, battle: draft.metadata?.battle ?? createDefaultBattle() } : undefined,
     });
   };
   const importFromYandex = async () => {
@@ -1162,7 +1185,42 @@ function EditorPage() {
             {draft.type === 'battle' && <input value={draft.participants || ''} onChange={(event) => patch({ participants: event.target.value })} placeholder="Участники баттла" />}
             <input value={draft.slug} onChange={(event) => patch({ slug: normalizeSlug(event.target.value) })} placeholder="Короткая ссылка" />
             <input type="number" value={draft.releaseYear || ''} onChange={(event) => patch({ releaseYear: Number(event.target.value) || undefined })} placeholder="Год" />
-            <input value={draft.genre || ''} onChange={(event) => patch({ genre: event.target.value })} placeholder="Жанр" />
+            {draft.type !== 'battle' && (() => {
+              const currentGenre = draft.genre || '';
+              const presetGenres = genreOptions.slice(0, -1); // без «Свой»
+              const isCustom = currentGenre !== '' && !presetGenres.includes(currentGenre);
+              const selectorValue = currentGenre === '' ? '' : (isCustom ? 'Свой' : currentGenre);
+              return (
+                <>
+                  <select
+                    value={selectorValue}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      if (value === 'Свой') patch({ genre: isCustom ? currentGenre : ' ' });
+                      else patch({ genre: value });
+                    }}
+                  >
+                    <option value="">Жанр…</option>
+                    {genreOptions.map((g) => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                  {selectorValue === 'Свой' && (
+                    <input
+                      value={isCustom ? currentGenre : ''}
+                      onChange={(event) => patch({ genre: event.target.value })}
+                      placeholder="Свой жанр"
+                    />
+                  )}
+                </>
+              );
+            })()}
+            {draft.type === 'battle' && (
+              <select
+                value={battle.format || '1v1'}
+                onChange={(event) => updateBattle({ format: event.target.value as BattleFormat })}
+              >
+                {battleFormatOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+              </select>
+            )}
             <input value={draft.coverUrl || ''} onChange={(event) => patch({ coverUrl: event.target.value })} placeholder="URL обложки" />
           </div>
           <textarea value={draft.description || ''} onChange={(event) => patch({ description: event.target.value })} placeholder="Короткое описание" />
