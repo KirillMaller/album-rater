@@ -923,7 +923,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
 
 function App() {
   return (
-    <BrowserRouter basename="/album-rater">
+    <BrowserRouter>
       <StoreProvider>
         <Shell />
       </StoreProvider>
