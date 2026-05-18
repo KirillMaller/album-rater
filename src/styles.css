@@ -118,13 +118,25 @@ nav .nav-soon { cursor: help; opacity: .85; }
 .danger { min-height: 36px; background: rgba(255, 77, 109, .14); border: 1px solid rgba(255, 77, 109, .4); color: #ffd3dc; }
 .danger:hover { border-color: rgba(255, 77, 109, .72); background: rgba(255, 77, 109, .2); box-shadow: none; }
 
-.hero, .detail-hero, .admin-head {
+.hero, .detail-hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 24px;
   align-items: end;
   min-height: 340px;
   padding: 36px 0;
+}
+.admin-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: end;
+  padding: 28px 0 18px;
+}
+.admin-head h1 {
+  margin: 8px 0 0;
+  font-size: clamp(28px, 4.4vw, 52px);
+  line-height: 1.05;
 }
 
 .hero p, .detail-hero p, .muted { color: var(--muted); }
@@ -160,36 +172,44 @@ nav .nav-soon { cursor: help; opacity: .85; }
   animation: fade-slide-up .24s var(--ease);
 }
 .catalog-tabs {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-bottom: 22px;
-  padding: 6px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: rgba(13, 17, 28, .72);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
 }
 .catalog-tabs button {
-  position: relative;
-  min-height: 46px;
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--muted);
-  transition: color .2s var(--ease), background .2s var(--ease), border-color .2s var(--ease), transform .2s var(--ease), box-shadow .2s var(--ease);
+  min-height: 38px;
+  padding: 9px 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(13, 17, 28, .72);
+  color: #c7cde0;
+  font-weight: 600;
+  font-size: 13px;
+  box-shadow: none;
 }
 .catalog-tabs button:hover {
+  border-color: rgba(255, 255, 255, .18);
   background: rgba(255, 255, 255, .04);
   color: var(--text);
   box-shadow: none;
 }
 .catalog-tabs button.active {
-  border-color: rgba(0, 229, 255, .45);
-  background: rgba(0, 229, 255, .1);
-  color: var(--text);
-  box-shadow: inset 0 0 0 1px rgba(0, 229, 255, .1), 0 10px 30px rgba(0, 229, 255, .08);
+  border-color: rgba(255, 45, 156, .5);
+  background: linear-gradient(135deg, rgba(145, 70, 255, .25), rgba(255, 45, 156, .25));
+  color: #fff;
 }
 .catalog-tabs span {
-  color: var(--cyan);
+  background: rgba(255, 255, 255, .08);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #c7cde0;
+}
+.catalog-tabs button.active span { background: rgba(255, 255, 255, .14); color: #fff; }
+.catalog-tabs button:not(.active):not(:hover) span {
+  color: #c7cde0;
   font-weight: 800;
 }
 .section-head {
@@ -607,7 +627,6 @@ nav .nav-soon { cursor: help; opacity: .85; }
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
 }
-.admin-head { min-height: 160px; }
 .table { display: grid; gap: 10px; }
 .type-grid {
   display: grid;
@@ -769,7 +788,6 @@ nav .nav-soon { cursor: help; opacity: .85; }
 
 @media (max-width: 900px) {
   .hero, .detail-hero, .admin-head, .columns, .filters, .home-intro, .home-tools, .catalog-split { grid-template-columns: 1fr; }
-  .catalog-tabs { grid-template-columns: 1fr; }
   .type-grid { grid-template-columns: 1fr; }
   .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .home-stat { justify-items: start; }
@@ -783,6 +801,9 @@ nav .nav-soon { cursor: help; opacity: .85; }
   .admin-row { grid-template-columns: 48px minmax(0, 1fr); align-items: start; }
   .admin-actions { grid-column: 1 / -1; justify-content: stretch; }
   .admin-actions a, .admin-actions button { flex: 1 1 180px; }
+  .auction-table { display: block; overflow-x: auto; }
+  .auction-table thead, .auction-table tbody { display: table; width: 100%; min-width: 540px; }
+  .admin-head h1 { font-size: clamp(28px, 7vw, 44px); }
 }
 
 @media (max-width: 560px) {
@@ -801,6 +822,16 @@ nav .nav-soon { cursor: help; opacity: .85; }
   .track-edit { grid-template-columns: 28px minmax(0, 1fr); }
   .track-edit input[type="number"] { grid-column: 2; }
   .track-row-actions { grid-column: 2; }
+  .auctions, .auctions-head { width: auto; padding-left: 0; padding-right: 0; }
+  .auction-table tbody td, .auction-table thead th { padding: 8px 10px; font-size: 13px; }
+  .auction-amount { width: 100px; }
+  .admin-head { padding: 18px 0 12px; gap: 12px; }
+  .admin-head-actions { width: 100%; }
+  .admin-head-actions a, .admin-head-actions .button { flex: 1; justify-content: center; }
+  .catalog-tabs button, .type-tabs button { font-size: 12px; padding: 7px 12px; }
+  .home, .auctions { padding: 0; }
+  .brand { font-size: 15px; }
+  .brand-mark { width: 24px; height: 24px; font-size: 12px; }
 }
 
 /* === Аукционы === */
