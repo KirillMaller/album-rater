@@ -667,7 +667,7 @@ function Shell() {
         <Link to="/" className="brand"><Library size={22} /> R1fрейтинг</Link>
         <nav>
           <Link to="/">Каталог</Link>
-          <Link to="/admin">Админка</Link>
+          {admin && <Link to="/admin">Админка</Link>}
           {admin && <button className="ghost" onClick={() => signOut()}><LogOut size={16} /> Выйти</button>}
         </nav>
       </header>
@@ -685,7 +685,7 @@ function Shell() {
 }
 
 function HomePage() {
-  const { items, loading, error } = useStore();
+  const { items, loading, error, admin } = useStore();
   const [query, setQuery] = useState('');
   const [activeType, setActiveType] = useState<ItemType>('album');
   const [sort, setSort] = useState<'new' | 'best' | 'worst'>('best');
@@ -708,9 +708,11 @@ function HomePage() {
           <p className="eyebrow">Оценки Рифмабеса</p>
           <h1>R1fрейтинг</h1>
           <p>Альбомы, треки, баттлы, рецензии и ссылки на реакции в одном месте.</p>
-          <div className="hero-actions">
-            <Link className="button" to="/admin/new"><Plus size={16} /> Начать оценку</Link>
-          </div>
+          {admin && (
+            <div className="hero-actions">
+              <Link className="button" to="/admin/new"><Plus size={16} /> Начать оценку</Link>
+            </div>
+          )}
         </div>
         <div className="stat"><strong>{published.length}</strong><span>опубликовано</span></div>
       </section>
