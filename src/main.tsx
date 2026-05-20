@@ -448,7 +448,7 @@ async function fetchYoutubeBattle(rawUrl: string): Promise<YoutubeImportResult> 
     title,
     author,
     authorUrl: String(data.author_url ?? ''),
-    thumbnailUrl: String(data.thumbnail_url ?? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`),
+    thumbnailUrl: displayCoverUrl(String(data.thumbnail_url ?? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`)),
     parsed: parseBattleTitle(title, author),
   };
 }
@@ -1220,8 +1220,29 @@ function scoreColor(score: number) {
   return '#ff4d6d';
 }
 
+function displayCoverUrl(url?: string) {
+  if (!url) return '';
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname === 'images.weserv.nl' || parsed.hostname === 'wsrv.nl') return url;
+    if (parsed.hostname === 'i.ytimg.com' || parsed.hostname === 'img.youtube.com') {
+      return `https://images.weserv.nl/?url=${parsed.hostname}${parsed.pathname}${parsed.search}`;
+    }
+  } catch {
+    return url;
+  }
+  return url;
+}
+
+function CoverImage({ url }: { url?: string }) {
+  const [failed, setFailed] = useState(false);
+  const src = displayCoverUrl(url);
+  if (!src || failed) return <div className="cover-placeholder"><Star /></div>;
+  return <img src={src} alt="" onError={() => setFailed(true)} />;
+}
+
 function CardCover({ item }: { item: RatedItem }) {
-  return item.coverUrl ? <img src={item.coverUrl} alt="" /> : <div className="cover-placeholder"><Star /></div>;
+  return <CoverImage url={item.coverUrl} />;
 }
 
 function sortCatalog(items: RatedItem[], sort: HomeSort, basis: HomeDateBasis) {
@@ -1298,7 +1319,7 @@ function ItemPage() {
   return (
     <main>
       <section className="detail-hero">
-        <div className="detail-cover">{item.coverUrl ? <img src={item.coverUrl} alt="" /> : <Star />}</div>
+        <div className="detail-cover"><CoverImage url={item.coverUrl} /></div>
         <div>
           <p className="eyebrow">{itemCredit(item)}</p>
           <h1>{item.title}</h1>
@@ -1479,7 +1500,7 @@ function AdminPage() {
         {!loading && !error && !filteredItems.length && <div className="empty">В этом разделе записей пока нет.</div>}
         {filteredItems.map((item) => (
           <div className="admin-row" key={item.id}>
-            <img src={item.coverUrl || ''} alt="" />
+            <img src={displayCoverUrl(item.coverUrl)} alt="" />
             <div className="admin-row-main"><b>{item.title}</b><span>{itemAdminMeta(item)}</span></div>
             <div className="admin-actions">
               <Link className="ghost" to={`/admin/edit/${item.id}`}><Edit3 size={16} /> Редактировать</Link>

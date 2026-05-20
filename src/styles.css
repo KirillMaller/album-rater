@@ -241,6 +241,7 @@ nav .nav-soon { cursor: help; opacity: .85; }
 .cover-wrap img, .detail-cover img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .28s var(--ease); }
 .item-card:hover .cover-wrap img { transform: scale(1.035); }
 .cover-placeholder, .detail-cover { display: grid; place-items: center; background: linear-gradient(135deg, #22283d, #101522); color: var(--muted); }
+.cover-placeholder { width: 100%; height: 100%; }
 .item-card p { margin: 12px 0 4px; color: var(--muted); }
 .item-card h2 { margin: 0 0 4px; font-size: 19px; line-height: 1.1; }
 .item-card span:not(.score) { color: var(--muted); font-size: 14px; }
