@@ -42,6 +42,7 @@ if (redirectedUrl) {
 type ItemType = 'album' | 'battle' | 'track';
 type ScoreMode = 'auto' | 'manual';
 type LinkKind = 'original' | 'reaction';
+type ScoreValue = number | '' | '-';
 
 type AuctionCategory = 'album' | 'series' | 'film' | 'anime' | 'game' | 'battle';
 
@@ -103,9 +104,10 @@ function todayInMoscow() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Moscow' });
 }
 
-function parseScoreInput(text: string): number | '' {
+function parseScoreInput(text: string, allowExclude = false): ScoreValue {
   const cleaned = text.replace(',', '.').trim();
   if (cleaned === '') return '';
+  if (allowExclude && cleaned === '-') return '-';
   const num = Number.parseFloat(cleaned);
   if (Number.isNaN(num)) return '';
   if (num < 0) return 0;
@@ -113,24 +115,29 @@ function parseScoreInput(text: string): number | '' {
   return Math.round(num * 10) / 10;
 }
 
-function formatScoreValue(value: number | '') {
+function formatScoreValue(value: ScoreValue) {
   return value === '' ? '' : String(value).replace('.', ',');
 }
 
-function ScoreInput({ value, onChange, disabled, placeholder }: {
-  value: number | '';
-  onChange: (next: number | '') => void;
+function numericScoreValue(value: ScoreValue): number | '' {
+  return value === '-' ? '' : value;
+}
+
+function ScoreInput({ value, onChange, disabled, placeholder, allowExclude }: {
+  value: ScoreValue;
+  onChange: (next: ScoreValue) => void;
   disabled?: boolean;
   placeholder?: string;
+  allowExclude?: boolean;
 }) {
   const [text, setText] = useState<string>(formatScoreValue(value));
   useEffect(() => {
-    const current = parseScoreInput(text);
+    const current = parseScoreInput(text, allowExclude);
     if (current !== value) {
       setText(formatScoreValue(value));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+  }, [value, allowExclude]);
   return (
     <input
       type="text"
@@ -141,7 +148,7 @@ function ScoreInput({ value, onChange, disabled, placeholder }: {
       onChange={(event) => {
         const raw = event.target.value;
         setText(raw);
-        onChange(parseScoreInput(raw));
+        onChange(parseScoreInput(raw, allowExclude));
       }}
       onWheel={(event) => (event.currentTarget as HTMLInputElement).blur()}
     />
@@ -208,6 +215,7 @@ type ItemMetadata = {
     videoId: string;
     sourceUrl: string;
   };
+  excludedTrackPositions?: number[];
 };
 
 type ParsedBattleTitle =
@@ -229,7 +237,7 @@ type TrackScore = {
   id: string;
   position: number;
   title: string;
-  score: number | '';
+  score: ScoreValue;
   coverUrl?: string;
 };
 
@@ -489,7 +497,7 @@ function readItems() {
 }
 
 function averageScore(tracks: TrackScore[]) {
-  const scores = tracks.map((track) => Number(track.score)).filter(Number.isFinite);
+  const scores = tracks.map((track) => track.score).filter((score): score is number => typeof score === 'number' && Number.isFinite(score));
   if (!scores.length) return 0;
   return Number((scores.reduce((sum, score) => sum + score, 0) / scores.length).toFixed(1));
 }
@@ -595,6 +603,8 @@ function scoreClass(score: number) {
 }
 
 function fromDbItem(row: any): RatedItem {
+  const metadata = row.metadata ?? undefined;
+  const excludedTrackPositions = new Set<number>(metadata?.excludedTrackPositions ?? []);
   return {
     id: row.id,
     type: row.type,
@@ -616,7 +626,7 @@ function fromDbItem(row: any): RatedItem {
         id: track.id,
         position: track.position,
         title: track.title,
-        score: track.score === null ? '' : Number(track.score),
+        score: excludedTrackPositions.has(track.position) ? '-' : (track.score === null ? '' : Number(track.score)),
         coverUrl: track.cover_url ?? undefined,
       })),
     links: [...(row.media_links ?? [])]
@@ -629,7 +639,7 @@ function fromDbItem(row: any): RatedItem {
         label: link.label ?? undefined,
         startsAt: link.starts_at ?? undefined,
       })),
-    metadata: row.metadata ?? undefined,
+    metadata,
     reviewedAt: row.reviewed_at ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -637,6 +647,14 @@ function fromDbItem(row: any): RatedItem {
 }
 
 function toDbItem(item: RatedItem) {
+  const excludedTrackPositions = item.tracks
+    .filter((track) => track.score === '-')
+    .map((track) => track.position);
+  const metadata = {
+    ...(item.metadata ?? {}),
+    excludedTrackPositions,
+  };
+
   return {
     id: item.id,
     type: item.type,
@@ -652,7 +670,7 @@ function toDbItem(item: RatedItem) {
     final_score: item.finalScore,
     score_mode: item.scoreMode,
     published: item.published,
-    metadata: item.metadata ?? null,
+    metadata,
     reviewed_at: item.reviewedAt || null,
   };
 }
@@ -879,7 +897,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
           item_id: normalized.id,
           position: index + 1,
           title: track.title,
-          score: track.score === '' ? null : Number(track.score),
+          score: typeof track.score === 'number' ? track.score : null,
           cover_url: track.coverUrl || null,
         })));
         if (tracksError) throw tracksError;
@@ -1348,7 +1366,12 @@ function ItemPage() {
           ) : item.type === 'album' ? (
             <>
               <h2>Треклист</h2>
-              {item.tracks.map((track) => <div className="track" key={track.id}><span>{track.position}. {track.title}</span><b>{track.score || '-'}</b></div>)}
+              {item.tracks.map((track) => (
+                <div className={`track ${track.score === '-' ? 'track-excluded' : ''}`} key={track.id}>
+                  <span>{track.position}. {track.title}</span>
+                  <b>{track.score === '-' ? 'не в счёт' : track.score || '-'}</b>
+                </div>
+              ))}
             </>
           ) : (
             <>
@@ -2264,11 +2287,12 @@ function EditorPage() {
             <button type="button" onClick={() => patch({ tracks: normalizeTrackPositions(parseTrackList(trackText)) })}>Создать треки из списка</button>
             <button type="button" className="ghost" onClick={addTrack}><Plus size={16} /> Добавить трек</button>
           </div>
+          <p className="muted">Поставь «-» вместо оценки, если это интро, аутро или скит: трек останется в списке, но не попадёт в среднюю оценку.</p>
           {draft.tracks.map((track, index) => (
             <div className="track-edit" key={track.id}>
               <span>{index + 1}</span>
               <input value={track.title} onChange={(event) => updateTrack(index, { title: event.target.value })} />
-              <ScoreInput value={track.score} onChange={(next) => updateTrack(index, { score: next })} />
+              <ScoreInput value={track.score} allowExclude onChange={(next) => updateTrack(index, { score: next })} />
               <div className="track-row-actions">
                 <button type="button" className="ghost icon-btn" disabled={index === 0} onClick={() => moveTrack(index, -1)} title="Поднять трек"><ArrowUp size={16} /></button>
                 <button type="button" className="ghost icon-btn" disabled={index === draft.tracks.length - 1} onClick={() => moveTrack(index, 1)} title="Опустить трек"><ArrowDown size={16} /></button>
@@ -2287,8 +2311,8 @@ function EditorPage() {
           {battle.rounds.map((round, index) => (
             <div className="battle-round" key={round.id}>
               <strong>Раунд {index + 1}</strong>
-              <ScoreInput value={round.scoreA} onChange={(next) => updateBattleRound(index, { scoreA: next })} placeholder={`Очки: ${battle.sideA || 'A'}`} />
-              <ScoreInput value={round.scoreB} onChange={(next) => updateBattleRound(index, { scoreB: next })} placeholder={`Очки: ${battle.sideB || 'B'}`} />
+              <ScoreInput value={round.scoreA} onChange={(next) => updateBattleRound(index, { scoreA: numericScoreValue(next) })} placeholder={`Очки: ${battle.sideA || 'A'}`} />
+              <ScoreInput value={round.scoreB} onChange={(next) => updateBattleRound(index, { scoreB: numericScoreValue(next) })} placeholder={`Очки: ${battle.sideB || 'B'}`} />
               <select value={round.winner} onChange={(event) => updateBattleRound(index, { winner: event.target.value as BattleSideKey })}>
                 <option value="draw">Ничья / спорно</option>
                 <option value="a">Раунд за {battle.sideA || 'A'}</option>
@@ -2322,7 +2346,7 @@ function EditorPage() {
             </div>
             <div>
               <select value={draft.scoreMode} disabled={isTrackItem || isBattleItem} onChange={(event) => patch({ scoreMode: event.target.value as ScoreMode })}><option value="auto">Среднее по трекам</option><option value="manual">Вручную</option></select>
-              <ScoreInput value={albumScore} disabled={draft.scoreMode === 'auto'} onChange={(next) => patch({ finalScore: next === '' ? 0 : next })} />
+              <ScoreInput value={albumScore} disabled={draft.scoreMode === 'auto'} onChange={(next) => patch({ finalScore: typeof next === 'number' ? next : 0 })} />
             </div>
           </div>
           <textarea className="review-input" value={draft.review || ''} onChange={(event) => patch({ review: event.target.value })} placeholder="Markdown-рецензия" />

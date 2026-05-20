@@ -644,6 +644,8 @@ nav .nav-soon { cursor: help; opacity: .85; }
 .panel:hover { border-color: rgba(255, 255, 255, .16); }
 .track { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .track b { color: var(--cyan); font-family: ui-monospace, monospace; }
+.track-excluded span { color: var(--muted); }
+.track-excluded b { color: var(--muted); font-family: inherit; font-size: 13px; }
 .link-group { margin-top: 18px; }
 .link-group h3, .link-group a { display: flex; align-items: center; gap: 8px; }
 .link-group a { width: fit-content; margin: 8px 0; color: var(--cyan); }
