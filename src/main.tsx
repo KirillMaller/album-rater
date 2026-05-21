@@ -252,7 +252,26 @@ type MediaLink = {
 
 const originalPlatforms = ['Яндекс.Музыка', 'Spotify', 'Apple Music', 'YouTube Music', 'VK Музыка', 'SoundCloud', 'Bandcamp', 'Другое'];
 
-const genreOptions = ['Рэп', 'Поп', 'R&B / соул', 'Рок', 'Электроника', 'Инди', 'Метал', 'Экспериментальный', 'Свой'];
+const genreOptions = ['Русский рэп', 'Рэп', 'Поп', 'R&B / соул', 'Рок', 'Электроника', 'Инди', 'Метал', 'Экспериментальный', 'Свой'];
+
+const yandexGenreLabels: Record<string, string> = {
+  rusrap: 'Русский рэп',
+  rap: 'Рэп',
+  pop: 'Поп',
+  rnb: 'R&B / соул',
+  soul: 'R&B / соул',
+  rock: 'Рок',
+  electronics: 'Электроника',
+  electronic: 'Электроника',
+  indie: 'Инди',
+  metal: 'Метал',
+};
+
+function normalizeImportedGenre(genre?: string) {
+  if (!genre) return undefined;
+  const trimmed = genre.trim();
+  return yandexGenreLabels[trimmed.toLowerCase()] || trimmed;
+}
 
 const battleFormatOptions: Array<{ value: BattleFormat; label: string }> = [
   { value: '1v1', label: '1 на 1' },
@@ -2038,6 +2057,7 @@ function EditorPage() {
       const imported = data as YandexImportResult;
       const isSingleTrack = imported.tracks.length <= 1;
       const importedType: ItemType = isSingleTrack ? 'track' : 'album';
+      const importedGenre = normalizeImportedGenre(imported.genre);
       const importedTracks = imported.tracks.map((track, index) => ({
         id: crypto.randomUUID(),
         position: index + 1,
@@ -2050,7 +2070,7 @@ function EditorPage() {
         title: imported.title || draft.title,
         artist: imported.artist || draft.artist,
         releaseYear: imported.year,
-        genre: imported.genre || draft.genre,
+        genre: importedGenre || draft.genre,
         coverUrl: imported.coverUrl || draft.coverUrl,
         scoreMode: importedType === 'track' ? 'manual' : 'auto',
         tracks: importedType === 'album' ? importedTracks : [],
