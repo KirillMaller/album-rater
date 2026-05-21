@@ -1589,6 +1589,7 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 function AdminPage() {
   const { items, deleteItem, loading, error } = useStore();
   const [activeType, setActiveType] = useState<ItemType>('album');
+  const [activeStatus, setActiveStatus] = useState<'published' | 'draft'>('published');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<'new' | 'best' | 'worst'>('new');
   const [activeTournament, setActiveTournament] = useState<string>('');
@@ -1609,6 +1610,9 @@ function AdminPage() {
   const filteredItems = seasonFilteredItems
     .filter((item) => `${item.title} ${item.artist} ${item.participants} ${item.genre}`.toLowerCase().includes(query.toLowerCase()))
     .sort((a, b) => sort === 'new' ? b.updatedAt.localeCompare(a.updatedAt) : sort === 'best' ? b.finalScore - a.finalScore : a.finalScore - b.finalScore);
+  const publishedItems = filteredItems.filter((item) => item.published);
+  const draftItems = filteredItems.filter((item) => !item.published);
+  const visibleItems = activeStatus === 'published' ? publishedItems : draftItems;
   const counts = {
     album: items.filter((item) => item.type === 'album').length,
     battle: items.filter((item) => item.type === 'battle').length,
@@ -1665,11 +1669,18 @@ function AdminPage() {
           ))}
         </section>
       )}
+      <section className="catalog-tabs admin-status-tabs" aria-label="Статус записи">
+        <button className={activeStatus === 'published' ? 'active' : ''} onClick={() => setActiveStatus('published')}>Опубликовано <span>{publishedItems.length}</span></button>
+        <button className={activeStatus === 'draft' ? 'active' : ''} onClick={() => setActiveStatus('draft')}>Черновики <span>{draftItems.length}</span></button>
+      </section>
       <section className="panel table">
         {loading && <div className="empty">Загружаем записи...</div>}
         {error && <div className="empty">Ошибка загрузки: {error}</div>}
         {!loading && !error && !filteredItems.length && <div className="empty">В этом разделе записей пока нет.</div>}
-        {filteredItems.map((item) => (
+        {!loading && !error && filteredItems.length > 0 && !visibleItems.length && (
+          <div className="empty">{activeStatus === 'published' ? 'Опубликованных записей по этим фильтрам нет.' : 'Черновиков по этим фильтрам нет.'}</div>
+        )}
+        {!loading && !error && visibleItems.map((item) => (
           <div className="admin-row" key={item.id}>
             <img src={displayCoverUrl(item.coverUrl)} alt="" />
             <div className="admin-row-main"><b>{item.title}</b><span>{itemAdminMeta(item)}</span></div>

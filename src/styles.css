@@ -804,6 +804,7 @@ nav .nav-soon { cursor: help; opacity: .85; }
   gap: 10px;
 }
 .table { display: grid; gap: 10px; }
+.admin-status-tabs { margin-top: -10px; margin-bottom: 16px; }
 .type-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
