@@ -883,6 +883,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
     async saveItem(item) {
       const normalized = {
         ...item,
+        genre: item.type === 'battle' ? item.genre : normalizeImportedGenre(item.genre),
         finalScore: item.scoreMode === 'auto' ? averageScore(item.tracks) : Number(item.finalScore || 0),
         updatedAt: new Date().toISOString(),
       };
@@ -2230,7 +2231,7 @@ function EditorPage() {
             <input value={draft.slug} onChange={(event) => patch({ slug: normalizeSlug(event.target.value) })} placeholder="Короткая ссылка" />
             <input type="number" value={draft.releaseYear || ''} onChange={(event) => patch({ releaseYear: Number(event.target.value) || undefined })} placeholder="Год" />
             {draft.type !== 'battle' && (() => {
-              const currentGenre = draft.genre || '';
+              const currentGenre = normalizeImportedGenre(draft.genre) || '';
               const presetGenres = genreOptions.slice(0, -1); // без «Свой»
               const isCustom = currentGenre !== '' && !presetGenres.includes(currentGenre);
               const selectorValue = currentGenre === '' ? '' : (isCustom ? 'Свой' : currentGenre);
