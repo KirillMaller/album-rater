@@ -226,6 +226,11 @@ type ParsedBattleTitle =
   | { format: 'deathmatch'; participants: string[]; tournament: string; stage: string }
   | { format: 'unknown'; raw: string; tournament: string; stage: string };
 
+type ParsedYoutubeTrackTitle = {
+  artist: string;
+  title: string;
+};
+
 type YoutubeImportResult = {
   videoId: string;
   sourceUrl: string;
@@ -234,6 +239,10 @@ type YoutubeImportResult = {
   authorUrl: string;
   thumbnailUrl: string;
   parsed: ParsedBattleTitle;
+};
+
+type YoutubeTrackImportResult = Omit<YoutubeImportResult, 'parsed'> & {
+  parsed: ParsedYoutubeTrackTitle;
 };
 
 type TrackScore = {
@@ -460,6 +469,40 @@ function parseBattleTitle(title: string, author: string): ParsedBattleTitle {
   };
 }
 
+function cleanYoutubeTrackTitlePart(value: string) {
+  return value
+    .normalize('NFKC')
+    .replace(/\s*#[\wА-яёЁ]+/g, '')
+    .replace(/\s*\[[^\]]*\]\s*/g, ' ')
+    .replace(/\s+(?:vs\.?|против)\s+.+$/i, '')
+    .replace(/\s*\((?:премьера\s+клипа|official\s+(?:music\s+)?video|music\s+video|official\s+audio|audio|lyrics?|lyric\s+video|клип|премьера|prod\.?[^)]*)\)\s*/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function parseYoutubeTrackTitle(title: string, author: string): ParsedYoutubeTrackTitle {
+  const cleaned = cleanYoutubeTrackTitlePart(title);
+  const separator = cleaned.match(/\s[-–—]\s/);
+  if (!separator?.index) {
+    return {
+      artist: author.trim(),
+      title: cleaned || title.trim(),
+    };
+  }
+
+  const rawArtist = cleaned.slice(0, separator.index).trim();
+  const rawTitle = cleaned.slice(separator.index + separator[0].length).trim();
+  const artists = rawArtist
+    .split(/\s+(?:&|feat\.?|ft\.?|featuring|x|х)\s+/i)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  return {
+    artist: artists.length ? artists.join(', ') : (author.trim() || rawArtist),
+    title: cleanYoutubeTrackTitlePart(rawTitle) || rawTitle || cleaned,
+  };
+}
+
 async function fetchYoutubeBattle(rawUrl: string): Promise<YoutubeImportResult> {
   const videoId = extractYoutubeId(rawUrl);
   const canonical = `https://www.youtube.com/watch?v=${videoId}`;
@@ -482,6 +525,31 @@ async function fetchYoutubeBattle(rawUrl: string): Promise<YoutubeImportResult> 
     authorUrl: String(data.author_url ?? ''),
     thumbnailUrl: displayCoverUrl(String(data.thumbnail_url ?? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`)),
     parsed: parseBattleTitle(title, author),
+  };
+}
+
+async function fetchYoutubeTrack(rawUrl: string): Promise<YoutubeTrackImportResult> {
+  const videoId = extractYoutubeId(rawUrl);
+  const canonical = `https://www.youtube.com/watch?v=${videoId}`;
+  const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(canonical)}&format=json`;
+  const response = await fetch(oembedUrl);
+  if (response.status === 404 || response.status === 401) {
+    throw new Error('Ролик не найден или закрыт от встраивания');
+  }
+  if (!response.ok) {
+    throw new Error(`YouTube вернул HTTP ${response.status}`);
+  }
+  const data = await response.json();
+  const title = String(data.title ?? '');
+  const author = String(data.author_name ?? '');
+  return {
+    videoId,
+    sourceUrl: canonical,
+    title,
+    author,
+    authorUrl: String(data.author_url ?? ''),
+    thumbnailUrl: displayCoverUrl(String(data.thumbnail_url ?? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`)),
+    parsed: parseYoutubeTrackTitle(title, author),
   };
 }
 
@@ -2170,6 +2238,34 @@ function EditorPage() {
     setYoutubeImportStatus('');
     setIsYoutubeImporting(true);
     try {
+      if (draft.type === 'track') {
+        const result = await fetchYoutubeTrack(youtubeUrl);
+        patch({
+          type: 'track',
+          title: result.parsed.title || result.title || draft.title,
+          artist: result.parsed.artist || result.author || draft.artist,
+          coverUrl: draft.coverUrl || result.thumbnailUrl,
+          scoreMode: 'manual',
+          tracks: [],
+          links: [
+            ...draft.links,
+            {
+              id: crypto.randomUUID(),
+              kind: 'original',
+              platform: 'YouTube',
+              url: result.sourceUrl,
+              label: 'Трек',
+            },
+          ],
+          metadata: {
+            ...draft.metadata,
+            youtube: { videoId: result.videoId, sourceUrl: result.sourceUrl },
+          },
+        });
+        setYoutubeImportStatus(`Импортировано: ${result.parsed.artist} — ${result.parsed.title}.`);
+        return;
+      }
+
       const result = await fetchYoutubeBattle(youtubeUrl);
 
       let nextSideA = battle.sideA;
@@ -2276,11 +2372,15 @@ function EditorPage() {
           </section>
         )}
 
-        {draft.type === 'battle' && (
+        {(draft.type === 'battle' || draft.type === 'track') && (
           <section className="panel">
-            <h2>Импорт с YouTube</h2>
+            <h2>{draft.type === 'track' ? 'Импорт трека с YouTube' : 'Импорт с YouTube'}</h2>
             <div className="import-row">
-              <input value={youtubeUrl} onChange={(event) => setYoutubeUrl(event.target.value)} placeholder="Вставь ссылку на YouTube — Кубок МЦ, Versus, и т.п." />
+              <input
+                value={youtubeUrl}
+                onChange={(event) => setYoutubeUrl(event.target.value)}
+                placeholder={draft.type === 'track' ? 'Вставь ссылку на YouTube-трек или клип' : 'Вставь ссылку на YouTube — Кубок МЦ, Versus, и т.п.'}
+              />
               <button type="button" disabled={!youtubeUrl || isYoutubeImporting} onClick={importFromYoutube}>{isYoutubeImporting ? 'Импорт...' : 'Импортировать'}</button>
             </div>
             {youtubeImportStatus && <p className={youtubeImportStatus.startsWith('Импортировано') ? 'form-note' : 'form-error'}>{youtubeImportStatus}</p>}
