@@ -62,14 +62,34 @@ function parseYandexAlbum(album, sourceUrl, albumId, trackId) {
     id: Number(t.id) || undefined,
     title: t.title || `Трек ${i + 1}`,
     duration: formatDuration(t.durationMs),
+    artist: Array.isArray(t.artists) ? t.artists.map((a) => a.name).filter(Boolean).join(", ") : undefined,
   }));
+
+  if (trackId) {
+    const selectedTrack = tracks.find((track) => String(track.id) === String(trackId));
+    if (!selectedTrack) {
+      throw new Error(`В альбоме ${albumId} не найден трек ${trackId}`);
+    }
+
+    return {
+      albumId,
+      trackId,
+      title: selectedTrack.title,
+      artist: selectedTrack.artist || artists.join(", "),
+      year: album.year,
+      genre: album.genre,
+      coverUrl: yandexCoverUrl(album.coverUri),
+      tracks: [selectedTrack],
+      sourceUrl,
+    };
+  }
+
   const finalTracks = tracks.length > 0 ? tracks : [{
-    id: trackId ? Number(trackId) : undefined,
+    id: undefined,
     title: album.title,
   }];
   return {
     albumId,
-    trackId,
     title: album.title,
     artist: artists.join(", "),
     year: album.year,
