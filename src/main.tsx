@@ -20,6 +20,8 @@ import {
   ExternalLink,
   Headphones,
   Library,
+  LayoutGrid,
+  List,
   Lock,
   LogOut,
   Music,
@@ -216,6 +218,7 @@ type ItemMetadata = {
     sourceUrl: string;
   };
   excludedTrackPositions?: number[];
+  bestTrackPositions?: number[];
 };
 
 type ParsedBattleTitle =
@@ -239,6 +242,7 @@ type TrackScore = {
   title: string;
   score: ScoreValue;
   coverUrl?: string;
+  isBest?: boolean;
 };
 
 type MediaLink = {
@@ -251,6 +255,7 @@ type MediaLink = {
 };
 
 const originalPlatforms = ['Яндекс.Музыка', 'Spotify', 'Apple Music', 'YouTube Music', 'VK Музыка', 'SoundCloud', 'Bandcamp', 'Другое'];
+const maxBestAlbumTracks = 3;
 
 const genreOptions = ['Русский рэп', 'Рэп', 'Поп', 'R&B / соул', 'Рок', 'Электроника', 'Инди', 'Метал', 'Экспериментальный', 'Свой'];
 
@@ -521,6 +526,17 @@ function averageScore(tracks: TrackScore[]) {
   return Number((scores.reduce((sum, score) => sum + score, 0) / scores.length).toFixed(1));
 }
 
+function bestAlbumTracks(item: RatedItem) {
+  if (item.type !== 'album') return [];
+  return item.tracks.filter((track) => track.isBest).slice(0, maxBestAlbumTracks);
+}
+
+function bestAlbumTracksLabel(item: RatedItem) {
+  const tracks = bestAlbumTracks(item);
+  if (!tracks.length) return '';
+  return `Лучшие треки: ${tracks.map((track) => track.title).join(', ')}`;
+}
+
 function normalizeSlug(value: string) {
   return value
     .toLowerCase()
@@ -624,6 +640,7 @@ function scoreClass(score: number) {
 function fromDbItem(row: any): RatedItem {
   const metadata = row.metadata ?? undefined;
   const excludedTrackPositions = new Set<number>(metadata?.excludedTrackPositions ?? []);
+  const bestTrackPositions = new Set<number>(metadata?.bestTrackPositions ?? []);
   return {
     id: row.id,
     type: row.type,
@@ -647,6 +664,7 @@ function fromDbItem(row: any): RatedItem {
         title: track.title,
         score: excludedTrackPositions.has(track.position) ? '-' : (track.score === null ? '' : Number(track.score)),
         coverUrl: track.cover_url ?? undefined,
+        isBest: bestTrackPositions.has(track.position),
       })),
     links: [...(row.media_links ?? [])]
       .sort((a, b) => a.position - b.position)
@@ -669,9 +687,16 @@ function toDbItem(item: RatedItem) {
   const excludedTrackPositions = item.tracks
     .filter((track) => track.score === '-')
     .map((track) => track.position);
+  const bestTrackPositions = item.type === 'album'
+    ? item.tracks
+      .filter((track) => track.isBest)
+      .slice(0, maxBestAlbumTracks)
+      .map((track) => track.position)
+    : [];
   const metadata = {
     ...(item.metadata ?? {}),
     excludedTrackPositions,
+    bestTrackPositions,
   };
 
   return {
@@ -1020,6 +1045,9 @@ type HomeTypeFilter = 'all' | ItemType;
 type HomeSort = 'new' | 'best' | 'worst';
 type HomePeriod = 'all' | 'month' | 'week' | 'year' | 'last-year';
 type HomeDateBasis = 'reviewed' | 'released';
+type CatalogView = 'cards' | 'list';
+
+const catalogViewKey = 'r1frating-catalog-view';
 
 const homeTypeTabs: Array<{ value: HomeTypeFilter; label: string }> = [
   { value: 'all', label: 'Все' },
@@ -1035,8 +1063,10 @@ function HomePage() {
   const [sort, setSort] = useState<HomeSort>('new');
   const [period, setPeriod] = useState<HomePeriod>('all');
   const [dateBasis, setDateBasis] = useState<HomeDateBasis>('reviewed');
+  const [catalogView, setCatalogView] = useState<CatalogView>(() => localStorage.getItem(catalogViewKey) === 'list' ? 'list' : 'cards');
   const [activeTournament, setActiveTournament] = useState<string>('');
   const [activeSeason, setActiveSeason] = useState<string>('');
+  useEffect(() => localStorage.setItem(catalogViewKey, catalogView), [catalogView]);
   const published = items.filter((item) => item.published);
   const bestAlbum = [...published].filter((item) => item.type === 'album').sort((a, b) => b.finalScore - a.finalScore)[0];
   const bestBattle = [...published].filter((item) => item.type === 'battle').sort((a, b) => b.finalScore - a.finalScore)[0];
@@ -1105,6 +1135,10 @@ function HomePage() {
           <button className={dateBasis === 'reviewed' ? 'on' : ''} onClick={() => setDateBasis('reviewed')}>Оценённые</button>
           <button className={dateBasis === 'released' ? 'on' : ''} onClick={() => setDateBasis('released')}>Вышедшие</button>
         </div>
+        <div className="pillbar view-toggle" aria-label="Вид каталога">
+          <button className={catalogView === 'cards' ? 'on' : ''} onClick={() => setCatalogView('cards')} title="Карточки"><LayoutGrid size={16} /></button>
+          <button className={catalogView === 'list' ? 'on' : ''} onClick={() => setCatalogView('list')} title="Список"><List size={16} /></button>
+        </div>
         <select value={period} onChange={(event) => setPeriod(event.target.value as HomePeriod)} aria-label="Период">
           <option value="all">За всё время</option>
           <option value="month">За месяц</option>
@@ -1151,6 +1185,10 @@ function HomePage() {
           <div>
             {!visibleItems.length ? (
               <div className="empty">По этим фильтрам пока нет опубликованных записей.</div>
+            ) : catalogView === 'list' ? (
+              <div className="catalog-list">
+                {visibleItems.map((item) => <ItemListRow key={item.id} item={item} admin={admin} />)}
+              </div>
             ) : (
               <div className="catalog-grid">
                 {visibleItems.map((item) => <ItemCard key={item.id} item={item} admin={admin} />)}
@@ -1210,6 +1248,7 @@ function ItemCard({ item, admin }: { item: RatedItem; admin?: boolean }) {
         <div className="catalog-card-body">
           <h2>{item.title}</h2>
           <p>{catalogSubtitle(item)}</p>
+          {bestAlbumTracksLabel(item) && <small className="best-tracks-line"><Star size={13} /> {bestAlbumTracksLabel(item)}</small>}
         </div>
         <div className="catalog-card-foot">
           <span>{cardDateLabel(item)}</span>
@@ -1217,6 +1256,27 @@ function ItemCard({ item, admin }: { item: RatedItem; admin?: boolean }) {
         </div>
       </Link>
       {admin && <Link className="card-edit-button" to={`/admin/edit/${item.id}`} title="Редактировать"><Edit3 size={15} /><span>Править</span></Link>}
+    </div>
+  );
+}
+
+function ItemListRow({ item, admin }: { item: RatedItem; admin?: boolean }) {
+  return (
+    <div className="catalog-list-row-shell">
+      <Link to={`/item/${item.slug}`} className="catalog-list-row">
+        <div className="catalog-list-thumb"><CardCover item={item} /></div>
+        <div className="catalog-list-main">
+          <div className="catalog-list-title">
+            <h2>{item.title}</h2>
+            <span className={`type-chip type-${item.type}`}><ItemTypeIcon type={item.type} /><span>{itemTypeLabel(item.type)}</span></span>
+          </div>
+          <p>{catalogSubtitle(item)}</p>
+          {bestAlbumTracksLabel(item) && <small className="best-tracks-line"><Star size={13} /> {bestAlbumTracksLabel(item)}</small>}
+          <small>{cardDateLabel(item)} · {item.links.length ? `${item.links.length} ссыл.` : 'без ссылок'}</small>
+        </div>
+        <span className={`${scoreClass(item.finalScore)} catalog-list-score`}>{item.finalScore.toFixed(1)}</span>
+      </Link>
+      {admin && <Link className="list-edit-button" to={`/admin/edit/${item.id}`} title="Редактировать"><Edit3 size={15} /><span>Править</span></Link>}
     </div>
   );
 }
@@ -2010,6 +2070,13 @@ function EditorPage() {
     patch({ tracks: normalizeTrackPositions(next) });
   };
   const updateTrack = (index: number, value: Partial<TrackScore>) => patch({ tracks: normalizeTrackPositions(draft.tracks.map((track, i) => i === index ? { ...track, ...value } : track)) });
+  const toggleBestTrack = (index: number) => {
+    const track = draft.tracks[index];
+    if (!track) return;
+    const bestCount = draft.tracks.filter((item) => item.isBest).length;
+    if (!track.isBest && bestCount >= maxBestAlbumTracks) return;
+    updateTrack(index, { isBest: !track.isBest });
+  };
   const updateLink = (index: number, value: Partial<MediaLink>) => patch({ links: draft.links.map((link, i) => i === index ? { ...link, ...value } : link) });
   const removeLink = (index: number) => patch({ links: draft.links.filter((_, i) => i !== index) });
   const albumScore = draft.scoreMode === 'auto' ? averageScore(draft.tracks) : Number(draft.finalScore || 0);
@@ -2314,6 +2381,15 @@ function EditorPage() {
               <span>{index + 1}</span>
               <input value={track.title} onChange={(event) => updateTrack(index, { title: event.target.value })} />
               <ScoreInput value={track.score} allowExclude onChange={(next) => updateTrack(index, { score: next })} />
+              <button
+                type="button"
+                className={`best-track-toggle${track.isBest ? ' on' : ''}`}
+                disabled={!track.isBest && draft.tracks.filter((item) => item.isBest).length >= maxBestAlbumTracks}
+                onClick={() => toggleBestTrack(index)}
+                title={track.isBest ? 'Убрать из лучших треков' : `Отметить как лучший трек (до ${maxBestAlbumTracks})`}
+              >
+                <Star size={15} /> Лучший
+              </button>
               <div className="track-row-actions">
                 <button type="button" className="ghost icon-btn" disabled={index === 0} onClick={() => moveTrack(index, -1)} title="Поднять трек"><ArrowUp size={16} /></button>
                 <button type="button" className="ghost icon-btn" disabled={index === draft.tracks.length - 1} onClick={() => moveTrack(index, 1)} title="Опустить трек"><ArrowDown size={16} /></button>
