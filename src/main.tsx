@@ -9,6 +9,7 @@ import {
   Navigate,
   Route,
   Routes,
+  useLocation,
   useNavigate,
   useParams,
 } from 'react-router-dom';
@@ -852,7 +853,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const loadAuctions = async () => {
     if (!supabase) return;
-    setAuctionsLoading(true);
+    if (!auctions.length) setAuctionsLoading(true);
     setAuctionsError(undefined);
     const [itemsResult, rulesResult] = await Promise.all([
       supabase.from('auction_items').select('*').order('amount', { ascending: false }),
@@ -882,7 +883,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const loadItems = async () => {
     if (!supabase) return;
-    setLoading(true);
+    if (!items.length) setLoading(true);
     setError(undefined);
     const { data, error } = await supabase
       .from('rated_items')
@@ -911,9 +912,13 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!supabase) return;
 
-    supabase.auth.getUser().then(({ data }) => setUser(data.user ?? null));
+    const setStableUser = (nextUser: User | null) => {
+      setUser((current) => (current?.id === nextUser?.id ? current : nextUser));
+    };
+
+    supabase.auth.getUser().then(({ data }) => setStableUser(data.user ?? null));
     const { data } = supabase.auth.onAuthStateChange((_, session) => {
-      setUser(session?.user ?? null);
+      setStableUser(session?.user ?? null);
     });
 
     return () => data.subscription.unsubscribe();
@@ -1073,10 +1078,42 @@ function App() {
   return (
     <BrowserRouter>
       <StoreProvider>
+        <ScrollMemory />
         <Shell />
       </StoreProvider>
     </BrowserRouter>
   );
+}
+
+function ScrollMemory() {
+  const location = useLocation();
+
+  useEffect(() => {
+    const key = `r1frating-scroll:${location.pathname}${location.search}`;
+    const saved = Number(sessionStorage.getItem(key) || 0);
+    window.requestAnimationFrame(() => window.scrollTo({ top: saved, left: 0, behavior: 'auto' }));
+
+    let frame = 0;
+    const saveNow = () => sessionStorage.setItem(key, String(window.scrollY));
+    const save = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(saveNow);
+    };
+
+    window.addEventListener('scroll', save, { passive: true });
+    window.addEventListener('pagehide', save);
+    document.addEventListener('visibilitychange', save);
+
+    return () => {
+      saveNow();
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('scroll', save);
+      window.removeEventListener('pagehide', save);
+      document.removeEventListener('visibilitychange', save);
+    };
+  }, [location.pathname, location.search]);
+
+  return null;
 }
 
 function Shell() {
@@ -1186,7 +1223,9 @@ function HomePage() {
         </div>
       </section>
 
-      {featured.length > 0 && (
+      {loading ? (
+        <FeaturedSkeleton />
+      ) : featured.length > 0 && (
         <section className="featured-strip" aria-label="Лучшее в каталоге">
           {featured.map((item) => <FeaturedCard key={item.id} item={item} admin={admin} />)}
         </section>
@@ -1245,8 +1284,9 @@ function HomePage() {
         </section>
       )}
 
-      {loading && <div className="empty">Загружаем каталог из Supabase...</div>}
       {error && <div className="empty">Ошибка загрузки: {error}</div>}
+
+      {loading && !error && <HomeCatalogSkeleton />}
 
       {!loading && !error && (
         <section className="catalog-split">
@@ -1280,6 +1320,69 @@ function HomePage() {
         </div>
       </section>
     </main>
+  );
+}
+
+function SkeletonBlock({ className = '' }: { className?: string }) {
+  return <div className={`skeleton ${className}`} aria-hidden="true" />;
+}
+
+function FeaturedSkeleton() {
+  return (
+    <section className="featured-strip" aria-hidden="true">
+      {Array.from({ length: 3 }).map((_, index) => (
+        <div className="featured-card skeleton-card" key={index}>
+          <SkeletonBlock className="skeleton-score" />
+          <div className="featured-body">
+            <SkeletonBlock className="skeleton-line short" />
+            <SkeletonBlock className="skeleton-line title" />
+            <SkeletonBlock className="skeleton-line medium" />
+          </div>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function HomeCatalogSkeleton() {
+  return (
+    <section className="catalog-split" aria-hidden="true">
+      <div className="catalog-grid">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <div className="catalog-card skeleton-catalog-card" key={index}>
+            <SkeletonBlock className="skeleton-cover" />
+            <div className="catalog-card-body">
+              <SkeletonBlock className="skeleton-line title" />
+              <SkeletonBlock className="skeleton-line medium" />
+            </div>
+            <div className="catalog-card-foot">
+              <SkeletonBlock className="skeleton-line short" />
+              <SkeletonBlock className="skeleton-line tiny" />
+            </div>
+          </div>
+        ))}
+      </div>
+      <aside className="home-rail">
+        {Array.from({ length: 3 }).map((_, panelIndex) => (
+          <section className="rail-panel" key={panelIndex}>
+            <SkeletonBlock className="skeleton-line medium" />
+            <div className="rail-list">
+              {Array.from({ length: 3 }).map((__, rowIndex) => (
+                <div className="rail-item skeleton-rail-item" key={rowIndex}>
+                  <SkeletonBlock className="skeleton-dot" />
+                  <SkeletonBlock className="skeleton-mini" />
+                  <div className="rail-copy">
+                    <SkeletonBlock className="skeleton-line medium" />
+                    <SkeletonBlock className="skeleton-line short" />
+                  </div>
+                  <SkeletonBlock className="skeleton-line tiny" />
+                </div>
+              ))}
+            </div>
+          </section>
+        ))}
+      </aside>
+    </section>
   );
 }
 
@@ -1475,7 +1578,9 @@ function relativeDate(value: string) {
 
 function ItemPage() {
   const { slug } = useParams();
-  const { items, admin } = useStore();
+  const { items, admin, loading, error } = useStore();
+  if (loading) return <ItemPageSkeleton />;
+  if (error) return <main><div className="empty">Ошибка загрузки: {error}</div></main>;
   const item = items.find((entry) => entry.slug === slug);
   if (!item || !item.published) return <main><div className="empty">Запись не найдена или ещё не опубликована.</div></main>;
   const originals = item.links.filter((link) => link.kind === 'original');
@@ -1549,6 +1654,54 @@ function LinkGroup({ title, icon, links }: { title: string; icon: React.ReactNod
       {links.map((link) => <a key={link.id} href={link.url} target="_blank" rel="noreferrer">{link.platform}{link.label ? ` · ${link.label}` : ''}{link.startsAt ? ` · ${link.startsAt}` : ''}<ExternalLink size={14} /></a>)}
       {!links.length && <p className="muted">Нет ссылок.</p>}
     </div>
+  );
+}
+
+function ItemPageSkeleton() {
+  return (
+    <main aria-hidden="true">
+      <section className="detail-hero">
+        <SkeletonBlock className="detail-cover" />
+        <div className="detail-skeleton-copy">
+          <SkeletonBlock className="skeleton-line short" />
+          <SkeletonBlock className="skeleton-line hero-title" />
+          <SkeletonBlock className="skeleton-line medium" />
+          <SkeletonBlock className="skeleton-score big" />
+          <SkeletonBlock className="skeleton-line long" />
+        </div>
+      </section>
+      <section className="columns">
+        <div className="panel skeleton-panel">
+          <SkeletonBlock className="skeleton-line title" />
+          {Array.from({ length: 6 }).map((_, index) => <SkeletonBlock className="skeleton-line long" key={index} />)}
+        </div>
+        <div className="panel skeleton-panel">
+          <SkeletonBlock className="skeleton-line title" />
+          <SkeletonBlock className="skeleton-line medium" />
+          <SkeletonBlock className="skeleton-line medium" />
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function AdminRowsSkeleton() {
+  return (
+    <>
+      {Array.from({ length: 6 }).map((_, index) => (
+        <div className="admin-row skeleton-admin-row" key={index} aria-hidden="true">
+          <SkeletonBlock className="skeleton-admin-thumb" />
+          <div className="admin-row-main">
+            <SkeletonBlock className="skeleton-line medium" />
+            <SkeletonBlock className="skeleton-line long" />
+          </div>
+          <div className="admin-actions">
+            <SkeletonBlock className="skeleton-button" />
+            <SkeletonBlock className="skeleton-button" />
+          </div>
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -1674,7 +1827,7 @@ function AdminPage() {
         <button className={activeStatus === 'draft' ? 'active' : ''} onClick={() => setActiveStatus('draft')}>Черновики <span>{draftItems.length}</span></button>
       </section>
       <section className="panel table">
-        {loading && <div className="empty">Загружаем записи...</div>}
+        {loading && <AdminRowsSkeleton />}
         {error && <div className="empty">Ошибка загрузки: {error}</div>}
         {!loading && !error && !filteredItems.length && <div className="empty">В этом разделе записей пока нет.</div>}
         {!loading && !error && filteredItems.length > 0 && !visibleItems.length && (

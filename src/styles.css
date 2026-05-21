@@ -22,6 +22,10 @@
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
+@keyframes skeleton-shimmer {
+  from { background-position: 120% 0; }
+  to { background-position: -120% 0; }
+}
 
 body {
   margin: 0;
@@ -188,6 +192,7 @@ nav .nav-soon { cursor: help; opacity: .85; }
   font-weight: 600;
   font-size: 13px;
   box-shadow: none;
+  transition: transform .18s var(--ease), border-color .18s var(--ease), background .18s var(--ease), color .18s var(--ease);
 }
 .catalog-tabs button:hover {
   border-color: rgba(255, 255, 255, .18);
@@ -269,6 +274,50 @@ nav .nav-soon { cursor: help; opacity: .85; }
 .score-mid  { background: linear-gradient(135deg, #00e5ff, #9146ff); color: #fff; }
 .score-low  { background: linear-gradient(135deg, #ff9f45, #ff4d6d); color: #fff; }
 .score-bad  { background: linear-gradient(135deg, #ff4d6d, #6b1530); color: #fff; }
+
+.skeleton {
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,.04) 0%, rgba(255,255,255,.11) 45%, rgba(255,255,255,.04) 90%);
+  background-size: 220% 100%;
+  animation: skeleton-shimmer 1.25s linear infinite;
+}
+.skeleton-card {
+  border-color: rgba(255, 255, 255, .08);
+  background: rgba(18, 22, 35, .62);
+  pointer-events: none;
+}
+.skeleton-line { height: 13px; width: 100%; }
+.skeleton-line.tiny { width: 42px; }
+.skeleton-line.short { width: 34%; }
+.skeleton-line.medium { width: 62%; }
+.skeleton-line.long { width: 86%; }
+.skeleton-line.title { height: 20px; width: 74%; }
+.skeleton-line.hero-title { height: clamp(36px, 5vw, 64px); width: min(620px, 92%); }
+.skeleton-score {
+  position: absolute;
+  right: 14px;
+  top: 14px;
+  width: 48px;
+  height: 30px;
+}
+.skeleton-score.big {
+  position: static;
+  width: 70px;
+  height: 46px;
+}
+.skeleton-cover {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 0;
+}
+.skeleton-catalog-card { pointer-events: none; }
+.skeleton-dot { width: 18px; height: 18px; border-radius: 999px; }
+.skeleton-mini { width: 42px; aspect-ratio: 1; border-radius: 6px; }
+.skeleton-admin-thumb { width: 56px; height: 56px; border-radius: 6px; }
+.skeleton-button { width: 118px; height: 36px; }
+.skeleton-panel { display: grid; gap: 12px; }
+.detail-skeleton-copy { display: grid; gap: 14px; }
 
 .home { width: min(1240px, calc(100% - 40px)); }
 .home-intro {
@@ -423,6 +472,7 @@ nav .nav-soon { cursor: help; opacity: .85; }
   background: transparent;
   color: var(--muted);
   box-shadow: none;
+  transition: transform .18s var(--ease), border-color .18s var(--ease), background .18s var(--ease), color .18s var(--ease);
 }
 .pillbar button.on {
   border-color: rgba(0, 229, 255, .45);
@@ -450,6 +500,7 @@ nav .nav-soon { cursor: help; opacity: .85; }
   font-weight: 600;
   font-size: 13px;
   box-shadow: none;
+  transition: transform .18s var(--ease), border-color .18s var(--ease), background .18s var(--ease), color .18s var(--ease);
 }
 .type-tabs button:hover {
   border-color: rgba(255, 255, 255, .18);
@@ -481,6 +532,7 @@ nav .nav-soon { cursor: help; opacity: .85; }
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
+  animation: fade-slide-up .2s var(--ease);
 }
 .catalog-card {
   display: block;
@@ -578,6 +630,7 @@ nav .nav-soon { cursor: help; opacity: .85; }
 .catalog-list {
   display: grid;
   gap: 8px;
+  animation: fade-slide-up .2s var(--ease);
 }
 .catalog-list-row-shell {
   display: grid;
@@ -845,6 +898,7 @@ nav .nav-soon { cursor: help; opacity: .85; }
   border-radius: 8px;
   background: #0d111c;
   transition: border-color .2s var(--ease), background .2s var(--ease), transform .2s var(--ease);
+  animation: fade-slide-up .18s var(--ease);
 }
 .admin-row:hover {
   border-color: rgba(0, 229, 255, .28);
