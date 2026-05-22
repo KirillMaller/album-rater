@@ -1558,8 +1558,11 @@ function matchesPeriod(item: RatedItem, period: HomePeriod, basis: HomeDateBasis
 
 function catalogSubtitle(item: RatedItem) {
   if (item.type === 'battle') {
+    const tournament = item.metadata?.battle?.tournament;
+    const season = item.metadata?.battle?.season;
     const stage = item.metadata?.battle?.stage;
-    return [item.participants || 'Участники не указаны', stage].filter(Boolean).join(' · ');
+    const meta = [tournament, season, stage].filter(Boolean);
+    return meta.length ? meta.join(' · ') : (item.participants || 'Участники не указаны');
   }
   return item.artist || 'Артист не указан';
 }
