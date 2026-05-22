@@ -194,12 +194,14 @@ type BattleRound = {
 
 type BattleFormat = '1v1' | '2v2' | '3v3' | 'triple' | 'deathmatch' | 'other';
 type BattleStyle = 'acapella' | 'bpm' | 'mixed' | 'freestyle' | 'thematic' | 'other';
+type JudgeWinner = BattleSideKey | 'unjudged';
 
 type BattleMetadata = {
   sideA: string;
   sideB: string;
   rounds: BattleRound[];
   finalWinner: BattleSideKey;
+  judgeWinner?: JudgeWinner;
   format?: BattleFormat;
   style?: BattleStyle;
   stage?: string;
@@ -656,6 +658,14 @@ function createDefaultBattle(): BattleMetadata {
     finalWinner: 'draw',
     format: '1v1',
   };
+}
+
+function battleJudgeLabel(battle?: BattleMetadata) {
+  if (!battle?.judgeWinner) return 'Не указано';
+  if (battle.judgeWinner === 'unjudged') return 'Не судился';
+  if (battle.judgeWinner === 'a') return battle.sideA || 'Сторона A';
+  if (battle.judgeWinner === 'b') return battle.sideB || 'Сторона B';
+  return 'Ничья / спорно';
 }
 
 function battleWinnerLabel(battle?: BattleMetadata) {
@@ -1608,7 +1618,7 @@ function ItemPage() {
           {item.type === 'battle' ? (
             <>
               <h2>Раунды</h2>
-              <p className="muted">Победитель: {battleWinnerLabel(battle)}</p>
+              <p className="muted">По судьям: {battleJudgeLabel(battle)} · По Рифмабесу: {battleWinnerLabel(battle)}</p>
               {(battle?.rounds ?? []).map((round) => (
                 <div className="battle-round-view" key={round.id}>
                   <b>Раунд {round.position}</b>
@@ -2245,7 +2255,15 @@ function EditorPage() {
     scoreMode: newItemType === 'album' ? 'auto' : 'manual',
     published: false,
     tracks: [],
-    links: [],
+    links: [
+      {
+        id: crypto.randomUUID(),
+        kind: 'reaction',
+        platform: 'Boosty',
+        url: 'https://boosty.to/r1fmabes2tipa',
+        label: 'Реакция Рифмабеса на Бусти',
+      },
+    ],
     genre: newItemType === 'battle' ? battleGenre : undefined,
     metadata: newItemType === 'battle' ? { battle: createDefaultBattle() } : undefined,
     reviewedAt: todayInMoscow(),
@@ -2690,13 +2708,23 @@ function EditorPage() {
             <button type="button" className="ghost" onClick={addBattleRound}><Plus size={16} /> Добавить раунд</button>
           </div>
           <div className="battle-winner">
-            <span className="muted">Итоговый победитель</span>
+            <span className="muted">Победитель по судьям</span>
+            <select value={battle.judgeWinner ?? 'unjudged'} onChange={(event) => updateBattle({ judgeWinner: event.target.value as JudgeWinner })}>
+              <option value="unjudged">Не судился</option>
+              <option value="a">{battle.sideA || 'Сторона A'}</option>
+              <option value="b">{battle.sideB || 'Сторона B'}</option>
+              <option value="draw">Ничья / спорно</option>
+            </select>
+            <p>Кто победил по оценке судей баттла. Для отборочных и нестандартных форматов выбери «Не судился».</p>
+          </div>
+          <div className="battle-winner">
+            <span className="muted">Победитель по Рифмабесу</span>
             <select value={battle.finalWinner} onChange={(event) => updateBattle({ finalWinner: event.target.value as BattleSideKey })}>
               <option value="draw">Ничья / спорно</option>
               <option value="a">{battle.sideA || 'Сторона A'}</option>
               <option value="b">{battle.sideB || 'Сторона B'}</option>
             </select>
-            <p>Сейчас победитель выбирается вручную. Позже можно добавить автоподсчёт по раундам.</p>
+            <p>Кого Рифмабес сам считает победителем. Может отличаться от решения судей.</p>
           </div>
         </section>}
 
