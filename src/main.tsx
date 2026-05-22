@@ -668,6 +668,24 @@ function battleJudgeLabel(battle?: BattleMetadata) {
   return 'Ничья / спорно';
 }
 
+function BattleWinnerSummary({ battle }: { battle?: BattleMetadata }) {
+  if (!battle) return null;
+  const judge = battle.judgeWinner;
+  const rifmaLabel = battleWinnerLabel(battle);
+  if (!judge || judge === 'unjudged') {
+    return <p className="muted">Не судился. Рифмабес считает победителем: <b>{rifmaLabel}</b></p>;
+  }
+  const judgeLabel = battleJudgeLabel(battle);
+  if (judge === battle.finalWinner) {
+    return <p className="muted">Победитель: <b>{judgeLabel}</b> (единогласно — судьи и Рифмабес)</p>;
+  }
+  return (
+    <p className="muted">
+      Победитель по судьям: <b>{judgeLabel}</b>. Рифмабес считает иначе: <b>{rifmaLabel}</b>
+    </p>
+  );
+}
+
 function battleWinnerLabel(battle?: BattleMetadata) {
   if (!battle) return 'Победитель не выбран';
   if (battle.finalWinner === 'a') return battle.sideA || 'Сторона A';
@@ -1618,12 +1636,12 @@ function ItemPage() {
           {item.type === 'battle' ? (
             <>
               <h2>Раунды</h2>
-              <p className="muted">По судьям: {battleJudgeLabel(battle)} · По Рифмабесу: {battleWinnerLabel(battle)}</p>
+              <BattleWinnerSummary battle={battle} />
               {(battle?.rounds ?? []).map((round) => (
                 <div className="battle-round-view" key={round.id}>
                   <b>Раунд {round.position}</b>
                   <span>{battle?.sideA || 'A'}: {round.scoreA || '-'} · {battle?.sideB || 'B'}: {round.scoreB || '-'}</span>
-                  <span>Раунд: {round.winner === 'a' ? battle?.sideA || 'A' : round.winner === 'b' ? battle?.sideB || 'B' : 'ничья / спорно'}</span>
+                  <span>Раунд за: {round.winner === 'a' ? battle?.sideA || 'A' : round.winner === 'b' ? battle?.sideB || 'B' : 'ничья / спорно'}</span>
                   {round.comment && <p>{round.comment}</p>}
                 </div>
               ))}
