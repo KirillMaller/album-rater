@@ -17,6 +17,8 @@
 |---|---|---|---|
 | Опубликованные карточки (альбомы / треки / баттлы), оценки, треклисты, ссылки | Supabase Postgres, таблицы `rated_items` / `track_scores` / `media_links` | Разрушающая SQL-миграция (`DROP`, `ALTER ... DROP COLUMN`); ручное удаление через Dashboard | Supabase PITR (Pro tier); локальный JSON-снапшот в `db/snapshots/`; ручное пересоздание через ту же админку |
 | Аккаунты админов | Supabase Auth (`auth.users`) + наша таблица `admin_users` | Удаление через Dashboard → Authentication; `DROP TABLE admin_users` | Пересоздать админа вручную; восстановить `admin_users` из снапшота |
+| Голоса зрителей за треки / альбомы / баттлы (с миграции 007) | Supabase Postgres, таблица `viewer_votes` | `DROP TABLE viewer_votes`; ручное удаление через Dashboard | Supabase PITR; локальный JSON-снапшот. Потеря голосов = пользователям нужно проголосовать заново. Самих аккаунтов это не затронет. |
+| Аккаунты зрителей через Google OAuth | Supabase Auth (`auth.users`) | Удаление через Dashboard → Authentication | Зритель пройдёт OAuth снова, получит новый `user_id`. Старые голоса (привязанные к удалённому id) каскадно удалятся вместе с аккаунтом. |
 | Несохранённые черновики в админке | `localStorage` в браузере Кирилла / Рифмабеса | Чистка кеша браузера; режим инкогнито | **Никак** — это локальное состояние редактора, его нет на сервере. Жми «Сохранить» чаще |
 | Код фронта | git репо + GitHub Pages | `rm -rf` локально + force push | git pull, восстановить из истории; всё на GitHub |
 | Прокси для Яндекс-импорта | VPS `bot-napominalka` + бэкап кода в `server/yandex-proxy/` | Удаление папки `/opt/yandex-proxy/` на VPS; падение VPS | Развернуть заново по [server/yandex-proxy/README.md](../server/yandex-proxy/README.md) |
@@ -57,16 +59,16 @@
 
 ### Способ 2: Локальный JSON-снапшот через Management API
 
-Сохраняет содержимое всех 4 таблиц в `db/snapshots/YYYY-MM-DD-<table>.json`. Эта папка **в gitignore**, в публичный репо не попадёт.
+Сохраняет содержимое таблиц в `db/snapshots/YYYY-MM-DD-<table>.json`. Эта папка **в gitignore**, в публичный репо не попадёт.
 
 ```bash
-# Замени TOKEN на актуальный Supabase access token из ~/.supabase или через
-# https://supabase.com/dashboard/account/tokens (Generate new token)
+# Замени TOKEN на актуальный Supabase access token из ~/.claude/env/supabase.env
+# или сгенерируй новый: https://supabase.com/dashboard/account/tokens
 TOKEN="sbp_..."
 DATE=$(date +%Y-%m-%d)
 mkdir -p db/snapshots
 
-for table in rated_items track_scores media_links admin_users; do
+for table in rated_items track_scores media_links admin_users auction_items auction_rules viewer_votes; do
   curl -s -X POST "https://api.supabase.com/v1/projects/nfekasqbzwjelrwyxqmv/database/query" \
     -H "Authorization: Bearer $TOKEN" \
     -H "Content-Type: application/json" \
