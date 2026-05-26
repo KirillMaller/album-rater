@@ -66,6 +66,7 @@
 | `/auctions` | Публичная очередь аукционов. |
 | `/auctions/rules` | Правила аукционов. |
 | `/admin/auctions` | Админское управление аукционами и правилами. |
+| `/privacy` | Политика конфиденциальности. Markdown из [docs/PRIVACY.md](PRIVACY.md), импортируется через Vite `?raw`. Ссылка в футере на каждой странице. |
 
 Деплой идёт на GitHub Pages с кастомным доменом `https://rifmabes.ru/`. Поэтому Vite собирается с `base: '/'`, роутер работает без `basename`, а [public/404.html](../public/404.html) разворачивает прямые ссылки в SPA (single-page application, одностраничное приложение).
 
@@ -91,6 +92,7 @@
 - **`track_scores`** — треки с оценкой, привязаны к `rated_items` через `item_id`. Уникальная позиция в рамках одного item.
 - **`media_links`** — ссылки на оригиналы и реакции. `kind in ('original', 'reaction')`.
 - **`admin_users`** — кто админ. `user_id` ссылается на `auth.users`.
+- **`viewer_votes`** — голоса зрителей (с миграции 007, 2026-05-27). Каждая запись = голос за конкретный `item_id`. Для альбома/трека есть `score` (0..11), для баттла — `winner_side` (`a`/`b`/`draw`) и опциональный `round_index` (null = итог). Уникальный индекс на `(viewer_id, item_id, coalesce(round_index, -1))` — один аккаунт = один голос. RLS: читать всем (для агрегации), писать только свой (`auth.uid() = viewer_id`).
 
 ### RLS правила
 

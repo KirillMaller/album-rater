@@ -1172,6 +1172,9 @@ function Shell() {
         <Route path="/admin/new/:type" element={<AdminRoute><EditorPage /></AdminRoute>} />
         <Route path="/admin/edit/:id" element={<AdminRoute><EditorPage /></AdminRoute>} />
       </Routes>
+      <footer className="site-footer">
+        <Link to="/privacy" className="footer-link">Политика конфиденциальности</Link>
+      </footer>
     </>
   );
 }

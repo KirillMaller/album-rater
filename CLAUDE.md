@@ -36,7 +36,9 @@
 | [db/migrations/003_auction_items.sql](db/migrations/003_auction_items.sql) | Таблица очереди аукционов (`auction_items`) + RLS. |
 | [db/migrations/004_auction_rules.sql](db/migrations/004_auction_rules.sql) | Таблица правил аукционов (markdown по `scope`). |
 | [db/migrations/005_reviewed_at.sql](db/migrations/005_reviewed_at.sql) | Поле `reviewed_at date` в `rated_items`. |
-| [db/migrations/006_score_up_to_11.sql](db/migrations/006_score_up_to_11.sql) | Расширение границ оценки до 0..11. Все шесть миграций накачены на проде вручную через Management API/SQL Editor. |
+| [db/migrations/006_score_up_to_11.sql](db/migrations/006_score_up_to_11.sql) | Расширение границ оценки до 0..11. |
+| [db/migrations/007_viewer_votes.sql](db/migrations/007_viewer_votes.sql) | Таблица `viewer_votes` (голоса зрителей за треки/альбомы/баттлы) + RLS (читать всем, писать только свой голос) + уникальный индекс на `(viewer_id, item_id, round_index)`. Накачена на прод 2026-05-27 через SQL Editor. |
+| [docs/PRIVACY.md](docs/PRIVACY.md) | Политика конфиденциальности (рендерится на странице `/privacy` через react-markdown, импортируется как `?raw`). |
 | [server/yandex-proxy/](server/yandex-proxy/) | **Код прокси для Яндекс.Музыки** (бэкап того что крутится на VPS). См. подробный README в этой папке. |
 | [supabase/](supabase/) | Конфиг для Supabase CLI (`config.toml`, привязка к проекту). Edge Functions не используем — провалились на гео-блоке Яндекса. |
 | [public/404.html](public/404.html) | SPA-фоллбек для GitHub Pages. |
@@ -52,6 +54,7 @@
 - Доступ через CLI: `npx supabase` (поставлен как dev-зависимость в `package.json`). Auth-token хранится у Кирилла, у Claude — через env-переменную `SUPABASE_ACCESS_TOKEN`.
 - **Миграции 001-006 накачены на проде** (через SQL Editor / Management API, не через `supabase db push` — поэтому Supabase Dashboard на главной странице показывает «No migrations»). Проверить состояние схемы: `POST https://api.supabase.com/v1/projects/nfekasqbzwjelrwyxqmv/database/query`.
 - В `admin_users` два email: `kirillmakarov820@gmail.com` (Кирилл) и `r1fmabes.rating@gmail.com` (Рифмабес-стример).
+- **Google OAuth провайдер включён** в Auth → Providers → Google (с 2026-05-27). Client ID + Secret в `~/.claude/env/google-oauth.env`. App в Google Cloud (проект `r1frating`) в Production mode, External. Кнопки «Войти через Google» на фронте ещё нет — задача 12 в SPRINT-002.
 - Edge Functions **не используем** для Яндекса — гео-блок не пускает к `api.music.yandex.net` из EU.
 
 ### VPS на reg.cloud (исторически `bot-napominalka`)
