@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import ReactDOM from 'react-dom/client';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import privacyMarkdown from '../docs/PRIVACY.md?raw';
 import { createClient, type User } from '@supabase/supabase-js';
 import {
   BrowserRouter,
@@ -1162,6 +1163,7 @@ function Shell() {
         <Route path="/" element={<HomePage />} />
         <Route path="/auctions" element={<AuctionsPage />} />
         <Route path="/auctions/rules" element={<AuctionRulesPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/item/:slug" element={<ItemPage />} />
         <Route path="/admin/login" element={<LoginPage />} />
         <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
@@ -2066,6 +2068,20 @@ function AuctionRulesPage() {
         ) : (
           <p className="muted">Правила пока не заполнены.</p>
         )}
+      </section>
+    </main>
+  );
+}
+
+function PrivacyPage() {
+  return (
+    <main>
+      <section className="rules-head">
+        <p className="eyebrow">Правовая информация</p>
+        <h1>Политика конфиденциальности</h1>
+      </section>
+      <section className="panel">
+        <div className="markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{privacyMarkdown}</ReactMarkdown></div>
       </section>
     </main>
   );
