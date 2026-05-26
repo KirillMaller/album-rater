@@ -826,6 +826,7 @@ type Store = {
   user: User | null;
   setAdmin: (value: boolean) => void;
   signIn: (email: string, password: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   saveItem: (item: RatedItem) => Promise<void>;
   deleteItem: (id: string) => Promise<void>;
@@ -1002,6 +1003,14 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
       setUser(nextUser);
       setAdminState(true);
     },
+    async signInWithGoogle() {
+      if (!supabase) throw new Error('Вход через Google доступен только на проде с настроенным Supabase');
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.href },
+      });
+      if (error) throw error;
+    },
     async signOut() {
       if (supabase) await supabase.auth.signOut();
       setUser(null);
@@ -1147,7 +1156,7 @@ function ScrollMemory() {
 }
 
 function Shell() {
-  const { admin, signOut } = useStore();
+  const { admin } = useStore();
   return (
     <>
       <header className="topbar">
@@ -1157,7 +1166,7 @@ function Shell() {
           <Link to="/auctions" className="nav-link">Аукционы</Link>
           <Link to="/auctions/rules" className="nav-link">Правила</Link>
           {admin && <Link to="/admin" className="nav-link">Админка</Link>}
-          {admin && <button className="ghost" onClick={() => signOut()}><LogOut size={16} /> Выйти</button>}
+          <AuthBadge />
         </nav>
       </header>
       <Routes>
@@ -2077,6 +2086,69 @@ function AuctionRulesPage() {
         )}
       </section>
     </main>
+  );
+}
+
+function AuthBadge() {
+  const { user, admin, signInWithGoogle, signOut } = useStore();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = () => setMenuOpen(false);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, [menuOpen]);
+
+  if (!user) {
+    return (
+      <button
+        className="ghost"
+        disabled={busy}
+        onClick={async () => {
+          try {
+            setBusy(true);
+            await signInWithGoogle();
+          } catch (error) {
+            alert((error as Error).message || 'Не удалось начать вход через Google');
+            setBusy(false);
+          }
+        }}
+      >
+        {busy ? 'Открываю...' : 'Войти'}
+      </button>
+    );
+  }
+
+  const meta = (user.user_metadata ?? {}) as { full_name?: string; name?: string; avatar_url?: string; picture?: string };
+  const displayName = meta.full_name || meta.name || user.email || 'Аккаунт';
+  const avatarUrl = meta.avatar_url || meta.picture || '';
+  const initial = displayName.trim().charAt(0).toUpperCase() || 'A';
+
+  return (
+    <div className="auth-badge" onClick={(event) => event.stopPropagation()}>
+      <button className="auth-trigger" onClick={() => setMenuOpen((value) => !value)}>
+        {avatarUrl
+          ? <img className="auth-avatar" src={avatarUrl} alt="" referrerPolicy="no-referrer" />
+          : <span className="auth-avatar auth-avatar-fallback">{initial}</span>}
+        <span className="auth-name">{displayName}</span>
+      </button>
+      {menuOpen && (
+        <div className="auth-menu">
+          {admin && <Link to="/admin" className="auth-menu-item" onClick={() => setMenuOpen(false)}>Админка</Link>}
+          <button
+            className="auth-menu-item auth-menu-signout"
+            onClick={async () => {
+              setMenuOpen(false);
+              await signOut();
+            }}
+          >
+            <LogOut size={14} /> Выйти
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
