@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import privacyMarkdown from '../docs/PRIVACY.md?raw';
+import termsMarkdown from '../docs/USER_AGREEMENT.md?raw';
 import { createClient, type User } from '@supabase/supabase-js';
 import {
   BrowserRouter,
@@ -1164,6 +1165,7 @@ function Shell() {
         <Route path="/auctions" element={<AuctionsPage />} />
         <Route path="/auctions/rules" element={<AuctionRulesPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
         <Route path="/item/:slug" element={<ItemPage />} />
         <Route path="/admin/login" element={<LoginPage />} />
         <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
@@ -1174,6 +1176,8 @@ function Shell() {
       </Routes>
       <footer className="site-footer">
         <Link to="/privacy" className="footer-link">Политика конфиденциальности</Link>
+        <span className="footer-sep">·</span>
+        <Link to="/terms" className="footer-link">Условия использования</Link>
       </footer>
     </>
   );
@@ -2085,6 +2089,20 @@ function PrivacyPage() {
       </section>
       <section className="panel">
         <div className="markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{privacyMarkdown}</ReactMarkdown></div>
+      </section>
+    </main>
+  );
+}
+
+function TermsPage() {
+  return (
+    <main>
+      <section className="rules-head">
+        <p className="eyebrow">Правовая информация</p>
+        <h1>Условия использования</h1>
+      </section>
+      <section className="panel">
+        <div className="markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{termsMarkdown}</ReactMarkdown></div>
       </section>
     </main>
   );
