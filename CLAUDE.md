@@ -54,14 +54,14 @@
 - В `admin_users` два email: `kirillmakarov820@gmail.com` (Кирилл) и `r1fmabes.rating@gmail.com` (Рифмабес-стример).
 - Edge Functions **не используем** для Яндекса — гео-блок не пускает к `api.music.yandex.net` из EU.
 
-### VPS `bot-napominalka` на reg.cloud
+### VPS на reg.cloud (исторически `bot-napominalka`)
 
 - IP: `195.208.3.209`, Ubuntu 24.04 LTS, Free Tier (1 CPU, 1GB RAM, 10GB).
-- На этом же сервере уже жил Telegram-бот Кирилла (`bot-napominalka.service` → `/opt/bot-napominalka/` на Node.js v25 через nvm). **Бот не трогать.**
-- Дополнительно поднято:
+- На этом VPS сейчас живут **только** сервисы для этого проекта (album-rater):
   - **`yandex-proxy.service`** — наш Node.js-прокси на 127.0.0.1:3001. Код — в [server/yandex-proxy/](server/yandex-proxy/).
   - **Caddy** — HTTPS-фронт на 80/443 с автоматическим Let's Encrypt-сертификатом.
-- SSH-доступ: ключ `~/.ssh/bot-napominalka-reg-ru` (приватный) уже разрешён на сервере для root.
+- ⚠️ **История имени:** до 2026-05-26 на этом VPS дополнительно жил Telegram-бот напоминаний Кирилла (`bot-napominalka.service` + локальный `xray.service` как Telegram-прокси). Поэтому VPS на reg.cloud до сих пор называется `bot-napominalka`. После переезда бота на Aeza Frankfurt всё связанное с ботом удалено: `/opt/bot-napominalka/` → нет, `bot-napominalka.service` → нет, `xray.service` + бинарь → нет. На VPS остались только `yandex-proxy` + Caddy + системное.
+- SSH-доступ: ключ `~/.ssh/bot-napominalka-reg-ru` (приватный) уже разрешён на сервере для root. Также есть root-пароль (хранится у Кирилла отдельно от репо).
 - Прокси доступен извне: `https://195.208.3.209.sslip.io/yandex-music/import?url=...`. Домен — sslip.io (auto-DNS, бесплатно, ничего регистрировать не нужно).
 
 ### GitHub Pages (фронт)
@@ -72,6 +72,31 @@
 - Секреты в репо (все три заведены): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_YANDEX_PROXY_URL`.
 - **Кастомный домен `rifmabes.ru`** куплен на reg.ru 2026-05-18. DNS: 4 A-записи на 185.199.108-111.153 (IP GitHub Pages) + CNAME `www` на `kirillmaller.github.io.`. Файл `public/CNAME` в репо. `vite.config.ts` base=`/`, роутер без basename.
 - Старая ссылка `kirillmaller.github.io/album-rater/` теперь редиректит на новый домен (GitHub Pages обслуживает только cname).
+
+### ⚠️ Известная проблема: Supabase Cloud в России
+
+Российские пользователи могут видеть **медленный** или **частично нерабочий** сайт. Причина: домен Supabase Cloud (`*.supabase.co` / `nfekasqbzwjelrwyxqmv.supabase.co`) живёт за CDN-подсетями, которые РКН периодически захватывает / замедляет через ТСПУ. С российского IP запросы к Supabase API могут долго висеть или отваливаться по таймауту, что ломает логин, чтение каталога и т.д.
+
+Симптомы у пользователя из РФ:
+- белый экран / долгая загрузка,
+- «не удалось войти» при OAuth,
+- каталог открывается но без оценок (RLS-запросы упали).
+
+Сайт **работает нормально** с зарубежного IP (VPN, или просто заграница).
+
+**Путь решения (НЕ сделан, на будущее)** — прокси Supabase через тот же VPS на reg.cloud где живёт `yandex-proxy`:
+
+1. В Caddyfile добавить блоки `handle /supabase/rest/v1/*`, `/supabase/auth/v1/*`, `/supabase/storage/v1/*` (и `/supabase/realtime/v1/*` если используется) с `reverse_proxy https://nfekasqbzwjelrwyxqmv.supabase.co` для каждого.
+2. В коде фронта (`src/main.tsx` или `.env.local`/Pages secrets) заменить `VITE_SUPABASE_URL=https://nfekasqbzwjelrwyxqmv.supabase.co` на `https://195.208.3.209.sslip.io/supabase`.
+3. Передеплоить (push в main → Pages подхватит).
+4. С российского IP запросы будут идти на российский же VPS sslip.io (быстро), а оттуда уже на Supabase (датацентр-к-датацентру, тоже быстро).
+
+Сложности:
+- WebSocket для **Realtime** (если когда-то включим подписки) нужно проксировать отдельно с `transport http { versions h1 h2c }`.
+- Storage больших файлов может потребовать увеличить `request_body` / таймауты Caddy.
+- CORS обычно работает «из коробки», но preflight `OPTIONS` Supabase отвечает с `Allow-Origin: *` — если нет, придётся переписывать в Caddy.
+
+Это разовая работа на 1-2 часа когда руки дойдут. Не блокирует разработку — фича работает заграницей.
 
 ## Запуск локально
 
