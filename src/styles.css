@@ -154,6 +154,58 @@ h2 { font-size: 24px; }
 
 .legal-panel { margin-top: 28px; }
 
+.viewer-vote-bar {
+  margin: 0 0 24px;
+  padding: 18px 22px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(145, 70, 255, 0.08), rgba(0, 229, 255, 0.04));
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(0, 2fr);
+  gap: 20px;
+  align-items: center;
+}
+.viewer-vote-title h2 { margin: 0 0 4px; font-size: 18px; }
+.viewer-vote-title p { margin: 0; font-size: 13px; }
+.viewer-vote-action { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.viewer-vote-action button { min-height: 38px; padding: 0 18px; }
+.viewer-vote-hint { margin: 0; color: var(--muted); font-size: 14px; }
+.viewer-vote-slider {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) auto auto auto;
+  gap: 14px;
+  align-items: center;
+}
+.viewer-vote-slider input[type="range"] {
+  width: 100%;
+  accent-color: var(--cyan);
+}
+.viewer-vote-value {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 84px;
+}
+.viewer-vote-value span:first-child { font-size: 22px; font-weight: 800; line-height: 1; }
+.viewer-vote-previous { color: var(--muted); font-size: 12px; }
+.viewer-vote-saved { color: var(--cyan); font-size: 13px; font-weight: 600; }
+.viewer-vote-error {
+  grid-column: 1 / -1;
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(255, 77, 109, 0.12);
+  border: 1px solid rgba(255, 77, 109, 0.4);
+  color: #ffd3dc;
+  font-size: 13px;
+}
+@media (max-width: 720px) {
+  .viewer-vote-bar { grid-template-columns: 1fr; }
+  .viewer-vote-slider { grid-template-columns: 1fr; }
+  .viewer-vote-value { flex-direction: row; align-items: baseline; gap: 12px; }
+}
+
 .concert-ticker {
   display: block;
   position: relative;
@@ -929,10 +981,44 @@ nav .nav-soon { cursor: help; opacity: .85; }
   transition: border-color .2s var(--ease), background .2s var(--ease), box-shadow .2s var(--ease);
 }
 .panel:hover { border-color: rgba(255, 255, 255, .16); }
-.track { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--line); }
-.track b { color: var(--cyan); font-family: ui-monospace, monospace; }
-.track-excluded span { color: var(--muted); }
-.track-excluded b { color: var(--muted); font-family: inherit; font-size: 13px; }
+.track { display: flex; flex-direction: column; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.track-line { display: flex; justify-content: space-between; gap: 16px; align-items: baseline; }
+.track-line b { color: var(--cyan); font-family: ui-monospace, monospace; }
+.track-excluded .track-line span { color: var(--muted); }
+.track-excluded .track-line b { color: var(--muted); font-family: inherit; font-size: 13px; }
+.track-excluded-note { margin: 0; font-size: 12px; }
+.track-vote {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.track-vote input[type="range"] { flex: 1 1 160px; min-width: 140px; accent-color: var(--cyan); }
+.track-vote-value { font-weight: 800; font-size: 14px; min-width: 32px; text-align: right; }
+.track-vote-save { min-height: 30px; padding: 0 12px; font-size: 13px; }
+.track-vote-cta {
+  display: inline-block;
+  margin-top: 2px;
+  background: transparent;
+  border: 1px dashed var(--line);
+  color: var(--muted);
+  padding: 6px 12px;
+  font-size: 12px;
+  min-height: auto;
+}
+.track-vote-cta:hover { color: var(--text); border-color: var(--cyan); }
+.track-vote-error { color: #ffd3dc; font-size: 12px; flex-basis: 100%; }
+.viewer-vote-subtitle { margin: 4px 0 0; font-size: 12px; }
+.track-batch-save {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.track-batch-save button { min-height: 36px; padding: 0 18px; }
 .link-group { margin-top: 18px; }
 .link-group h3, .link-group a { display: flex; align-items: center; gap: 8px; }
 .link-group a { width: fit-content; margin: 8px 0; color: var(--cyan); }

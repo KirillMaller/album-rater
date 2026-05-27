@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, forwardRef, useContext, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -831,6 +831,11 @@ type Store = {
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   recordConsent: () => Promise<void>;
+  loadMyItemVotes: (itemId: string) => Promise<{ album: number | null; tracks: Map<number, number> }>;
+  saveMyAlbumVote: (itemId: string, score: number) => Promise<void>;
+  saveMyTrackVote: (itemId: string, position: number, score: number) => Promise<void>;
+  clearMyAlbumVote: (itemId: string) => Promise<void>;
+  clearMyTrackVotes: (itemId: string) => Promise<void>;
   saveItem: (item: RatedItem) => Promise<void>;
   deleteItem: (id: string) => Promise<void>;
   auctions: AuctionItem[];
@@ -1085,6 +1090,102 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
       if (error) throw error;
       setViewerConsentedAt(consentedAt);
     },
+    async loadMyItemVotes(itemId) {
+      const empty = { album: null as number | null, tracks: new Map<number, number>() };
+      if (!supabase || !user) return empty;
+      const { data, error } = await supabase
+        .from('viewer_votes')
+        .select('score, track_position')
+        .eq('viewer_id', user.id)
+        .eq('item_id', itemId)
+        .is('round_index', null);
+      if (error) throw error;
+      const result = { album: null as number | null, tracks: new Map<number, number>() };
+      (data ?? []).forEach((row) => {
+        const score = typeof row.score === 'number' ? row.score : Number(row.score);
+        if (row.track_position == null) result.album = score;
+        else result.tracks.set(row.track_position, score);
+      });
+      return result;
+    },
+    async saveMyAlbumVote(itemId, score) {
+      if (!supabase) throw new Error('Голосование работает только на проде с Supabase');
+      if (!user) throw new Error('Войди через Google чтобы голосовать');
+      if (!viewerConsentedAt) throw new Error('Подтверди условия чтобы голосовать');
+      const { data: existing, error: selectError } = await supabase
+        .from('viewer_votes')
+        .select('id')
+        .eq('viewer_id', user.id)
+        .eq('item_id', itemId)
+        .is('round_index', null)
+        .is('track_position', null)
+        .maybeSingle();
+      if (selectError) throw selectError;
+      if (existing) {
+        const { error } = await supabase.from('viewer_votes').update({ score, winner_side: null }).eq('id', existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('viewer_votes').insert({
+          viewer_id: user.id,
+          item_id: itemId,
+          score,
+          round_index: null,
+          track_position: null,
+          winner_side: null,
+        });
+        if (error) throw error;
+      }
+    },
+    async saveMyTrackVote(itemId, position, score) {
+      if (!supabase) throw new Error('Голосование работает только на проде с Supabase');
+      if (!user) throw new Error('Войди через Google чтобы голосовать');
+      if (!viewerConsentedAt) throw new Error('Подтверди условия чтобы голосовать');
+      const { data: existing, error: selectError } = await supabase
+        .from('viewer_votes')
+        .select('id')
+        .eq('viewer_id', user.id)
+        .eq('item_id', itemId)
+        .is('round_index', null)
+        .eq('track_position', position)
+        .maybeSingle();
+      if (selectError) throw selectError;
+      if (existing) {
+        const { error } = await supabase.from('viewer_votes').update({ score, winner_side: null }).eq('id', existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('viewer_votes').insert({
+          viewer_id: user.id,
+          item_id: itemId,
+          score,
+          round_index: null,
+          track_position: position,
+          winner_side: null,
+        });
+        if (error) throw error;
+      }
+    },
+    async clearMyAlbumVote(itemId) {
+      if (!supabase || !user) return;
+      const { error } = await supabase
+        .from('viewer_votes')
+        .delete()
+        .eq('viewer_id', user.id)
+        .eq('item_id', itemId)
+        .is('round_index', null)
+        .is('track_position', null);
+      if (error) throw error;
+    },
+    async clearMyTrackVotes(itemId) {
+      if (!supabase || !user) return;
+      const { error } = await supabase
+        .from('viewer_votes')
+        .delete()
+        .eq('viewer_id', user.id)
+        .eq('item_id', itemId)
+        .is('round_index', null)
+        .not('track_position', 'is', null);
+      if (error) throw error;
+    },
     viewerConsentedAt,
     viewerConsentLoaded,
     async saveItem(item) {
@@ -1178,7 +1279,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
       if (error) throw error;
       await loadAuctions();
     },
-  }), [admin, error, items, loading, user, viewerConsentedAt, viewerConsentLoaded, auctions, auctionRules, auctionsLoading, auctionsError]);
+  }), [admin, error, items, loading, user, viewerConsentedAt, viewerConsentLoaded, auctions, auctionRules, auctionsLoading, auctionsError]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
@@ -1266,6 +1367,17 @@ function ConsentModal() {
       return;
     }
     setDismissed(sessionStorage.getItem(`consentDismissed:${user.id}`) === '1');
+  }, [user?.id]);
+
+  useEffect(() => {
+    const handler = () => {
+      if (user) {
+        sessionStorage.removeItem(`consentDismissed:${user.id}`);
+        setDismissed(false);
+      }
+    };
+    window.addEventListener('r1f:request-consent', handler);
+    return () => window.removeEventListener('r1f:request-consent', handler);
   }, [user?.id]);
 
   if (!user || !viewerConsentLoaded || viewerConsentedAt || dismissed) return null;
@@ -1360,17 +1472,40 @@ const homeTypeTabs: Array<{ value: HomeTypeFilter; label: string }> = [
   { value: 'track', label: 'Треки' },
 ];
 
+type HomeFiltersCache = {
+  query: string;
+  activeType: HomeTypeFilter;
+  sort: HomeSort;
+  period: HomePeriod;
+  dateBasis: HomeDateBasis;
+  activeTournament: string;
+  activeSeason: string;
+};
+
+let cachedHomeFilters: HomeFiltersCache = {
+  query: '',
+  activeType: 'all',
+  sort: 'new',
+  period: 'all',
+  dateBasis: 'reviewed',
+  activeTournament: '',
+  activeSeason: '',
+};
+
 function HomePage() {
   const { items, loading, error, admin } = useStore();
-  const [query, setQuery] = useState('');
-  const [activeType, setActiveType] = useState<HomeTypeFilter>('all');
-  const [sort, setSort] = useState<HomeSort>('new');
-  const [period, setPeriod] = useState<HomePeriod>('all');
-  const [dateBasis, setDateBasis] = useState<HomeDateBasis>('reviewed');
+  const [query, setQuery] = useState(cachedHomeFilters.query);
+  const [activeType, setActiveType] = useState<HomeTypeFilter>(cachedHomeFilters.activeType);
+  const [sort, setSort] = useState<HomeSort>(cachedHomeFilters.sort);
+  const [period, setPeriod] = useState<HomePeriod>(cachedHomeFilters.period);
+  const [dateBasis, setDateBasis] = useState<HomeDateBasis>(cachedHomeFilters.dateBasis);
   const [catalogView, setCatalogView] = useState<CatalogView>(() => localStorage.getItem(catalogViewKey) === 'list' ? 'list' : 'cards');
-  const [activeTournament, setActiveTournament] = useState<string>('');
-  const [activeSeason, setActiveSeason] = useState<string>('');
+  const [activeTournament, setActiveTournament] = useState<string>(cachedHomeFilters.activeTournament);
+  const [activeSeason, setActiveSeason] = useState<string>(cachedHomeFilters.activeSeason);
   useEffect(() => localStorage.setItem(catalogViewKey, catalogView), [catalogView]);
+  useEffect(() => {
+    cachedHomeFilters = { query, activeType, sort, period, dateBasis, activeTournament, activeSeason };
+  }, [query, activeType, sort, period, dateBasis, activeTournament, activeSeason]);
   const published = items.filter((item) => item.published);
   const bestAlbum = [...published].filter((item) => item.type === 'album').sort((a, b) => b.finalScore - a.finalScore)[0];
   const bestBattle = [...published].filter((item) => item.type === 'battle').sort((a, b) => b.finalScore - a.finalScore)[0];
@@ -1778,16 +1913,349 @@ function relativeDate(value: string) {
   return `${Math.floor(diffDays / 365)} г. назад`;
 }
 
+type ItemVotesState = {
+  album: number | null;
+  tracks: Map<number, number>;
+  loaded: boolean;
+  error: string;
+};
+
+function useItemVotes(itemId: string) {
+  const { user, viewerConsentedAt, loadMyItemVotes, saveMyAlbumVote, saveMyTrackVote, clearMyAlbumVote, clearMyTrackVotes } = useStore();
+  const [state, setState] = useState<ItemVotesState>({ album: null, tracks: new Map(), loaded: false, error: '' });
+
+  useEffect(() => {
+    if (!user || !viewerConsentedAt || itemId === '00000000-0000-0000-0000-000000000000') {
+      setState({ album: null, tracks: new Map(), loaded: true, error: '' });
+      return;
+    }
+    setState((current) => ({ ...current, loaded: false }));
+    let cancelled = false;
+    loadMyItemVotes(itemId)
+      .then(({ album, tracks }) => {
+        if (cancelled) return;
+        setState({ album, tracks, loaded: true, error: '' });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setState({ album: null, tracks: new Map(), loaded: true, error: err instanceof Error ? err.message : 'Не удалось загрузить голоса' });
+      });
+    return () => { cancelled = true; };
+  }, [user?.id, viewerConsentedAt, itemId]);
+
+  return {
+    state,
+    async saveAlbum(score: number) {
+      const prevAlbum = state.album;
+      setState((prev) => ({ ...prev, album: score, error: '' }));
+      try {
+        await saveMyAlbumVote(itemId, score);
+      } catch (err) {
+        setState((prev) => ({ ...prev, album: prevAlbum }));
+        throw err;
+      }
+    },
+    async saveTrack(position: number, score: number) {
+      const prevScore = state.tracks.get(position);
+      setState((prev) => {
+        const tracks = new Map(prev.tracks);
+        tracks.set(position, score);
+        return { ...prev, tracks, error: '' };
+      });
+      try {
+        await saveMyTrackVote(itemId, position, score);
+      } catch (err) {
+        setState((prev) => {
+          const tracks = new Map(prev.tracks);
+          if (prevScore == null) tracks.delete(position);
+          else tracks.set(position, prevScore);
+          return { ...prev, tracks };
+        });
+        throw err;
+      }
+    },
+    async clearAlbum() {
+      await clearMyAlbumVote(itemId);
+      setState((prev) => ({ ...prev, album: null }));
+    },
+    async clearTracks() {
+      await clearMyTrackVotes(itemId);
+      setState((prev) => ({ ...prev, tracks: new Map() }));
+    },
+  };
+}
+
+function viewerTracksAverage(votes: Map<number, number>, item: RatedItem): { avg: number; counted: number; total: number } {
+  const counted = [...votes.entries()].filter(([position]) => {
+    const track = item.tracks.find((entry) => entry.position === position);
+    return track && track.score !== '-';
+  });
+  const eligibleTotal = item.tracks.filter((track) => track.score !== '-').length;
+  if (!counted.length) return { avg: 0, counted: 0, total: eligibleTotal };
+  const sum = counted.reduce((acc, [, value]) => acc + value, 0);
+  return { avg: sum / counted.length, counted: counted.length, total: eligibleTotal };
+}
+
+function AlbumVotePanel({ item, votes, save }: { item: RatedItem; votes: ItemVotesState; save: (score: number) => Promise<void> }) {
+  const { user, admin, viewerConsentedAt, viewerConsentLoaded, signInWithGoogle } = useStore();
+  const maxScore = admin ? 11 : 10;
+  const isAlbum = item.type === 'album';
+  const trackStats = isAlbum ? viewerTracksAverage(votes.tracks, item) : { avg: 0, counted: 0, total: 0 };
+  const fallbackScore = votes.album ?? (trackStats.counted > 0 ? Math.round(trackStats.avg * 10) / 10 : 0);
+  const [draftScore, setDraftScore] = useState<number>(fallbackScore);
+  const [touched, setTouched] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [savedTick, setSavedTick] = useState(false);
+
+  useEffect(() => {
+    if (touched) return;
+    if (votes.album != null) {
+      setDraftScore(votes.album);
+      return;
+    }
+    if (trackStats.counted > 0) {
+      setDraftScore(Math.round(trackStats.avg * 10) / 10);
+      return;
+    }
+    setDraftScore(0);
+  }, [votes.album, trackStats.counted, trackStats.avg, touched]);
+
+  if (!supabase) return null;
+
+  const requestConsent = () => window.dispatchEvent(new Event('r1f:request-consent'));
+
+  const submit = async () => {
+    if (saving) return;
+    setSaving(true);
+    setError('');
+    setSavedTick(false);
+    try {
+      await save(draftScore);
+      setTouched(false);
+      setSavedTick(true);
+      window.setTimeout(() => setSavedTick(false), 2500);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось сохранить голос');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const renderBody = () => {
+    if (!user) {
+      return (
+        <div className="viewer-vote-action">
+          <p className="viewer-vote-hint">Войди через Google, чтобы оставить свою оценку.</p>
+          <button type="button" onClick={() => signInWithGoogle().catch((err) => setError(err instanceof Error ? err.message : 'Не удалось начать вход'))}>Войти через Google</button>
+        </div>
+      );
+    }
+    if (!viewerConsentLoaded) return <p className="muted">Загружаю профиль…</p>;
+    if (!viewerConsentedAt) {
+      return (
+        <div className="viewer-vote-action">
+          <p className="viewer-vote-hint">Прими условия — это нужно один раз.</p>
+          <button type="button" onClick={requestConsent}>Подтвердить условия</button>
+        </div>
+      );
+    }
+    if (!votes.loaded) return <p className="muted">Загружаю твой голос…</p>;
+    if (votes.error) return <div className="viewer-vote-error">{votes.error}</div>;
+
+    const changed = votes.album != null
+      ? Math.abs(draftScore - votes.album) > 0.001
+      : touched;
+    const showsTracksAverage = isAlbum && votes.album == null && trackStats.counted > 0;
+    return (
+      <div className="viewer-vote-slider">
+        <input
+          type="range"
+          min={0}
+          max={maxScore}
+          step={0.1}
+          value={draftScore}
+          onChange={(event) => {
+            setDraftScore(Math.round(Number(event.target.value) * 10) / 10);
+            setTouched(true);
+          }}
+          aria-label="Твоя оценка"
+        />
+        <div className="viewer-vote-value">
+          <span className={scoreClass(draftScore)}>{draftScore.toFixed(1)}</span>
+          {votes.album != null && <span className="viewer-vote-previous">Сейчас сохранено: {votes.album.toFixed(1)}</span>}
+          {votes.album == null && showsTracksAverage && (
+            <span className="viewer-vote-previous">Средняя по трекам: {trackStats.avg.toFixed(1)} (по {trackStats.counted} из {trackStats.total})</span>
+          )}
+        </div>
+        <button type="button" onClick={submit} disabled={saving || !changed}>
+          {saving ? 'Сохраняю…' : votes.album == null ? 'Сохранить' : 'Обновить голос'}
+        </button>
+        {savedTick && <span className="viewer-vote-saved">Сохранено ✓</span>}
+      </div>
+    );
+  };
+
+  return (
+    <section className="viewer-vote-bar">
+      <div className="viewer-vote-title">
+        <h2>{isAlbum ? 'Поставь оценку альбому' : 'Поставь свою оценку'}</h2>
+        {isAlbum && <p className="muted viewer-vote-subtitle">Можно оценить альбом целиком, по трекам или и так, и так.</p>}
+      </div>
+      {renderBody()}
+      {error && <div className="viewer-vote-error">{error}</div>}
+    </section>
+  );
+}
+
+type TrackSliderHandle = {
+  saveIfTouched: () => Promise<void>;
+};
+
+const TrackVoteSlider = forwardRef<TrackSliderHandle, { item: RatedItem; position: number; currentScore: number | null; saveTrack: (score: number) => Promise<void>; onTouchedChange?: (position: number, touched: boolean) => void }>(function TrackVoteSlider({ item, position, currentScore, saveTrack, onTouchedChange }, ref) {
+  const { user, admin, viewerConsentedAt, viewerConsentLoaded, signInWithGoogle } = useStore();
+  const maxScore = admin ? 11 : 10;
+  const [draftScore, setDraftScore] = useState<number>(currentScore ?? 0);
+  const [touched, setTouchedState] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [savedTick, setSavedTick] = useState(false);
+  const draftRef = useRef(draftScore);
+  draftRef.current = draftScore;
+  const touchedRef = useRef(touched);
+  touchedRef.current = touched;
+  const savingRef = useRef(saving);
+  savingRef.current = saving;
+
+  const setTouched = (value: boolean) => {
+    setTouchedState(value);
+    onTouchedChange?.(position, value);
+  };
+
+  useEffect(() => {
+    if (currentScore != null) {
+      setDraftScore(currentScore);
+    } else {
+      setDraftScore(0);
+    }
+    setTouchedState(false);
+    onTouchedChange?.(position, false);
+  }, [currentScore]);
+
+  const submit = async () => {
+    if (savingRef.current) return;
+    setSaving(true);
+    setError('');
+    setSavedTick(false);
+    try {
+      await saveTrack(draftRef.current);
+      setTouchedState(false);
+      onTouchedChange?.(position, false);
+      setSavedTick(true);
+      window.setTimeout(() => setSavedTick(false), 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось сохранить голос');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  useImperativeHandle(ref, () => ({
+    saveIfTouched: async () => {
+      if (!touchedRef.current) return;
+      await submit();
+    },
+  }), [position]);
+
+  if (!supabase) return null;
+
+  const requestConsent = () => window.dispatchEvent(new Event('r1f:request-consent'));
+
+  if (!user) {
+    return (
+      <button type="button" className="track-vote-cta" onClick={() => signInWithGoogle().catch(() => undefined)}>
+        Войти, чтобы оценить
+      </button>
+    );
+  }
+  if (!viewerConsentLoaded) return <span className="muted track-vote-cta">…</span>;
+  if (!viewerConsentedAt) {
+    return (
+      <button type="button" className="track-vote-cta" onClick={requestConsent}>
+        Принять условия чтобы голосовать
+      </button>
+    );
+  }
+
+  const changed = currentScore != null
+    ? Math.abs(draftScore - currentScore) > 0.001
+    : touched;
+  void item;
+  return (
+    <div className="track-vote">
+      <input
+        type="range"
+        min={0}
+        max={maxScore}
+        step={0.1}
+        value={draftScore}
+        onChange={(event) => {
+          setDraftScore(Math.round(Number(event.target.value) * 10) / 10);
+          setTouched(true);
+        }}
+        aria-label={`Твоя оценка треку ${position}`}
+      />
+      <span className={`track-vote-value ${scoreClass(draftScore)}`}>{draftScore.toFixed(1)}</span>
+      <button type="button" onClick={submit} disabled={saving || !changed} className="track-vote-save">
+        {saving ? '…' : currentScore == null ? 'Сохранить' : 'Обновить'}
+      </button>
+      {savedTick && <span className="viewer-vote-saved">✓</span>}
+      {error && <span className="track-vote-error">{error}</span>}
+    </div>
+  );
+});
+
 function ItemPage() {
   const { slug } = useParams();
   const { items, admin, loading, error } = useStore();
+  const placeholderItemId = '00000000-0000-0000-0000-000000000000';
+  const itemForVotes = items.find((entry) => entry.slug === slug);
+  const votes = useItemVotes(itemForVotes?.id ?? placeholderItemId);
+  const trackHandles = useRef<Map<number, TrackSliderHandle | null>>(new Map());
+  const [touchedTracks, setTouchedTracks] = useState<Set<number>>(new Set());
+  const [savingAllTracks, setSavingAllTracks] = useState(false);
+  const [saveAllError, setSaveAllError] = useState('');
+  const handleTrackTouched = (position: number, touched: boolean) => {
+    setTouchedTracks((prev) => {
+      const has = prev.has(position);
+      if (touched === has) return prev;
+      const next = new Set(prev);
+      if (touched) next.add(position);
+      else next.delete(position);
+      return next;
+    });
+  };
+  const saveAllTracks = async () => {
+    if (savingAllTracks || touchedTracks.size === 0) return;
+    setSavingAllTracks(true);
+    setSaveAllError('');
+    try {
+      await Promise.all([...trackHandles.current.values()].map((handle) => handle?.saveIfTouched() ?? Promise.resolve()));
+    } catch (err) {
+      setSaveAllError(err instanceof Error ? err.message : 'Часть треков не сохранилась, попробуй ещё раз');
+    } finally {
+      setSavingAllTracks(false);
+    }
+  };
   if (loading) return <ItemPageSkeleton />;
   if (error) return <main><div className="empty">Ошибка загрузки: {error}</div></main>;
-  const item = items.find((entry) => entry.slug === slug);
+  const item = itemForVotes;
   if (!item || !item.published) return <main><div className="empty">Запись не найдена или ещё не опубликована.</div></main>;
   const originals = item.links.filter((link) => link.kind === 'original');
   const reactions = item.links.filter((link) => link.kind === 'reaction');
   const battle = item.metadata?.battle;
+  const supportsViewerVote = item.type === 'album' || item.type === 'track';
+  const isAlbum = item.type === 'album';
 
   return (
     <main>
@@ -1802,6 +2270,13 @@ function ItemPage() {
           {item.description && <p className="lead">{item.description}</p>}
         </div>
       </section>
+      {supportsViewerVote && (
+        <AlbumVotePanel
+          item={item}
+          votes={votes.state}
+          save={votes.saveAlbum}
+        />
+      )}
       <section className="columns">
         <div className="panel">
           {item.type === 'battle' ? (
@@ -1818,15 +2293,43 @@ function ItemPage() {
               ))}
               {!battle?.rounds?.length && <p className="muted">Раунды пока не добавлены.</p>}
             </>
-          ) : item.type === 'album' ? (
+          ) : isAlbum ? (
             <>
               <h2>Треклист</h2>
-              {item.tracks.map((track) => (
-                <div className={`track ${track.score === '-' ? 'track-excluded' : ''}`} key={track.id}>
-                  <span>{track.position}. {track.title}</span>
-                  <b>{track.score === '-' ? 'не в счёт' : track.score || '-'}</b>
+              {item.tracks.map((track) => {
+                const excluded = track.score === '-';
+                const viewerScore = votes.state.tracks.get(track.position) ?? null;
+                return (
+                  <div className={`track ${excluded ? 'track-excluded' : ''}`} key={track.id}>
+                    <div className="track-line">
+                      <span>{track.position}. {track.title}</span>
+                      <b>{excluded ? 'не в счёт' : track.score || '-'}</b>
+                    </div>
+                    {!excluded && votes.state.loaded && (
+                      <TrackVoteSlider
+                        ref={(handle) => {
+                          if (handle) trackHandles.current.set(track.position, handle);
+                          else trackHandles.current.delete(track.position);
+                        }}
+                        item={item}
+                        position={track.position}
+                        currentScore={viewerScore}
+                        saveTrack={(score) => votes.saveTrack(track.position, score)}
+                        onTouchedChange={handleTrackTouched}
+                      />
+                    )}
+                    {excluded && <p className="track-excluded-note muted">Стример исключил трек из оценки — голосование закрыто.</p>}
+                  </div>
+                );
+              })}
+              {votes.state.loaded && item.tracks.some((track) => track.score !== '-') && (
+                <div className="track-batch-save">
+                  <button type="button" onClick={saveAllTracks} disabled={savingAllTracks || touchedTracks.size === 0}>
+                    {savingAllTracks ? 'Сохраняю…' : touchedTracks.size === 0 ? 'Нет изменений' : `Сохранить все треки (${touchedTracks.size})`}
+                  </button>
+                  {saveAllError && <span className="track-vote-error">{saveAllError}</span>}
                 </div>
-              ))}
+              )}
             </>
           ) : (
             <>
