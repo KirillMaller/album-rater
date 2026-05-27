@@ -675,16 +675,35 @@ function BattleWinnerSummary({ battle }: { battle?: BattleMetadata }) {
   const judge = battle.judgeWinner;
   const rifmaLabel = battleWinnerLabel(battle);
   if (!judge || judge === 'unjudged') {
-    return <p className="muted">Не судился. R1Fmabes считает победителем: <b>{rifmaLabel}</b></p>;
+    return (
+      <div className="battle-winner-banner">
+        <span className="battle-winner-label">R1Fmabes:</span>
+        <span className="battle-winner-name">{rifmaLabel}</span>
+        <span className="battle-winner-note">не судился</span>
+      </div>
+    );
   }
   const judgeLabel = battleJudgeLabel(battle);
   if (judge === battle.finalWinner) {
-    return <p className="muted">Победитель: <b>{judgeLabel}</b> (единогласно — судьи и R1Fmabes)</p>;
+    return (
+      <div className="battle-winner-banner">
+        <span className="battle-winner-label">Победитель:</span>
+        <span className="battle-winner-name">{judgeLabel}</span>
+        <span className="battle-winner-note">— единогласно (судьи и R1Fmabes)</span>
+      </div>
+    );
   }
   return (
-    <p className="muted">
-      Победитель по судьям: <b>{judgeLabel}</b>. R1Fmabes считает иначе: <b>{rifmaLabel}</b>
-    </p>
+    <div className="battle-winner-banner battle-winner-split">
+      <div>
+        <span className="battle-winner-label">По судьям:</span>
+        <span className="battle-winner-name">{judgeLabel}</span>
+      </div>
+      <div>
+        <span className="battle-winner-label">R1Fmabes:</span>
+        <span className="battle-winner-name">{rifmaLabel}</span>
+      </div>
+    </div>
   );
 }
 
@@ -714,7 +733,11 @@ function ItemTypeIcon({ type, size = 11 }: { type: ItemType; size?: number }) {
 }
 
 function itemCredit(item: RatedItem) {
-  if (item.type === 'battle') return item.participants || 'Участники не указаны';
+  if (item.type === 'battle') {
+    const meta = item.metadata?.battle;
+    const parts = [meta?.tournament, meta?.season, meta?.stage].filter(Boolean);
+    return parts.length ? parts.join(' · ') : (item.participants || 'Баттл');
+  }
   return item.artist || 'Артист не указан';
 }
 
@@ -826,15 +849,19 @@ type Store = {
   user: User | null;
   viewerConsentedAt: string | null;
   viewerConsentLoaded: boolean;
+  viewerVotesByItem: Map<string, AllVote[]>;
   setAdmin: (value: boolean) => void;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   recordConsent: () => Promise<void>;
-  loadMyItemVotes: (itemId: string) => Promise<{ album: number | null; tracks: Map<number, number> }>;
-  loadItemAllVotes: (itemId: string) => Promise<Array<{ viewerId: string; trackPosition: number | null; score: number }>>;
+  loadMyItemVotes: (itemId: string) => Promise<{ album: number | null; tracks: Map<number, number>; battleRounds: Map<number, BattleSide>; battleFinal: BattleSide | null; bestTracks: Set<number> }>;
+  loadItemAllVotes: (itemId: string) => Promise<Array<{ viewerId: string; trackPosition: number | null; roundIndex: number | null; score: number | null; winner: BattleSide | null; isBest: boolean }>>;
+  toggleMyBestTrack: (itemId: string, position: number, isBest: boolean) => Promise<void>;
   saveMyAlbumVote: (itemId: string, score: number) => Promise<void>;
   saveMyTrackVote: (itemId: string, position: number, score: number) => Promise<void>;
+  saveMyBattleRoundVote: (itemId: string, roundIndex: number, side: BattleSide) => Promise<void>;
+  saveMyBattleFinalVote: (itemId: string, side: BattleSide) => Promise<void>;
   clearMyAlbumVote: (itemId: string) => Promise<void>;
   clearMyTrackVotes: (itemId: string) => Promise<void>;
   saveItem: (item: RatedItem) => Promise<void>;
@@ -849,6 +876,8 @@ type Store = {
 };
 
 const CONSENT_VERSION = 1;
+
+type BattleSide = 'a' | 'b' | 'draw';
 
 function fromDbAuction(row: any): AuctionItem {
   return {
@@ -894,6 +923,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
   const [auctionsError, setAuctionsError] = useState<string>();
   const [viewerConsentedAt, setViewerConsentedAt] = useState<string | null>(null);
   const [viewerConsentLoaded, setViewerConsentLoaded] = useState(false);
+  const [viewerVotesByItem, setViewerVotesByItem] = useState<Map<string, AllVote[]>>(new Map());
 
   const loadAuctions = async () => {
     if (!supabase) return;
@@ -997,6 +1027,33 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!supabase) return;
+    let cancelled = false;
+    supabase
+      .from('viewer_votes')
+      .select('item_id, viewer_id, score, track_position, round_index, winner_side')
+      .then(({ data, error }) => {
+        if (cancelled || error || !data) return;
+        const byItem = new Map<string, AllVote[]>();
+        data.forEach((row: any) => {
+          const itemId = row.item_id as string;
+          const vote: AllVote = {
+            viewerId: row.viewer_id,
+            trackPosition: row.track_position,
+            roundIndex: row.round_index,
+            score: row.score == null ? null : (typeof row.score === 'number' ? row.score : Number(row.score)),
+            winner: (row.winner_side ?? null) as BattleSide | null,
+          };
+          const list = byItem.get(itemId);
+          if (list) list.push(vote);
+          else byItem.set(itemId, [vote]);
+        });
+        setViewerVotesByItem(byItem);
+      });
+    return () => { cancelled = true; };
+  }, [items]);
+
+  useEffect(() => {
+    if (!supabase) return;
     if (!user) {
       setAdminState(false);
       return;
@@ -1092,20 +1149,27 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
       setViewerConsentedAt(consentedAt);
     },
     async loadMyItemVotes(itemId) {
-      const empty = { album: null as number | null, tracks: new Map<number, number>() };
+      const empty = { album: null as number | null, tracks: new Map<number, number>(), battleRounds: new Map<number, BattleSide>(), battleFinal: null as BattleSide | null, bestTracks: new Set<number>() };
       if (!supabase || !user) return empty;
       const { data, error } = await supabase
         .from('viewer_votes')
-        .select('score, track_position')
+        .select('score, track_position, round_index, winner_side, is_best')
         .eq('viewer_id', user.id)
-        .eq('item_id', itemId)
-        .is('round_index', null);
+        .eq('item_id', itemId);
       if (error) throw error;
-      const result = { album: null as number | null, tracks: new Map<number, number>() };
+      const result = { album: null as number | null, tracks: new Map<number, number>(), battleRounds: new Map<number, BattleSide>(), battleFinal: null as BattleSide | null, bestTracks: new Set<number>() };
       (data ?? []).forEach((row) => {
+        if (row.is_best && row.track_position != null) result.bestTracks.add(row.track_position);
+        const winner = row.winner_side as BattleSide | null;
+        if (winner) {
+          if (row.round_index == null) result.battleFinal = winner;
+          else result.battleRounds.set(row.round_index, winner);
+          return;
+        }
+        if (row.score == null) return;
         const score = typeof row.score === 'number' ? row.score : Number(row.score);
-        if (row.track_position == null) result.album = score;
-        else result.tracks.set(row.track_position, score);
+        if (row.track_position == null && row.round_index == null) result.album = score;
+        else if (row.track_position != null) result.tracks.set(row.track_position, score);
       });
       return result;
     },
@@ -1113,15 +1177,46 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
       if (!supabase) return [];
       const { data, error } = await supabase
         .from('viewer_votes')
-        .select('viewer_id, score, track_position')
-        .eq('item_id', itemId)
-        .is('round_index', null);
+        .select('viewer_id, score, track_position, round_index, winner_side, is_best')
+        .eq('item_id', itemId);
       if (error) throw error;
       return (data ?? []).map((row) => ({
         viewerId: row.viewer_id,
         trackPosition: row.track_position,
-        score: typeof row.score === 'number' ? row.score : Number(row.score),
+        roundIndex: row.round_index,
+        score: row.score == null ? null : (typeof row.score === 'number' ? row.score : Number(row.score)),
+        winner: (row.winner_side ?? null) as BattleSide | null,
+        isBest: Boolean(row.is_best),
       }));
+    },
+    async toggleMyBestTrack(itemId, position, isBest) {
+      if (!supabase) throw new Error('Доступно только на проде с Supabase');
+      if (!user) throw new Error('Войди через Google');
+      if (!viewerConsentedAt) throw new Error('Подтверди условия');
+      const { data: existing, error: selectError } = await supabase
+        .from('viewer_votes')
+        .select('id')
+        .eq('viewer_id', user.id)
+        .eq('item_id', itemId)
+        .eq('track_position', position)
+        .is('round_index', null)
+        .maybeSingle();
+      if (selectError) throw selectError;
+      if (existing) {
+        const { error } = await supabase.from('viewer_votes').update({ is_best: isBest }).eq('id', existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('viewer_votes').insert({
+          viewer_id: user.id,
+          item_id: itemId,
+          track_position: position,
+          round_index: null,
+          score: null,
+          winner_side: null,
+          is_best: isBest,
+        });
+        if (error) throw error;
+      }
     },
     async saveMyAlbumVote(itemId, score) {
       if (!supabase) throw new Error('Голосование работает только на проде с Supabase');
@@ -1179,6 +1274,62 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
         if (error) throw error;
       }
     },
+    async saveMyBattleRoundVote(itemId, roundIndex, side) {
+      if (!supabase) throw new Error('Голосование работает только на проде с Supabase');
+      if (!user) throw new Error('Войди через Google чтобы голосовать');
+      if (!viewerConsentedAt) throw new Error('Подтверди условия чтобы голосовать');
+      const { data: existing, error: selectError } = await supabase
+        .from('viewer_votes')
+        .select('id')
+        .eq('viewer_id', user.id)
+        .eq('item_id', itemId)
+        .eq('round_index', roundIndex)
+        .is('track_position', null)
+        .maybeSingle();
+      if (selectError) throw selectError;
+      if (existing) {
+        const { error } = await supabase.from('viewer_votes').update({ winner_side: side, score: null }).eq('id', existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('viewer_votes').insert({
+          viewer_id: user.id,
+          item_id: itemId,
+          round_index: roundIndex,
+          track_position: null,
+          score: null,
+          winner_side: side,
+        });
+        if (error) throw error;
+      }
+    },
+    async saveMyBattleFinalVote(itemId, side) {
+      if (!supabase) throw new Error('Голосование работает только на проде с Supabase');
+      if (!user) throw new Error('Войди через Google чтобы голосовать');
+      if (!viewerConsentedAt) throw new Error('Подтверди условия чтобы голосовать');
+      const { data: existing, error: selectError } = await supabase
+        .from('viewer_votes')
+        .select('id')
+        .eq('viewer_id', user.id)
+        .eq('item_id', itemId)
+        .is('round_index', null)
+        .is('track_position', null)
+        .maybeSingle();
+      if (selectError) throw selectError;
+      if (existing) {
+        const { error } = await supabase.from('viewer_votes').update({ winner_side: side, score: null }).eq('id', existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('viewer_votes').insert({
+          viewer_id: user.id,
+          item_id: itemId,
+          round_index: null,
+          track_position: null,
+          score: null,
+          winner_side: side,
+        });
+        if (error) throw error;
+      }
+    },
     async clearMyAlbumVote(itemId) {
       if (!supabase || !user) return;
       const { error } = await supabase
@@ -1203,6 +1354,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
     },
     viewerConsentedAt,
     viewerConsentLoaded,
+    viewerVotesByItem,
     async saveItem(item) {
       const normalized = {
         ...item,
@@ -1294,7 +1446,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
       if (error) throw error;
       await loadAuctions();
     },
-  }), [admin, error, items, loading, user, viewerConsentedAt, viewerConsentLoaded, auctions, auctionRules, auctionsLoading, auctionsError]);  // eslint-disable-line react-hooks/exhaustive-deps
+  }), [admin, error, items, loading, user, viewerConsentedAt, viewerConsentLoaded, viewerVotesByItem, auctions, auctionRules, auctionsLoading, auctionsError]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
@@ -1743,7 +1895,7 @@ function FeaturedCard({ item, admin }: { item: RatedItem; admin?: boolean }) {
       <Link to={`/item/${item.slug}`} className={`featured-card featured-${item.type}`}>
         <CardCover item={item} />
         <div className="featured-veil" />
-        <span className={`${scoreClass(item.finalScore)} score-pos`}>{item.finalScore.toFixed(1)}</span>
+        <ScorePair item={item} className="score-pos" />
         <span className={`type-chip type-${item.type} card-type-chip`}><ItemTypeIcon type={item.type} /><span>{itemTypeLabel(item.type)}</span></span>
         <div className="featured-body">
           <div className="featured-meta">
@@ -1765,7 +1917,7 @@ function ItemCard({ item, admin }: { item: RatedItem; admin?: boolean }) {
         <div className="catalog-thumb">
           <CardCover item={item} />
           <span className={`type-chip type-${item.type} card-type-chip`}><ItemTypeIcon type={item.type} /><span>{itemTypeLabel(item.type)}</span></span>
-          <span className={scoreClass(item.finalScore)}>{item.finalScore.toFixed(1)}</span>
+          <ScorePair item={item} className="score-pos" />
         </div>
         <div className="catalog-card-body">
           <h2>{item.title}</h2>
@@ -1796,7 +1948,7 @@ function ItemListRow({ item, admin }: { item: RatedItem; admin?: boolean }) {
           {bestAlbumTracksLabel(item) && <small className="best-tracks-line"><Star size={13} /> {bestAlbumTracksLabel(item)}</small>}
           <small>{cardDateLabel(item)} · {item.links.length ? `${item.links.length} ссыл.` : 'без ссылок'}</small>
         </div>
-        <span className={`${scoreClass(item.finalScore)} catalog-list-score`}>{item.finalScore.toFixed(1)}</span>
+        <ScorePair item={item} className="catalog-list-score" withLabels />
       </Link>
       {admin && <Link className="list-edit-button" to={`/admin/edit/${item.id}`} title="Редактировать"><Edit3 size={15} /><span>Править</span></Link>}
     </div>
@@ -1930,15 +2082,62 @@ function relativeDate(value: string) {
   return `${Math.floor(diffDays / 365)} г. назад`;
 }
 
-type AllVote = { viewerId: string; trackPosition: number | null; score: number };
+type AllVote = { viewerId: string; trackPosition: number | null; roundIndex: number | null; score: number | null; winner: BattleSide | null; isBest: boolean };
 
 type ItemVotesState = {
   album: number | null;
   tracks: Map<number, number>;
+  battleRounds: Map<number, BattleSide>;
+  battleFinal: BattleSide | null;
+  bestTracks: Set<number>;
   allVotes: AllVote[];
   loaded: boolean;
   error: string;
 };
+
+function aggregateBattle(allVotes: AllVote[], roundIndex: number | null) {
+  const list = allVotes.filter((v) => v.roundIndex === roundIndex && v.trackPosition == null && v.winner != null);
+  if (!list.length) return null;
+  const counts: Record<BattleSide, number> = { a: 0, b: 0, draw: 0 };
+  list.forEach((v) => { if (v.winner) counts[v.winner] += 1; });
+  return { counts, total: list.length };
+}
+
+function aggregateForItem(allVotes: AllVote[] | undefined, item: RatedItem) {
+  if (!allVotes || !allVotes.length) return null;
+  return item.type === 'album' ? aggregateAlbum(allVotes, item) : aggregateSingleScore(allVotes);
+}
+
+function ScorePair({ item, className, withLabels }: { item: RatedItem; className?: string; withLabels?: boolean }) {
+  const { viewerVotesByItem } = useStore();
+  const agg = aggregateForItem(viewerVotesByItem.get(item.id), item);
+  return (
+    <span className={`score-pair ${className || ''} ${withLabels ? 'score-pair-labeled' : ''}`}>
+      <span className="score-pair-row">
+        {withLabels && <span className="score-pair-label">R1F</span>}
+        <span className={`${scoreClass(item.finalScore)} score-pair-badge`} title="Оценка R1Fmabes">{item.finalScore.toFixed(1)}</span>
+      </span>
+      {agg ? (
+        <span className="score-pair-row">
+          {withLabels && <span className="score-pair-label">Зрители · {agg.count}</span>}
+          <span className={`${scoreClass(agg.avg)} score-pair-badge`} title={`Средняя зрителей · ${agg.count} ${agg.count === 1 ? 'голос' : agg.count < 5 ? 'голоса' : 'голосов'}`}>{agg.avg.toFixed(1)}</span>
+        </span>
+      ) : withLabels && (
+        <span className="score-pair-row">
+          <span className="score-pair-label">Зрители</span>
+          <span className="score-pair-badge track-badge-empty">—</span>
+        </span>
+      )}
+    </span>
+  );
+}
+
+function aggregateSingleScore(allVotes: AllVote[]) {
+  const list = allVotes.filter((v) => v.score != null && v.trackPosition == null && v.roundIndex == null);
+  if (!list.length) return null;
+  const sum = list.reduce((a, v) => a + (v.score ?? 0), 0);
+  return { avg: sum / list.length, count: list.length };
+}
 
 function aggregateTrack(allVotes: AllVote[], position: number) {
   const list = allVotes.filter((v) => v.trackPosition === position);
@@ -1969,36 +2168,53 @@ function aggregateAlbum(allVotes: AllVote[], item: RatedItem) {
 }
 
 function useItemVotes(itemId: string) {
-  const { user, viewerConsentedAt, loadMyItemVotes, loadItemAllVotes, saveMyAlbumVote, saveMyTrackVote, clearMyAlbumVote, clearMyTrackVotes } = useStore();
-  const [state, setState] = useState<ItemVotesState>({ album: null, tracks: new Map(), allVotes: [], loaded: false, error: '' });
+  const { user, viewerConsentedAt, loadMyItemVotes, loadItemAllVotes, saveMyAlbumVote, saveMyTrackVote, saveMyBattleRoundVote, saveMyBattleFinalVote, toggleMyBestTrack, clearMyAlbumVote, clearMyTrackVotes } = useStore();
+  const emptyState: ItemVotesState = { album: null, tracks: new Map(), battleRounds: new Map(), battleFinal: null, bestTracks: new Set(), allVotes: [], loaded: false, error: '' };
+  const [state, setState] = useState<ItemVotesState>(emptyState);
 
   useEffect(() => {
     if (itemId === '00000000-0000-0000-0000-000000000000') {
-      setState({ album: null, tracks: new Map(), allVotes: [], loaded: true, error: '' });
+      setState({ ...emptyState, loaded: true });
       return;
     }
     setState((current) => ({ ...current, loaded: false }));
     let cancelled = false;
     Promise.all([
-      user && viewerConsentedAt ? loadMyItemVotes(itemId) : Promise.resolve({ album: null as number | null, tracks: new Map<number, number>() }),
+      user && viewerConsentedAt ? loadMyItemVotes(itemId) : Promise.resolve({ album: null as number | null, tracks: new Map<number, number>(), battleRounds: new Map<number, BattleSide>(), battleFinal: null as BattleSide | null, bestTracks: new Set<number>() }),
       loadItemAllVotes(itemId),
     ])
       .then(([mine, all]) => {
         if (cancelled) return;
-        setState({ album: mine.album, tracks: mine.tracks, allVotes: all, loaded: true, error: '' });
+        setState({ album: mine.album, tracks: mine.tracks, battleRounds: mine.battleRounds, battleFinal: mine.battleFinal, bestTracks: mine.bestTracks, allVotes: all, loaded: true, error: '' });
       })
       .catch((err) => {
         if (cancelled) return;
-        setState({ album: null, tracks: new Map(), allVotes: [], loaded: true, error: err instanceof Error ? err.message : 'Не удалось загрузить голоса' });
+        setState({ ...emptyState, loaded: true, error: err instanceof Error ? err.message : 'Не удалось загрузить голоса' });
       });
     return () => { cancelled = true; };
   }, [user?.id, viewerConsentedAt, itemId]);
 
-  const upsertAllVote = (allVotes: AllVote[], viewerId: string, trackPosition: number | null, score: number) => {
-    const idx = allVotes.findIndex((v) => v.viewerId === viewerId && v.trackPosition === trackPosition);
+  const upsertScoreVote = (allVotes: AllVote[], viewerId: string, trackPosition: number | null, score: number) => {
+    const idx = allVotes.findIndex((v) => v.viewerId === viewerId && v.trackPosition === trackPosition && v.roundIndex == null);
     const next = [...allVotes];
-    if (idx >= 0) next[idx] = { ...next[idx], score };
-    else next.push({ viewerId, trackPosition, score });
+    if (idx >= 0) next[idx] = { ...next[idx], score, winner: null };
+    else next.push({ viewerId, trackPosition, roundIndex: null, score, winner: null, isBest: false });
+    return next;
+  };
+
+  const upsertBattleVote = (allVotes: AllVote[], viewerId: string, roundIndex: number | null, side: BattleSide) => {
+    const idx = allVotes.findIndex((v) => v.viewerId === viewerId && v.roundIndex === roundIndex && v.trackPosition == null);
+    const next = [...allVotes];
+    if (idx >= 0) next[idx] = { ...next[idx], winner: side, score: null };
+    else next.push({ viewerId, trackPosition: null, roundIndex, score: null, winner: side, isBest: false });
+    return next;
+  };
+
+  const upsertBestFlag = (allVotes: AllVote[], viewerId: string, position: number, isBest: boolean) => {
+    const idx = allVotes.findIndex((v) => v.viewerId === viewerId && v.trackPosition === position && v.roundIndex == null);
+    const next = [...allVotes];
+    if (idx >= 0) next[idx] = { ...next[idx], isBest };
+    else next.push({ viewerId, trackPosition: position, roundIndex: null, score: null, winner: null, isBest });
     return next;
   };
 
@@ -2008,7 +2224,7 @@ function useItemVotes(itemId: string) {
       const prevAlbum = state.album;
       const prevAll = state.allVotes;
       if (!user) throw new Error('Войди через Google чтобы голосовать');
-      setState((prev) => ({ ...prev, album: score, allVotes: upsertAllVote(prev.allVotes, user.id, null, score), error: '' }));
+      setState((prev) => ({ ...prev, album: score, allVotes: upsertScoreVote(prev.allVotes, user.id, null, score), error: '' }));
       try {
         await saveMyAlbumVote(itemId, score);
       } catch (err) {
@@ -2023,7 +2239,7 @@ function useItemVotes(itemId: string) {
       setState((prev) => {
         const tracks = new Map(prev.tracks);
         tracks.set(position, score);
-        return { ...prev, tracks, allVotes: upsertAllVote(prev.allVotes, user.id, position, score), error: '' };
+        return { ...prev, tracks, allVotes: upsertScoreVote(prev.allVotes, user.id, position, score), error: '' };
       });
       try {
         await saveMyTrackVote(itemId, position, score);
@@ -2034,6 +2250,65 @@ function useItemVotes(itemId: string) {
           else tracks.set(position, prevScore);
           return { ...prev, tracks, allVotes: prevAll };
         });
+        throw err;
+      }
+    },
+    async saveBattleRound(roundIndex: number, side: BattleSide) {
+      const prev = state.battleRounds.get(roundIndex) ?? null;
+      const prevAll = state.allVotes;
+      if (!user) throw new Error('Войди через Google чтобы голосовать');
+      setState((current) => {
+        const rounds = new Map(current.battleRounds);
+        rounds.set(roundIndex, side);
+        return { ...current, battleRounds: rounds, allVotes: upsertBattleVote(current.allVotes, user.id, roundIndex, side), error: '' };
+      });
+      try {
+        await saveMyBattleRoundVote(itemId, roundIndex, side);
+      } catch (err) {
+        setState((current) => {
+          const rounds = new Map(current.battleRounds);
+          if (prev == null) rounds.delete(roundIndex);
+          else rounds.set(roundIndex, prev);
+          return { ...current, battleRounds: rounds, allVotes: prevAll };
+        });
+        throw err;
+      }
+    },
+    async toggleBest(position: number) {
+      if (!user) throw new Error('Войди через Google');
+      const prev = state.bestTracks.has(position);
+      const next = !prev;
+      if (next && state.bestTracks.size >= maxBestAlbumTracks) {
+        throw new Error(`Можно отметить не больше ${maxBestAlbumTracks} лучших треков`);
+      }
+      const prevAll = state.allVotes;
+      setState((current) => {
+        const bestTracks = new Set(current.bestTracks);
+        if (next) bestTracks.add(position);
+        else bestTracks.delete(position);
+        return { ...current, bestTracks, allVotes: upsertBestFlag(current.allVotes, user.id, position, next) };
+      });
+      try {
+        await toggleMyBestTrack(itemId, position, next);
+      } catch (err) {
+        setState((current) => {
+          const bestTracks = new Set(current.bestTracks);
+          if (prev) bestTracks.add(position);
+          else bestTracks.delete(position);
+          return { ...current, bestTracks, allVotes: prevAll };
+        });
+        throw err;
+      }
+    },
+    async saveBattleFinal(side: BattleSide) {
+      const prev = state.battleFinal;
+      const prevAll = state.allVotes;
+      if (!user) throw new Error('Войди через Google чтобы голосовать');
+      setState((current) => ({ ...current, battleFinal: side, allVotes: upsertBattleVote(current.allVotes, user.id, null, side), error: '' }));
+      try {
+        await saveMyBattleFinalVote(itemId, side);
+      } catch (err) {
+        setState((current) => ({ ...current, battleFinal: prev, allVotes: prevAll }));
         throw err;
       }
     },
@@ -2146,19 +2421,9 @@ const AlbumVotePanel = forwardRef<AlbumVoteHandle, { item: RatedItem; votes: Ite
     if (!votes.loaded) return <p className="muted">Загружаю твой голос…</p>;
     if (votes.error) return <div className="viewer-vote-error">{votes.error}</div>;
     const showsTracksAverage = isAlbum && votes.album == null && !touched && trackStats.counted > 0;
-    const allAgg = isAlbum ? aggregateAlbum(votes.allVotes, item) : null;
     return (
       <div className="vote-input-group">
         <div className="vote-input-wrap">
-          {!admin && (
-            <>
-              <div className="vote-side">
-                <span className={`${scoreClass(item.finalScore)} vote-side-badge`}>{item.finalScore.toFixed(1)}</span>
-                <span className="vote-side-label">R1F</span>
-              </div>
-              <span className="vote-divider" aria-hidden="true" />
-            </>
-          )}
           <div className="vote-side">
             <input
               type="text"
@@ -2166,7 +2431,7 @@ const AlbumVotePanel = forwardRef<AlbumVoteHandle, { item: RatedItem; votes: Ite
               pattern="[0-9.,]*"
               maxLength={4}
               value={draftText}
-              placeholder="—"
+              placeholder="0.0"
               onChange={(event) => {
                 const raw = event.target.value.replace(/[^0-9.,]/g, '');
                 setDraftText(raw);
@@ -2190,19 +2455,6 @@ const AlbumVotePanel = forwardRef<AlbumVoteHandle, { item: RatedItem; votes: Ite
             />
             <span className="vote-side-label">Ты</span>
           </div>
-          {isAlbum && (
-            <>
-              <span className="vote-divider" aria-hidden="true" />
-              <div className="vote-side">
-                {allAgg ? (
-                  <span className={`${scoreClass(allAgg.avg)} vote-side-badge`} title={`${allAgg.count} ${allAgg.count === 1 ? 'голос' : allAgg.count < 5 ? 'голоса' : 'голосов'}`}>{allAgg.avg.toFixed(1)}</span>
-                ) : (
-                  <span className="vote-side-badge track-badge-empty">—</span>
-                )}
-                <span className="vote-side-label">Все{allAgg ? ` · ${allAgg.count}` : ''}</span>
-              </div>
-            </>
-          )}
         </div>
         <div className="vote-input-hint">
           {votes.album != null && <>Сохранено: <b>{votes.album.toFixed(1)}</b></>}
@@ -2217,7 +2469,7 @@ const AlbumVotePanel = forwardRef<AlbumVoteHandle, { item: RatedItem; votes: Ite
   return (
     <section className="viewer-vote-bar">
       <div className="viewer-vote-title">
-        <h2>{isAlbum ? 'Поставь оценку альбому' : 'Поставь свою оценку'}</h2>
+        <h2>{isAlbum ? 'Поставь оценку альбому' : item.type === 'battle' ? 'Поставь оценку баттлу' : 'Поставь свою оценку'}</h2>
         {isAlbum && <p className="muted viewer-vote-subtitle">Можно оценить альбом целиком или по трекам.</p>}
       </div>
       {renderBody()}
@@ -2302,7 +2554,7 @@ const TrackVoteSlider = forwardRef<TrackSliderHandle, { item: RatedItem; positio
         pattern="[0-9.,]*"
         maxLength={4}
         value={draftText}
-        placeholder="—"
+        placeholder="0.0"
         onChange={(event) => {
           const raw = event.target.value.replace(/[^0-9.,]/g, '');
           setDraftText(raw);
@@ -2332,6 +2584,100 @@ const TrackVoteSlider = forwardRef<TrackSliderHandle, { item: RatedItem; positio
   );
 });
 
+type BattleVoteHandle = {
+  saveIfTouched: () => Promise<void>;
+};
+
+const BattleVoteBlock = forwardRef<BattleVoteHandle, {
+  voteKey: string;
+  sideALabel: string;
+  sideBLabel: string;
+  mySide: BattleSide | null;
+  allVotes: AllVote[];
+  roundIndex: number | null;
+  saveVote: (side: BattleSide) => Promise<void>;
+  onTouchedChange: (key: string, touched: boolean) => void;
+}>(function BattleVoteBlock({ voteKey, sideALabel, sideBLabel, mySide, allVotes, roundIndex, saveVote, onTouchedChange }, ref) {
+  const { user, viewerConsentedAt, viewerConsentLoaded, signInWithGoogle } = useStore();
+  const [draftSide, setDraftSide] = useState<BattleSide | null>(mySide);
+  const [touched, setTouchedState] = useState(false);
+  const [error, setError] = useState('');
+  const draftRef = useRef(draftSide);
+  draftRef.current = draftSide;
+  const touchedRef = useRef(touched);
+  touchedRef.current = touched;
+
+  const setTouched = (value: boolean) => {
+    setTouchedState(value);
+    onTouchedChange(voteKey, value);
+  };
+
+  useEffect(() => {
+    setDraftSide(mySide);
+    setTouchedState(false);
+    onTouchedChange(voteKey, false);
+  }, [mySide]);
+
+  useImperativeHandle(ref, () => ({
+    saveIfTouched: async () => {
+      if (!touchedRef.current || draftRef.current == null) return;
+      try {
+        await saveVote(draftRef.current);
+        setTouchedState(false);
+        onTouchedChange(voteKey, false);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Не удалось сохранить');
+        throw err;
+      }
+    },
+  }), [saveVote, voteKey]);
+
+  const requestConsent = () => window.dispatchEvent(new Event('r1f:request-consent'));
+  const agg = aggregateBattle(allVotes, roundIndex);
+
+  const renderOption = (side: BattleSide, label: string) => (
+    <button
+      key={side}
+      type="button"
+      className={`battle-vote-option ${draftSide === side ? 'on' : ''} ${touched && draftSide === side ? 'touched' : ''}`}
+      onClick={() => {
+        setDraftSide(side);
+        setTouched(true);
+      }}
+      disabled={!user || !viewerConsentedAt}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div className="battle-vote">
+      <div className="battle-vote-options">
+        {renderOption('a', sideALabel)}
+        {renderOption('draw', 'Ничья')}
+        {renderOption('b', sideBLabel)}
+      </div>
+      {agg ? (
+        <div className="battle-vote-agg">
+          Зрители: <b>{sideALabel}</b> {Math.round((agg.counts.a / agg.total) * 100)}% ·
+          {' '}<b>ничья</b> {Math.round((agg.counts.draw / agg.total) * 100)}% ·
+          {' '}<b>{sideBLabel}</b> {Math.round((agg.counts.b / agg.total) * 100)}%
+          {' '}<span className="muted">({agg.total} {agg.total === 1 ? 'голос' : agg.total < 5 ? 'голоса' : 'голосов'})</span>
+        </div>
+      ) : (
+        <div className="battle-vote-agg muted">Голосов ещё нет</div>
+      )}
+      {!user && (
+        <button type="button" className="track-vote-cta" onClick={() => signInWithGoogle().catch(() => undefined)}>войти, чтобы голосовать</button>
+      )}
+      {user && viewerConsentLoaded && !viewerConsentedAt && (
+        <button type="button" className="track-vote-cta" onClick={requestConsent}>принять условия</button>
+      )}
+      {error && <span className="track-vote-error">{error}</span>}
+    </div>
+  );
+});
+
 function ItemPage() {
   const { slug } = useParams();
   const { items, admin, loading, error } = useStore();
@@ -2340,7 +2686,9 @@ function ItemPage() {
   const votes = useItemVotes(itemForVotes?.id ?? placeholderItemId);
   const albumHandle = useRef<AlbumVoteHandle | null>(null);
   const trackHandles = useRef<Map<number, TrackSliderHandle | null>>(new Map());
+  const battleHandles = useRef<Map<string, BattleVoteHandle | null>>(new Map());
   const [touchedTracks, setTouchedTracks] = useState<Set<number>>(new Set());
+  const [touchedBattles, setTouchedBattles] = useState<Set<string>>(new Set());
   const [albumTouched, setAlbumTouched] = useState(false);
   const [savingAll, setSavingAll] = useState(false);
   const [saveAllError, setSaveAllError] = useState('');
@@ -2355,7 +2703,17 @@ function ItemPage() {
       return next;
     });
   };
-  const pendingCount = touchedTracks.size + (albumTouched ? 1 : 0);
+  const handleBattleTouched = (key: string, touched: boolean) => {
+    setTouchedBattles((prev) => {
+      const has = prev.has(key);
+      if (touched === has) return prev;
+      const next = new Set(prev);
+      if (touched) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  };
+  const pendingCount = touchedTracks.size + touchedBattles.size + (albumTouched ? 1 : 0);
   const saveAll = async () => {
     if (savingAll || pendingCount === 0) return;
     setSavingAll(true);
@@ -2364,6 +2722,9 @@ function ItemPage() {
     const tasks: Promise<void>[] = [];
     if (albumHandle.current) tasks.push(albumHandle.current.saveIfTouched());
     trackHandles.current.forEach((handle) => {
+      if (handle) tasks.push(handle.saveIfTouched());
+    });
+    battleHandles.current.forEach((handle) => {
       if (handle) tasks.push(handle.saveIfTouched());
     });
     try {
@@ -2386,22 +2747,47 @@ function ItemPage() {
   const originals = item.links.filter((link) => link.kind === 'original');
   const reactions = item.links.filter((link) => link.kind === 'reaction');
   const battle = item.metadata?.battle;
-  const supportsViewerVote = item.type === 'album' || item.type === 'track';
+  const supportsViewerVote = item.type === 'album' || item.type === 'track' || item.type === 'battle';
   const isAlbum = item.type === 'album';
 
   return (
     <main>
-      <section className="detail-hero">
-        <div className="detail-cover"><CoverImage url={item.coverUrl} /></div>
-        <div>
-          <p className="eyebrow">{itemCredit(item)}</p>
-          <h1>{item.title}</h1>
-          <p>{item.releaseYear || 'Без года'} · {item.genre || 'Без жанра'}{item.reviewedAt ? ` · оценено ${formatMSKDate(item.reviewedAt)}` : ''}</p>
-          <span className={scoreClass(item.finalScore)}>{item.finalScore.toFixed(1)}</span>
-          {admin && <p><Link className="button detail-edit-link" to={`/admin/edit/${item.id}`}><Edit3 size={16} /> Редактировать оценку</Link></p>}
-          {item.description && <p className="lead">{item.description}</p>}
-        </div>
-      </section>
+      {(() => {
+        const heroAgg = isAlbum
+          ? aggregateAlbum(votes.state.allVotes, item)
+          : aggregateSingleScore(votes.state.allVotes);
+        return (
+          <section className="detail-hero">
+            <div className="detail-cover"><CoverImage url={item.coverUrl} /></div>
+            <div className="detail-hero-body">
+              <p className="eyebrow">{itemCredit(item)}</p>
+              <h1>{item.title}</h1>
+              <div className="detail-hero-scores">
+                <div className="vote-side">
+                  <span className={`${scoreClass(item.finalScore)} vote-side-badge`}>{item.finalScore.toFixed(1)}</span>
+                  <span className="vote-side-label">R1F</span>
+                </div>
+                {supportsViewerVote && (
+                  <div className="vote-side">
+                    {heroAgg ? (
+                      <span className={`${scoreClass(heroAgg.avg)} vote-side-badge`}>{heroAgg.avg.toFixed(1)}</span>
+                    ) : (
+                      <span className="vote-side-badge track-badge-empty">—</span>
+                    )}
+                    <span className="vote-side-label">Зрители{heroAgg ? ` · ${heroAgg.count}` : ''}</span>
+                  </div>
+                )}
+              </div>
+              {bestAlbumTracksLabel(item) && (
+                <p className="lead detail-hero-best"><Star size={15} fill="#ffe600" stroke="#ffe600" /> {bestAlbumTracksLabel(item)}</p>
+              )}
+              {item.description && <p className="lead">{item.description}</p>}
+              <p className="detail-hero-meta">{item.releaseYear || 'Без года'} · {item.genre || 'Без жанра'}{item.reviewedAt ? ` · оценено ${formatMSKDate(item.reviewedAt)}` : ''}</p>
+              {admin && <p><Link className="button detail-edit-link" to={`/admin/edit/${item.id}`}><Edit3 size={16} /> Редактировать оценку</Link></p>}
+            </div>
+          </section>
+        );
+      })()}
       {supportsViewerVote && (
         <AlbumVotePanel
           ref={albumHandle}
@@ -2426,6 +2812,34 @@ function ItemPage() {
                 </div>
               ))}
               {!battle?.rounds?.length && <p className="muted">Раунды пока не добавлены.</p>}
+              {supabase && votes.state.loaded && (
+                <div className="battle-vote-wrap">
+                  <h3>Кто, по-твоему, победил?</h3>
+                  <BattleVoteBlock
+                    ref={(handle) => {
+                      if (handle) battleHandles.current.set('final', handle);
+                      else battleHandles.current.delete('final');
+                    }}
+                    voteKey="final"
+                    sideALabel={battle?.sideA || 'A'}
+                    sideBLabel={battle?.sideB || 'B'}
+                    mySide={votes.state.battleFinal}
+                    allVotes={votes.state.allVotes}
+                    roundIndex={null}
+                    saveVote={votes.saveBattleFinal}
+                    onTouchedChange={handleBattleTouched}
+                  />
+                  {votes.state.loaded && (
+                    <div className="vote-save-bar">
+                      <button type="button" onClick={saveAll} disabled={savingAll || pendingCount === 0} className="vote-save-button">
+                        {savingAll ? 'Сохраняю…' : pendingCount === 0 ? 'Нет изменений' : `Сохранить мой голос`}
+                      </button>
+                      {saveAllOk && <span className="viewer-vote-saved">Сохранено ✓</span>}
+                      {saveAllError && <span className="track-vote-error">{saveAllError}</span>}
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           ) : isAlbum ? (
             <>
@@ -2447,8 +2861,13 @@ function ItemPage() {
                 const excluded = track.score === '-';
                 const viewerScore = votes.state.tracks.get(track.position) ?? null;
                 const streamerScoreIsNumber = typeof track.score === 'number';
+                const viewerBest = votes.state.bestTracks.has(track.position);
+                const canVote = Boolean(votes.state.loaded);
                 return (
                   <div className={`track ${excluded ? 'track-excluded' : ''}`} key={track.id}>
+                    <span className="track-star-cell">
+                      {track.isBest && <Star size={14} fill="#ffe600" stroke="#ffe600" aria-label="Лучший по R1Fmabes" />}
+                    </span>
                     <span className="track-title">{track.position}. {track.title}</span>
                     <div className="track-scores">
                       {excluded ? (
@@ -2488,6 +2907,16 @@ function ItemPage() {
                               </span>
                             );
                           })()}
+                          <button
+                            type="button"
+                            className={`track-star-btn ${viewerBest ? 'on' : ''}`}
+                            onClick={() => canVote && votes.toggleBest(track.position).catch(() => undefined)}
+                            disabled={!canVote}
+                            title={viewerBest ? 'Убрать из «моих лучших»' : 'Отметить как мой лучший'}
+                            aria-label="Мой лучший трек"
+                          >
+                            <Star size={16} fill={viewerBest ? '#00e5ff' : 'none'} stroke={viewerBest ? '#00e5ff' : 'rgba(255,255,255,0.35)'} />
+                          </button>
                         </>
                       )}
                     </div>

@@ -7,7 +7,7 @@ create table if not exists public.viewer_votes (
     id uuid primary key default gen_random_uuid(),
     viewer_id uuid not null references auth.users(id) on delete cascade,
     item_id uuid not null references public.rated_items(id) on delete cascade,
-    -- для альбома/трека: оценка 0..11 (как у Рифмабеса), для баттла обычно null
+    -- для альбома/трека: оценка 0..11 (как у R1Fmabes), для баттла обычно null
     score numeric(4,2) check (score is null or (score >= 0 and score <= 11)),
     -- для баттла: null = голос за итог, иначе индекс раунда (0..N)
     round_index int,
