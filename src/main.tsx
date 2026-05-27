@@ -1464,6 +1464,8 @@ function Shell() {
         <Route path="/admin/edit/:id" element={<AdminRoute><EditorPage /></AdminRoute>} />
       </Routes>
       <footer className="site-footer">
+        <span className="footer-age">16+</span>
+        <span className="footer-sep">·</span>
         <Link to="/privacy" className="footer-link">Политика конфиденциальности</Link>
         <span className="footer-sep">·</span>
         <Link to="/terms" className="footer-link">Условия использования</Link>

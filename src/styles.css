@@ -1540,6 +1540,16 @@ nav .nav-soon { cursor: help; opacity: .85; }
   color: rgba(255, 255, 255, 0.5);
   border-color: rgba(255, 255, 255, 0.3);
 }
+.footer-age {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.45);
+}
 .footer-sep {
   margin: 0 8px;
   color: inherit;
