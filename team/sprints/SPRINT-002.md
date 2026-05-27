@@ -33,6 +33,10 @@
 | 30 | **Карточки каталога с двумя оценками** — ScorePair во всех видах (featured/card/list) | 🟡 P2 | ✅ выполнено 2026-05-27 **(60 мин)** — `viewerVotesByItem` в Store, компонент `ScorePair` с опциональными лейблами, агрегация на клиенте |
 | 31 | **Звёздочки лучших треков** — R1F (статичная) + зритель (тоггл, лимит 3) | 🟡 P2 | ✅ выполнено 2026-05-27 **(45 мин)** — миграция 011 `is_best`, `toggleMyBestTrack`, `bestAlbumTracksLabel` в hero |
 | 32 | **og-image + favicon обновления, плашка победителя баттла** | 🟡 P2 | ✅ выполнено 2026-05-27 **(40 мин)** — `BattleWinnerSummary` как чёткая плашка с лейблами «Победитель: / По судьям: / R1Fmabes:» |
+| 33 | **Пост-ревью багфиксы** — agg null-голоса, markdown sanitize, OAuth search, .env.bak в gitignore, scoreA=0 | 🟡 P2 | ✅ выполнено 2026-05-27 **(30 мин)** — 7 фиксов одним коммитом после code/security audit от subagents |
+| 34 | **Фикс CSS-наложения капсул в карточках** — `.catalog-thumb .score absolute` накладывал обе капсулы R1F+Зрители в одну точку | 🟠 P1 | ✅ выполнено 2026-05-27 **(15 мин)** — явный `position: static` для `.score-pair-badge` внутри `.catalog-thumb/.featured-card/.cover-wrap` |
+| 35 | **Финальная полировка блока «Поставь оценку»** — inline layout, заметное поле, кнопка для одиночного трека, ровная плашка победителя, дубль «Лучший трек» убран | 🟡 P2 | ✅ выполнено 2026-05-27 **(40 мин)** — flex-row вместо grid, dashed бирюзовая рамка, кнопка для type=track, шрифты в плашке одного размера |
+| 36 | **TS-фикс билда** — пропустил `is_best` в загрузке viewer_votes для каталога, 3 коммита подряд упали на деплое | 🔴 P0 | ✅ выполнено 2026-05-27 **(5 мин)** — добавил `is_best: Boolean(row.is_best)` + правило «npx tsc --noEmit перед каждым push» в CLAUDE.md |
 | 16 | **Кнопка «Удалить аккаунт»** в профиле зрителя (по 152-ФЗ) | 🟡 P2 | 🛑 перенесено в [BACKLOG → P3](../../docs/BACKLOG.md) |
 | 17 | **Чинить Supabase Auth через прокси** | 🟡 P2 | 🛑 перенесено в [BACKLOG → P3](../../docs/BACKLOG.md) |
 | 18 | **Уведомление в Роскомнадзор** об обработке ПДн | 🟡 P2 | 🛑 перенесено в [BACKLOG → P3](../../docs/BACKLOG.md) |
@@ -90,7 +94,7 @@
 | Задача 25 — Фикс OAuth-возврата. Корень: `signInWithOAuth({ redirectTo: window.location.href })` таскал текущий URL целиком, включая hash. Повторный клик «Войти» на странице с уже застрявшим `#access_token=...` отдавал Supabase redirectTo с этим же хешом → callback возвращал `#access_token=A#access_token=B`. Supabase JS не справлялся с двойным хешом, сессия не устанавливалась, кнопка «Войти» висела, токены болтались в URL. Фикс: `redirectTo = origin+pathname+search` (без hash); в `onAuthStateChange` на `SIGNED_IN`/`TOKEN_REFRESHED` чистим `#access_token` через `history.replaceState`; защита-таймаут 4с при загрузке — если хеш с токеном есть, а Supabase так и не съел, чистим сами. | **(20 мин)** |
 | Задача 08 — Согласие на обработку ПДн. Миграция `008_viewer_profiles.sql` (additive, накачена через Management API): таблица `viewer_profiles(user_id pk, consented_at, consent_version, timestamps)` + RLS «свой профиль читает/пишет только сам пользователь». Миграция `009_viewer_votes_require_consent.sql` (destructive, **НЕ накачена** — катим вместе с UI голосования): меняет policies на `viewer_votes` так что insert/update пропускаются только если есть `consented_at`. Store: `viewerConsentedAt`, `viewerConsentLoaded`, `recordConsent()` (upsert в `viewer_profiles`). Компонент `ConsentModal` (overlay + модалка): показывается если `user && viewerConsentLoaded && !viewerConsentedAt && !dismissed`. Без чекбокса (клик «Принимаю» = явное согласие). «Позже»/крестик ставит `sessionStorage.consentDismissed:<userId>` — модалка не появится до signOut. Бонусом убрали `rules-head` с «Правовая информация» + h1 на `/privacy` и `/terms` (h1 уже есть в markdown). | **(90 мин)** |
 
-**Итого за день: 895 мин (~14 ч 55 мин)**
+**Итого за день: 985 мин (~16 ч 25 мин)**
 
 ---
 
