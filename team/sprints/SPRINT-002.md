@@ -24,7 +24,10 @@
 | 11 | **Миграция БД 007: viewer_votes** — таблица голосов зрителей + RLS + уникальный индекс на (viewer_id, item_id, round_index) | 🔴 P0 | ✅ выполнено 2026-05-27 **(20 мин)** — накачено через SQL Editor |
 | 12 | **Кнопка «Войти через Google»** в шапке сайта + AuthBadge с аватаркой и меню | 🔴 P0 | ✅ выполнено 2026-05-27 **(60 мин)** — `signInWithOAuth({provider:'google'})`, Site URL/Redirect URLs в Supabase, Supabase автоматически линкует Google identity с существующим email+password аккаунтом |
 | 13 | **UI голосования за трек/альбом** — слайдер на странице, альбом+треки, средняя по трекам live, batch-save | 🔴 P0 | ✅ выполнено 2026-05-27 **(180 мин)** — миграции 009 (RLS consent) и 010 (track_position) накачены, AlbumVotePanel + TrackVoteSlider, оптимистичный UI, кнопка «Сохранить все треки» |
-| 14 | **Две оценки на карточке** — рендер «оценка Рифмабеса X / оценка зрителей Y (N голосов)» в карточке и на странице записи | 🟠 P1 | ⏳ |
+| 14 | **Две оценки на странице записи** — рендер «R1F / ТЫ / ВСЕ (N)» в треклисте альбома и блоке альбома | 🟠 P1 | ✅ выполнено 2026-05-27 **(120 мин)** — третья колонка «ВСЕ», агрегация средней зрителей по треку и по альбому с учётом смешанных типов голосов |
+| 26 | **og:image + meta description** — превью для мессенджеров и Google-поиска | 🟡 P2 | ✅ выполнено 2026-05-27 **(10 мин)** — `public/og-image.jpg` + теги в `index.html` |
+| 27 | **Единая кнопка «Сохранить мои оценки» внизу треклиста** — вместо кнопок у каждого трека и в блоке альбома | 🟡 P2 | ✅ выполнено 2026-05-27 **(45 мин)** — forwardRef в AlbumVotePanel + TrackVoteSlider, ItemPage координирует Promise.allSettled |
+| 28 | **Полировка треклиста** — вертикальные полосы вместо точек, выровненные капсулы, иконка замка для интро, скрытие R1F для админа | 🟡 P2 | ✅ выполнено 2026-05-27 **(60 мин)** — `.track-divider` 1×24px, `box-sizing: border-box` для одинаковых размеров, `{!admin && <R1F/>}` |
 | 15 | **UI голосования за баттл** — выбор победителя раунда (A/B/ничья) + итог баттла, запись в viewer_votes | 🟠 P1 | ⏳ |
 | 16 | **Кнопка «Удалить аккаунт»** в профиле зрителя (по 152-ФЗ право субъекта на удаление) | 🟡 P2 | ⏳ |
 | 17 | **Чинить Supabase Auth через прокси** — TLS SNI в Caddy или Node.js прокси по образцу yandex-proxy | 🟡 P2 | ⏳ |
@@ -75,11 +78,15 @@
 | Задача 22 — `R1fрейтинг` → `R1Fрейтинг`: replace_all в `src/main.tsx`, `index.html`, `README.md`, `CLAUDE.md`, `AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, `docs/CHANGELOG.md`, `docs/DATA_SAFETY.md`, `mockups/home.html`. | **(10 мин)** |
 | Задача 23 — Кнопка «Стереть всё» в `publish-bar` редактора (`EditorPage`): рядом с «Сохранить черновик», красный `.danger`-стиль, иконка `Trash2`, `window.confirm` перед сбросом. Для существующей записи лейбл/текст подтверждения меняется на «Откатить правки» (тот же `resetLocalDraft` возвращает форму к `baseDraft = existing`). | **(10 мин)** |
 | Задача 24 — Бегущая строка тише: цвета `#9146ff/#ff2d8a/#00e5ff` → `#5e2da6/#a8246a/#0a8aa0` (та же палитра, но приглушённая), `animation: concert-ticker-bg 12s` → `36s`, цвет текста с `#0a0f1c` (тёмный) на `#f5f7ff` (белый) — на приглушённом фоне читается лучше. | **(5 мин)** |
+| Задача 14 — Колонка «Все». В Store: `loadItemAllVotes(itemId)` тянет все голоса по item. В `useItemVotes` слиплен с loadMyItemVotes (один Promise.all), state расширен полем `allVotes`. Helpers: `aggregateTrack(allVotes, position)` — простая средняя по track_position; `aggregateAlbum(allVotes, item)` — для каждого viewer_id берём либо его album-голос, либо среднюю его трековых (с учётом исключённых `-`), затем средняя по viewers. Optimistic update: при save локально обновляем allVotes (upsert по `(viewerId, trackPosition)`). UI: третья капсула в треках + третья в блоке альбома, шапка-легенда `R1F · ТЫ · ВСЕ` с цветами капсул. | **(120 мин)** |
+| Задача 26 — og-image. Cкопировал картинку (1024×1024, рекламный плакат R1Fрейтинг) в `public/og-image.jpg`. В `index.html` добавлены `og:type/url/title/description/image/image:width/image:height` и `twitter:card=summary_large_image` с теми же мета. | **(10 мин)** |
+| Задача 27 — Единая кнопка сохранения. Возврат `forwardRef + useImperativeHandle` в AlbumVotePanel и TrackVoteSlider (был автосейв-debounce, его убрали по запросу). ItemPage держит `albumHandle = useRef<AlbumVoteHandle>`, `trackHandles = useRef<Map<position, TrackSliderHandle>>`, `touchedTracks: Set<position>` + `albumTouched: boolean` обновляются через `onTouchedChange` колбэки. Кнопка `vote-save-bar` снизу треклиста делает `Promise.allSettled` всех `saveIfTouched()`. Подсветка несохранённого через класс `.vote-input-touched` (жёлтый outline). | **(45 мин)** |
+| Задача 28 — Полировка треклиста. `.track-divider` (1×24px полоса вместо точки), `tracklist-head { border-bottom: 2px }`, `box-sizing: border-box` на `.vote-input` чтобы её ширина совпадала с `.track-badge` (обе 48×32), для админа `{!admin && <R1F-колонка/>}`, иконка `Lock` для интро вместо текста «не в счёт», крупнее и жирнее `.track-title`. | **(60 мин)** |
 | Задача 13 — UI голосования зрителей. Миграция 009 накачена (RLS на `viewer_votes` требует `consented_at` в `viewer_profiles`), миграция 010 накачена (колонка `track_position` + расширенный unique-индекс с двойным `coalesce(round_index, -1), coalesce(track_position, -1)`). Store: `loadMyItemVotes` возвращает `{album, tracks: Map}`, `saveMy{Album,Track}Vote` с оптимистичным обновлением state и откатом при ошибке, `clearMy{Album,Track}Vote`. Хук `useItemVotes(itemId)` — общее состояние для блока альбома и треклиста. `AlbumVotePanel` под hero: слайдер альбома, useEffect синхронизирует `draftScore` с `votes.album` (приоритет) или средней по трекам (live, если не touched). При `touched` зритель «фиксирует» свою общую оценку и трековые её не перебивают. `TrackVoteSlider` через `forwardRef` + `useImperativeHandle` экспортит `saveIfTouched`. `ItemPage` собирает refs в `Map`, считает touched-треки через `onTouchedChange` колбэк, кнопка «Сохранить все треки (N)» делает `Promise.all` по touched. Дефолт слайдеров 0, кнопка «Сохранить» disabled до первого касания. Шкала 0..10 шаг 0.1, для админа до 11. Исключённые стримером (`score = '-'`) треки скрывают слайдер и показывают метку. Бонус: фильтры на `HomePage` (поиск, сортировка, период, тип, площадка, сезон) кешируются в модульную `cachedHomeFilters` — переживают навигацию, F5 сбрасывает. | **(180 мин)** |
 | Задача 25 — Фикс OAuth-возврата. Корень: `signInWithOAuth({ redirectTo: window.location.href })` таскал текущий URL целиком, включая hash. Повторный клик «Войти» на странице с уже застрявшим `#access_token=...` отдавал Supabase redirectTo с этим же хешом → callback возвращал `#access_token=A#access_token=B`. Supabase JS не справлялся с двойным хешом, сессия не устанавливалась, кнопка «Войти» висела, токены болтались в URL. Фикс: `redirectTo = origin+pathname+search` (без hash); в `onAuthStateChange` на `SIGNED_IN`/`TOKEN_REFRESHED` чистим `#access_token` через `history.replaceState`; защита-таймаут 4с при загрузке — если хеш с токеном есть, а Supabase так и не съел, чистим сами. | **(20 мин)** |
 | Задача 08 — Согласие на обработку ПДн. Миграция `008_viewer_profiles.sql` (additive, накачена через Management API): таблица `viewer_profiles(user_id pk, consented_at, consent_version, timestamps)` + RLS «свой профиль читает/пишет только сам пользователь». Миграция `009_viewer_votes_require_consent.sql` (destructive, **НЕ накачена** — катим вместе с UI голосования): меняет policies на `viewer_votes` так что insert/update пропускаются только если есть `consented_at`. Store: `viewerConsentedAt`, `viewerConsentLoaded`, `recordConsent()` (upsert в `viewer_profiles`). Компонент `ConsentModal` (overlay + модалка): показывается если `user && viewerConsentLoaded && !viewerConsentedAt && !dismissed`. Без чекбокса (клик «Принимаю» = явное согласие). «Позже»/крестик ставит `sessionStorage.consentDismissed:<userId>` — модалка не появится до signOut. Бонусом убрали `rules-head` с «Правовая информация» + h1 на `/privacy` и `/terms` (h1 уже есть в markdown). | **(90 мин)** |
 
-**Итого за день: 660 мин (~11 ч)**
+**Итого за день: 895 мин (~14 ч 55 мин)**
 
 ---
 
@@ -172,7 +179,7 @@
 
 ---
 
-# Задача 04 — Гигиена: сменить пароль Рифмабеса ⏳
+# Задача 04 — Гигиена: сменить пароль R1Fmabes ⏳
 
 **Приоритет:** 🔴 P0 · **Статус:** ⏳ запланировано
 
@@ -183,7 +190,7 @@
 ## Шаги
 
 1. Supabase Dashboard → Authentication → Users → найти `r1fmabes.rating@gmail.com` → «Send password reset» или установить новый пароль вручную.
-2. Передать новый пароль Рифмабесу через Telegram (НЕ через Claude).
+2. Передать новый пароль R1Fmabes через Telegram (НЕ через Claude).
 
 ---
 
@@ -382,7 +389,7 @@ create policy "users can delete own votes"
 
 Когда Кирилл вошёл через Google под `kirillmakarov820@gmail.com` (его email+password аккаунт), Supabase **слинковал** Google-identity с существующим user_id (`9f5f600d-...`). В JWT после входа: `"providers": ["email", "google"]`. Кирилл остался админом без правки `admin_users`.
 
-Это работает только если email **совпадает И verified** в Google. Для Рифмабеса не сработает — его реальный Google `r1fmabes@gmail.com` отличается от админского `r1fmabes.rating@gmail.com` (фейкового). При его первом входе через Google создастся новый user_id, которого нет в `admin_users` → войдёт как зритель.
+Это работает только если email **совпадает И verified** в Google. Для R1Fmabes не сработает — его реальный Google `r1fmabes@gmail.com` отличается от админского `r1fmabes.rating@gmail.com` (фейкового). При его первом входе через Google создастся новый user_id, которого нет в `admin_users` → войдёт как зритель.
 
 ## Definition of done
 
@@ -400,7 +407,7 @@ create policy "users can delete own votes"
 
 ## UX
 
-- На странице записи (трек/альбом) под оценкой Рифмабеса — блок «Поставь свою оценку»:
+- На странице записи (трек/альбом) под оценкой R1Fmabes — блок «Поставь свою оценку»:
   - Если не залогинен: кнопка «Войти через Google чтобы голосовать».
   - Если залогинен: слайдер 0..11 + кнопка «Сохранить».
   - Текущий голос пользователя подгружается из `viewer_votes`.
@@ -419,7 +426,7 @@ create policy "users can delete own votes"
 ## Что показывать
 
 - В карточке каталога и на странице записи: рядом две оценки:
-  - **Рифмабес: X.X** (как сейчас).
+  - **R1Fmabes: X.X** (как сейчас).
   - **Зрители: Y.Y** (N голосов) — average + count из `viewer_votes`.
 - Если у зрителей <3 голосов — не показывать (мало данных).
 
