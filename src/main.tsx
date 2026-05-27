@@ -2926,6 +2926,18 @@ function EditorPage() {
         <section className="publish-bar">
           <label><input type="checkbox" checked={draft.published} onChange={(event) => patch({ published: event.target.checked })} /> Опубликовано</label>
           <div className="publish-actions">
+            <button
+              type="button"
+              className="danger"
+              onClick={() => {
+                const message = existing
+                  ? 'Откатить все правки к последней сохранённой версии? Локальный черновик в этом браузере удалится.'
+                  : 'Стереть все поля и начать с чистого листа? Локальный черновик в этом браузере тоже удалится.';
+                if (window.confirm(message)) {
+                  resetLocalDraft();
+                }
+              }}
+            ><Trash2 size={16} /> {existing ? 'Откатить правки' : 'Стереть всё'}</button>
             <button type="button" className="ghost" onClick={() => submitItem(false)}><Save size={16} /> Сохранить черновик</button>
             <button><Save size={16} /> Сохранить и опубликовать</button>
           </div>

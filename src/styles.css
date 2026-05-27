@@ -91,9 +91,9 @@ h2 { font-size: 24px; }
   overflow: hidden;
   width: 100%;
   text-decoration: none;
-  background: linear-gradient(90deg, #9146ff, #ff2d8a, #00e5ff, #9146ff);
+  background: linear-gradient(90deg, #5e2da6, #a8246a, #0a8aa0, #5e2da6);
   background-size: 300% 100%;
-  animation: concert-ticker-bg 12s linear infinite;
+  animation: concert-ticker-bg 36s linear infinite;
   border-bottom: 1px solid rgba(255,255,255,.12);
   cursor: pointer;
 }
@@ -113,7 +113,7 @@ h2 { font-size: 24px; }
   font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.04em;
-  color: #0a0f1c;
+  color: #f5f7ff;
   padding: 0 12px;
 }
 @keyframes concert-ticker-scroll {
