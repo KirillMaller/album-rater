@@ -976,7 +976,7 @@ nav .nav-soon { cursor: help; opacity: .85; }
 .panel:hover { border-color: rgba(255, 255, 255, .16); }
 .tracklist-head { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 14px; margin-bottom: 6px; border-bottom: 2px solid var(--line); }
 .tracklist-head h2 { margin: 0; font-size: 22px; font-weight: 800; }
-.tracklist-legend { display: flex; align-items: center; gap: 12px; font-size: 15px; font-weight: 800; color: var(--text); text-transform: uppercase; letter-spacing: 0.08em; }
+.tracklist-legend { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 800; color: var(--text); text-transform: uppercase; letter-spacing: 0.08em; padding-right: 40px; }
 .tracklist-legend > span:nth-child(1) { width: 48px; text-align: center; color: var(--cyan); }
 .tracklist-legend > span:nth-child(3) { width: 48px; text-align: center; color: #ffe600; }
 .tracklist-legend > span:nth-child(5) { width: 48px; text-align: center; color: #ff9f45; }

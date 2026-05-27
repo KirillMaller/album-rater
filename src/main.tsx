@@ -1,6 +1,12 @@
 import React, { createContext, forwardRef, useContext, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import ReactMarkdown from 'react-markdown';
+
+const safeMarkdownUrl = (url: string) => {
+  const trimmed = url.trim().toLowerCase();
+  if (trimmed.startsWith('javascript:') || trimmed.startsWith('data:') || trimmed.startsWith('vbscript:')) return '';
+  return url;
+};
 import remarkGfm from 'remark-gfm';
 import privacyMarkdown from '../docs/PRIVACY.md?raw';
 import termsMarkdown from '../docs/USER_AGREEMENT.md?raw';
@@ -1121,7 +1127,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
     },
     async signInWithGoogle() {
       if (!supabase) throw new Error('Вход через Google доступен только на проде с настроенным Supabase');
-      const cleanReturnUrl = window.location.origin + window.location.pathname + window.location.search;
+      const cleanReturnUrl = window.location.origin + window.location.pathname;
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: { redirectTo: cleanReturnUrl },
@@ -2140,9 +2146,9 @@ function aggregateSingleScore(allVotes: AllVote[]) {
 }
 
 function aggregateTrack(allVotes: AllVote[], position: number) {
-  const list = allVotes.filter((v) => v.trackPosition === position);
+  const list = allVotes.filter((v) => v.trackPosition === position && v.score != null);
   if (!list.length) return null;
-  const sum = list.reduce((acc, v) => acc + v.score, 0);
+  const sum = list.reduce((acc, v) => acc + (v.score ?? 0), 0);
   return { avg: sum / list.length, count: list.length };
 }
 
@@ -2150,13 +2156,14 @@ function aggregateAlbum(allVotes: AllVote[], item: RatedItem) {
   const eligibleTrackPositions = new Set(item.tracks.filter((t) => t.score !== '-').map((t) => t.position));
   const byViewer = new Map<string, { album: number | null; tracks: number[] }>();
   allVotes.forEach((v) => {
+    if (v.score == null) return;
     let entry = byViewer.get(v.viewerId);
     if (!entry) {
       entry = { album: null, tracks: [] };
       byViewer.set(v.viewerId, entry);
     }
-    if (v.trackPosition == null) entry.album = v.score;
-    else if (eligibleTrackPositions.has(v.trackPosition)) entry.tracks.push(v.score);
+    if (v.trackPosition == null && v.roundIndex == null) entry.album = v.score;
+    else if (v.trackPosition != null && eligibleTrackPositions.has(v.trackPosition)) entry.tracks.push(v.score);
   });
   const finals: number[] = [];
   byViewer.forEach((entry) => {
@@ -2359,7 +2366,7 @@ const AlbumVotePanel = forwardRef<AlbumVoteHandle, { item: RatedItem; votes: Ite
   const trackStats = isAlbum ? viewerTracksAverage(votes.tracks, item) : { avg: 0, counted: 0, total: 0 };
   const fallbackScore = votes.album ?? (trackStats.counted > 0 ? Math.round(trackStats.avg * 10) / 10 : 0);
   const [draftScore, setDraftScore] = useState<number>(fallbackScore);
-  const [draftText, setDraftText] = useState<string>(fallbackScore ? fallbackScore.toFixed(1) : '');
+  const [draftText, setDraftText] = useState<string>(votes.album != null ? votes.album.toFixed(1) : (fallbackScore > 0 ? fallbackScore.toFixed(1) : ''));
   const [touched, setTouchedState] = useState(false);
   const [error, setError] = useState('');
   const draftRef = useRef(draftScore);
@@ -2781,7 +2788,7 @@ function ItemPage() {
               {bestAlbumTracksLabel(item) && (
                 <p className="lead detail-hero-best"><Star size={15} fill="#ffe600" stroke="#ffe600" /> {bestAlbumTracksLabel(item)}</p>
               )}
-              {item.description && <p className="lead">{item.description}</p>}
+              {item.description && !bestAlbumTracksLabel(item) && <p className="lead">{item.description}</p>}
               <p className="detail-hero-meta">{item.releaseYear || 'Без года'} · {item.genre || 'Без жанра'}{item.reviewedAt ? ` · оценено ${formatMSKDate(item.reviewedAt)}` : ''}</p>
               {admin && <p><Link className="button detail-edit-link" to={`/admin/edit/${item.id}`}><Edit3 size={16} /> Редактировать оценку</Link></p>}
             </div>
@@ -2806,7 +2813,7 @@ function ItemPage() {
               {(battle?.rounds ?? []).map((round) => (
                 <div className="battle-round-view" key={round.id}>
                   <b>Раунд {round.position}</b>
-                  <span>{battle?.sideA || 'A'}: {round.scoreA || '-'} · {battle?.sideB || 'B'}: {round.scoreB || '-'}</span>
+                  <span>{battle?.sideA || 'A'}: {round.scoreA === '' || round.scoreA == null ? '-' : round.scoreA} · {battle?.sideB || 'B'}: {round.scoreB === '' || round.scoreB == null ? '-' : round.scoreB}</span>
                   <span>Раунд за: {round.winner === 'a' ? battle?.sideA || 'A' : round.winner === 'b' ? battle?.sideB || 'B' : 'ничья / спорно'}</span>
                   {round.comment && <p>{round.comment}</p>}
                 </div>
@@ -2948,7 +2955,7 @@ function ItemPage() {
       </section>
       <section className="panel markdown">
         <h2>Рецензия</h2>
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.review || 'Рецензия пока не добавлена.'}</ReactMarkdown>
+        <ReactMarkdown remarkPlugins={[remarkGfm]} urlTransform={safeMarkdownUrl}>{item.review || 'Рецензия пока не добавлена.'}</ReactMarkdown>
       </section>
     </main>
   );
@@ -3338,7 +3345,7 @@ function AuctionRulesPage() {
         {auctionsLoading && !auctionRules ? (
           <p className="muted">Загружаем правила...</p>
         ) : auctionRules?.content ? (
-          <div className="markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{auctionRules.content}</ReactMarkdown></div>
+          <div className="markdown"><ReactMarkdown remarkPlugins={[remarkGfm]} urlTransform={safeMarkdownUrl}>{auctionRules.content}</ReactMarkdown></div>
         ) : (
           <p className="muted">Правила пока не заполнены.</p>
         )}
@@ -3414,7 +3421,7 @@ function PrivacyPage() {
   return (
     <main>
       <section className="panel legal-panel">
-        <div className="markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{privacyMarkdown}</ReactMarkdown></div>
+        <div className="markdown"><ReactMarkdown remarkPlugins={[remarkGfm]} urlTransform={safeMarkdownUrl}>{privacyMarkdown}</ReactMarkdown></div>
       </section>
     </main>
   );
@@ -3424,7 +3431,7 @@ function TermsPage() {
   return (
     <main>
       <section className="panel legal-panel">
-        <div className="markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{termsMarkdown}</ReactMarkdown></div>
+        <div className="markdown"><ReactMarkdown remarkPlugins={[remarkGfm]} urlTransform={safeMarkdownUrl}>{termsMarkdown}</ReactMarkdown></div>
       </section>
     </main>
   );
