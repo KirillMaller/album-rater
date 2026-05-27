@@ -1036,7 +1036,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     supabase
       .from('viewer_votes')
-      .select('item_id, viewer_id, score, track_position, round_index, winner_side')
+      .select('item_id, viewer_id, score, track_position, round_index, winner_side, is_best')
       .then(({ data, error }) => {
         if (cancelled || error || !data) return;
         const byItem = new Map<string, AllVote[]>();
@@ -1046,6 +1046,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
             viewerId: row.viewer_id,
             trackPosition: row.track_position,
             roundIndex: row.round_index,
+            isBest: Boolean(row.is_best),
             score: row.score == null ? null : (typeof row.score === 'number' ? row.score : Number(row.score)),
             winner: (row.winner_side ?? null) as BattleSide | null,
           };
