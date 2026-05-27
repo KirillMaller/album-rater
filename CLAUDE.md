@@ -28,7 +28,7 @@
 
 | Файл / папка | Что внутри |
 |---|---|
-| [src/main.tsx](src/main.tsx) | **Вся логика SPA**: типы, маршруты, страницы, редактор, импорт Яндекса, аукционы. ~2350 строк, монолит. |
+| [src/main.tsx](src/main.tsx) | **Вся логика SPA**: типы, маршруты, страницы, редактор, импорт Яндекса, аукционы, голосование зрителей. ~5000 строк, монолит. |
 | [src/styles.css](src/styles.css) | Все стили. |
 | [vite.config.ts](vite.config.ts) | Vite-конфиг. Минимальный — только React-плагин и `base: '/'` (с момента переезда на кастомный домен). |
 | [db/migrations/001_init.sql](db/migrations/001_init.sql) | Базовая схема: `rated_items`, `track_scores`, `media_links`, `admin_users`, RLS, `is_admin()`. |
@@ -37,8 +37,13 @@
 | [db/migrations/004_auction_rules.sql](db/migrations/004_auction_rules.sql) | Таблица правил аукционов (markdown по `scope`). |
 | [db/migrations/005_reviewed_at.sql](db/migrations/005_reviewed_at.sql) | Поле `reviewed_at date` в `rated_items`. |
 | [db/migrations/006_score_up_to_11.sql](db/migrations/006_score_up_to_11.sql) | Расширение границ оценки до 0..11. |
-| [db/migrations/007_viewer_votes.sql](db/migrations/007_viewer_votes.sql) | Таблица `viewer_votes` (голоса зрителей за треки/альбомы/баттлы) + RLS (читать всем, писать только свой голос) + уникальный индекс на `(viewer_id, item_id, round_index)`. Накачена на прод 2026-05-27 через SQL Editor. |
+| [db/migrations/007_viewer_votes.sql](db/migrations/007_viewer_votes.sql) | Таблица `viewer_votes` (голоса зрителей за треки/альбомы/баттлы) + RLS (читать всем, писать только свой голос) + уникальный индекс. |
+| [db/migrations/008_viewer_profiles.sql](db/migrations/008_viewer_profiles.sql) | Таблица `viewer_profiles` — хранит факт согласия зрителя на ПДн (`consented_at`, `consent_version`). RLS «свой профиль только сам». |
+| [db/migrations/009_viewer_votes_require_consent.sql](db/migrations/009_viewer_votes_require_consent.sql) | Ужесточение RLS на `viewer_votes`: insert/update только если в `viewer_profiles` есть `consented_at`. |
+| [db/migrations/010_viewer_votes_track_position.sql](db/migrations/010_viewer_votes_track_position.sql) | Колонка `track_position` в `viewer_votes` — голос за отдельный трек альбома. Расширен unique-индекс с `coalesce(round_index, -1), coalesce(track_position, -1)`. |
+| [db/migrations/011_viewer_votes_is_best.sql](db/migrations/011_viewer_votes_is_best.sql) | Колонка `is_best` — зритель может пометить трек как «свой лучший» (лимит 3 на стороне фронта). |
 | [docs/PRIVACY.md](docs/PRIVACY.md) | Политика конфиденциальности (рендерится на странице `/privacy` через react-markdown, импортируется как `?raw`). |
+| [docs/USER_AGREEMENT.md](docs/USER_AGREEMENT.md) | Условия использования (рендерится на странице `/terms`). |
 | [server/yandex-proxy/](server/yandex-proxy/) | **Код прокси для Яндекс.Музыки** (бэкап того что крутится на VPS). См. подробный README в этой папке. |
 | [supabase/](supabase/) | Конфиг для Supabase CLI (`config.toml`, привязка к проекту). Edge Functions не используем — провалились на гео-блоке Яндекса. |
 | [public/404.html](public/404.html) | SPA-фоллбек для GitHub Pages. |
@@ -52,9 +57,9 @@
 - URL: `https://nfekasqbzwjelrwyxqmv.supabase.co`
 - Регион: West EU (Ireland), Free Tier.
 - Доступ через CLI: `npx supabase` (поставлен как dev-зависимость в `package.json`). Auth-token хранится у Кирилла, у Claude — через env-переменную `SUPABASE_ACCESS_TOKEN`.
-- **Миграции 001-006 накачены на проде** (через SQL Editor / Management API, не через `supabase db push` — поэтому Supabase Dashboard на главной странице показывает «No migrations»). Проверить состояние схемы: `POST https://api.supabase.com/v1/projects/nfekasqbzwjelrwyxqmv/database/query`.
+- **Миграции 001-011 накачены на проде** (через Management API `POST /v1/projects/nfekasqbzwjelrwyxqmv/database/query`). Token — в `~/.claude/env/supabase.env` как `SUPABASE_ACCESS_TOKEN`.
 - В `admin_users` два email: `kirillmakarov820@gmail.com` (Кирилл) и `r1fmabes.rating@gmail.com` (R1Fmabes-стример).
-- **Google OAuth провайдер включён** в Auth → Providers → Google (с 2026-05-27). Client ID + Secret в `~/.claude/env/google-oauth.env`. App в Google Cloud (проект `r1frating`) в Production mode, External. Кнопки «Войти через Google» на фронте ещё нет — задача 12 в SPRINT-002.
+- **Google OAuth провайдер включён** в Auth → Providers → Google. Client ID + Secret в `~/.claude/env/google-oauth.env`. App в Google Cloud (проект `r1frating`) в Production mode, External.
 - Edge Functions **не используем** для Яндекса — гео-блок не пускает к `api.music.yandex.net` из EU.
 
 ### VPS на reg.cloud (исторически `bot-napominalka`)
@@ -144,7 +149,19 @@ YouTube oEmbed (https://www.youtube.com/oembed)
 - Ветка `main` → автодеплой на GitHub Pages. **Сначала проверка в браузере, потом коммит** — это правило из глобального CLAUDE.md.
 - Не коммитить без явного «коммить» от Кирилла.
 - В этом репо нет PR-флоу с Никитой — Кирилл единственный мейнтейнер, пушит в `main` напрямую.
-- Не коммитить `.env.local`, `dist/`, `node_modules/`, `supabase/.temp/`, `db/snapshots/*` (кроме README).
+- Не коммитить `.env.local`, `.env*.bak`, `dist/`, `node_modules/`, `supabase/.temp/`, `db/snapshots/*` (кроме README).
+
+### ⚠ Перед каждым push — прогнать сборку
+
+`npm run build` в CI делает `tsc` перед `vite build`. Если TypeScript падает — деплой падает молча, прод остаётся на старой версии. Пользователь думает что фронт сломан, на самом деле просто не обновился.
+
+**Правило:** перед `git push` всегда:
+1. `npx tsc --noEmit` (быстро, ~3 сек) — для правок в .tsx/.ts.
+2. Или полный `npm run build` — если меняли импорты, зависимости, типы.
+
+Если падает — фиксить и только потом пушить. Чисто `.md`-коммиты можно пушить без билда.
+
+Был кейс 2026-05-27: 3 коммита подряд упали на TS2741 «Property 'isBest' is missing». 2 часа потеряно на разбор «почему прод не обновляется».
 
 ## ⚠️ Безопасность данных — обязательно прочитать перед опасными операциями
 
