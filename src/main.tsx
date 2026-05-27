@@ -824,10 +824,13 @@ type Store = {
   error?: string;
   admin: boolean;
   user: User | null;
+  viewerConsentedAt: string | null;
+  viewerConsentLoaded: boolean;
   setAdmin: (value: boolean) => void;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
+  recordConsent: () => Promise<void>;
   saveItem: (item: RatedItem) => Promise<void>;
   deleteItem: (id: string) => Promise<void>;
   auctions: AuctionItem[];
@@ -838,6 +841,8 @@ type Store = {
   deleteAuction: (id: string) => Promise<void>;
   saveAuctionRules: (content: string) => Promise<void>;
 };
+
+const CONSENT_VERSION = 1;
 
 function fromDbAuction(row: any): AuctionItem {
   return {
@@ -881,6 +886,8 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
   const [auctionRules, setAuctionRules] = useState<AuctionRules | null>(null);
   const [auctionsLoading, setAuctionsLoading] = useState(Boolean(supabase));
   const [auctionsError, setAuctionsError] = useState<string>();
+  const [viewerConsentedAt, setViewerConsentedAt] = useState<string | null>(null);
+  const [viewerConsentLoaded, setViewerConsentLoaded] = useState(false);
 
   const loadAuctions = async () => {
     if (!supabase) return;
@@ -973,6 +980,31 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
       .catch(() => setAdminState(false));
   }, [user]);
 
+  useEffect(() => {
+    if (!supabase) return;
+    if (!user) {
+      setViewerConsentedAt(null);
+      setViewerConsentLoaded(false);
+      return;
+    }
+
+    setViewerConsentLoaded(false);
+    supabase
+      .from('viewer_profiles')
+      .select('consented_at')
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('Не удалось загрузить профиль зрителя', error);
+          setViewerConsentedAt(null);
+        } else {
+          setViewerConsentedAt(data?.consented_at ?? null);
+        }
+        setViewerConsentLoaded(true);
+      });
+  }, [user]);
+
   const value = useMemo<Store>(() => ({
     items,
     loading,
@@ -1015,8 +1047,24 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
       if (supabase) await supabase.auth.signOut();
       setUser(null);
       setAdminState(false);
+      setViewerConsentedAt(null);
+      setViewerConsentLoaded(false);
       if (!supabase) localStorage.setItem(authKey, '0');
     },
+    async recordConsent() {
+      if (!supabase) throw new Error('Согласие работает только на проде с Supabase');
+      if (!user) throw new Error('Войди через Google перед согласием');
+      const consentedAt = new Date().toISOString();
+      const { error } = await supabase.from('viewer_profiles').upsert({
+        user_id: user.id,
+        consented_at: consentedAt,
+        consent_version: CONSENT_VERSION,
+      });
+      if (error) throw error;
+      setViewerConsentedAt(consentedAt);
+    },
+    viewerConsentedAt,
+    viewerConsentLoaded,
     async saveItem(item) {
       const normalized = {
         ...item,
@@ -1108,7 +1156,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
       if (error) throw error;
       await loadAuctions();
     },
-  }), [admin, error, items, loading, user, auctions, auctionRules, auctionsLoading, auctionsError]);
+  }), [admin, error, items, loading, user, viewerConsentedAt, viewerConsentLoaded, auctions, auctionRules, auctionsLoading, auctionsError]);
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
@@ -1183,10 +1231,64 @@ function ConcertTicker() {
   );
 }
 
+function ConsentModal() {
+  const { user, viewerConsentedAt, viewerConsentLoaded, recordConsent } = useStore();
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    if (!user) {
+      setDismissed(false);
+      setError('');
+      return;
+    }
+    setDismissed(sessionStorage.getItem(`consentDismissed:${user.id}`) === '1');
+  }, [user?.id]);
+
+  if (!user || !viewerConsentLoaded || viewerConsentedAt || dismissed) return null;
+
+  const dismiss = () => {
+    if (user) sessionStorage.setItem(`consentDismissed:${user.id}`, '1');
+    setDismissed(true);
+  };
+
+  const submit = async () => {
+    if (saving) return;
+    setSaving(true);
+    setError('');
+    try {
+      await recordConsent();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось сохранить согласие');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="consent-overlay" role="dialog" aria-modal="true" aria-labelledby="consent-title">
+      <div className="consent-modal">
+        <button type="button" className="consent-close" onClick={dismiss} aria-label="Закрыть">×</button>
+        <h2 id="consent-title">Чтобы голосовать</h2>
+        <p>
+          Нажимая «Принимаю», ты подтверждаешь, что тебе есть 16 лет и ты согласен с <Link to="/privacy" target="_blank" rel="noopener noreferrer">Политикой конфиденциальности</Link> и <Link to="/terms" target="_blank" rel="noopener noreferrer">Условиями использования</Link>. Это нужно один раз.
+        </p>
+        {error && <div className="consent-error">{error}</div>}
+        <div className="consent-actions">
+          <button type="button" className="ghost" onClick={dismiss}>Позже</button>
+          <button type="button" onClick={submit} disabled={saving}>{saving ? 'Сохраняю…' : 'Принимаю'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Shell() {
   const { admin } = useStore();
   return (
     <>
+      <ConsentModal />
       <header className="topbar">
         <Link to="/" className="brand"><span className="brand-mark">R1</span> R1Fрейтинг</Link>
         <nav>
@@ -2184,11 +2286,7 @@ function AuthBadge() {
 function PrivacyPage() {
   return (
     <main>
-      <section className="rules-head">
-        <p className="eyebrow">Правовая информация</p>
-        <h1>Политика конфиденциальности</h1>
-      </section>
-      <section className="panel">
+      <section className="panel legal-panel">
         <div className="markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{privacyMarkdown}</ReactMarkdown></div>
       </section>
     </main>
@@ -2198,11 +2296,7 @@ function PrivacyPage() {
 function TermsPage() {
   return (
     <main>
-      <section className="rules-head">
-        <p className="eyebrow">Правовая информация</p>
-        <h1>Условия использования</h1>
-      </section>
-      <section className="panel">
+      <section className="panel legal-panel">
         <div className="markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{termsMarkdown}</ReactMarkdown></div>
       </section>
     </main>

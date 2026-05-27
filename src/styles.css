@@ -85,6 +85,75 @@ h1, h2, h3, p { margin-top: 0; }
 h1 { font-size: clamp(34px, 6vw, 76px); line-height: .95; letter-spacing: 0; }
 h2 { font-size: 24px; }
 
+.consent-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: rgba(5, 7, 14, 0.72);
+  backdrop-filter: blur(6px);
+  padding: 20px;
+}
+.consent-modal {
+  position: relative;
+  max-width: 460px;
+  width: 100%;
+  background: linear-gradient(180deg, #161a26, #10131c);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  padding: 28px 26px 22px;
+  color: var(--text);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+}
+.consent-modal h2 { margin: 0 0 10px; font-size: 22px; }
+.consent-modal p { margin: 0 0 16px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+.consent-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  min-height: auto;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 22px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 8px;
+}
+.consent-close:hover { color: var(--text); background: rgba(255,255,255,0.06); box-shadow: none; }
+.consent-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 14px;
+  line-height: 1.45;
+  cursor: pointer;
+}
+.consent-check input { width: 18px; height: 18px; margin-top: 2px; flex: 0 0 auto; }
+.consent-check a { color: var(--cyan); }
+.consent-check a:hover { color: var(--text); }
+.consent-error {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(255, 77, 109, 0.12);
+  border: 1px solid rgba(255, 77, 109, 0.4);
+  color: #ffd3dc;
+  font-size: 13px;
+}
+.consent-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+.consent-actions button { min-height: 38px; }
+
+.legal-panel { margin-top: 28px; }
+
 .concert-ticker {
   display: block;
   position: relative;
