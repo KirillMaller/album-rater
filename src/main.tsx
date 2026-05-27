@@ -2461,8 +2461,23 @@ const AlbumVotePanel = forwardRef<AlbumVoteHandle, { item: RatedItem; votes: Ite
               className={`vote-input vote-side-badge ${draftScore > 0 ? scoreClass(draftScore) : ''}`}
               aria-label="Твоя оценка"
             />
-            <span className="vote-side-label">Ты</span>
           </div>
+          {item.type === 'track' && (
+            <button
+              type="button"
+              className="vote-save-button"
+              disabled={!touched || draftScore <= 0 || draftScore === votes.album}
+              onClick={async () => {
+                try {
+                  await save(draftScore);
+                  setTouchedState(false);
+                  onTouchedChange?.(false);
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : 'Не удалось сохранить');
+                }
+              }}
+            >Сохранить</button>
+          )}
         </div>
         <div className="vote-input-hint">
           {votes.album != null && <>Сохранено: <b>{votes.album.toFixed(1)}</b></>}
