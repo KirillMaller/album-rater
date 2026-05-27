@@ -4,13 +4,13 @@
 
 ## Что это вообще
 
-**R1Fрейтинг** — сайт-каталог оценок стримера **Рифмабеса**. Он стримит на YouTube / Twitch / Boosty: баттл-рэп (сам баттлер), реакции на баттлы и треки, обзоры альбомов, фильмы и аниме по донатам, плюс свои треки.
+**R1Fрейтинг** — сайт-каталог оценок стримера **R1Fmabes**. Он стримит на YouTube / Twitch / Boosty: баттл-рэп (сам баттлер), реакции на баттлы и треки, обзоры альбомов, фильмы и аниме по донатам, плюс свои треки.
 
 Прод: **https://rifmabes.ru/**.
 
 Сайт нужен чтобы:
 
-- Рифмабесу было **удобно вести каталог** того что он оценивает (вставил ссылку — всё заполнилось само).
+- R1Fmabes было **удобно вести каталог** того что он оценивает (вставил ссылку — всё заполнилось само).
 - Зрителям было где **смотреть его оценки** в одном месте.
 - **В будущем:** зрители смогут голосовать сами — один аккаунт = один голос за трек или раунд баттла. Тогда на каждой карточке будет **две оценки**: стримера и зрителей.
 
@@ -53,7 +53,7 @@
 - Регион: West EU (Ireland), Free Tier.
 - Доступ через CLI: `npx supabase` (поставлен как dev-зависимость в `package.json`). Auth-token хранится у Кирилла, у Claude — через env-переменную `SUPABASE_ACCESS_TOKEN`.
 - **Миграции 001-006 накачены на проде** (через SQL Editor / Management API, не через `supabase db push` — поэтому Supabase Dashboard на главной странице показывает «No migrations»). Проверить состояние схемы: `POST https://api.supabase.com/v1/projects/nfekasqbzwjelrwyxqmv/database/query`.
-- В `admin_users` два email: `kirillmakarov820@gmail.com` (Кирилл) и `r1fmabes.rating@gmail.com` (Рифмабес-стример).
+- В `admin_users` два email: `kirillmakarov820@gmail.com` (Кирилл) и `r1fmabes.rating@gmail.com` (R1Fmabes-стример).
 - **Google OAuth провайдер включён** в Auth → Providers → Google (с 2026-05-27). Client ID + Secret в `~/.claude/env/google-oauth.env`. App в Google Cloud (проект `r1frating`) в Production mode, External. Кнопки «Войти через Google» на фронте ещё нет — задача 12 в SPRINT-002.
 - Edge Functions **не используем** для Яндекса — гео-блок не пускает к `api.music.yandex.net` из EU.
 
