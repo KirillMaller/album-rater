@@ -85,6 +85,50 @@ h1, h2, h3, p { margin-top: 0; }
 h1 { font-size: clamp(34px, 6vw, 76px); line-height: .95; letter-spacing: 0; }
 h2 { font-size: 24px; }
 
+.concert-ticker {
+  display: block;
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  text-decoration: none;
+  background: linear-gradient(90deg, #9146ff, #ff2d8a, #00e5ff, #9146ff);
+  background-size: 300% 100%;
+  animation: concert-ticker-bg 12s linear infinite;
+  border-bottom: 1px solid rgba(255,255,255,.12);
+  cursor: pointer;
+}
+.concert-ticker-track {
+  display: flex;
+  gap: 48px;
+  white-space: nowrap;
+  padding: 9px 0;
+  animation: concert-ticker-scroll 28s linear infinite;
+  will-change: transform;
+}
+.concert-ticker:hover .concert-ticker-track {
+  animation-play-state: paused;
+}
+.concert-ticker-item {
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #0a0f1c;
+  padding: 0 12px;
+}
+@keyframes concert-ticker-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+@keyframes concert-ticker-bg {
+  from { background-position: 0% 50%; }
+  to   { background-position: 300% 50%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .concert-ticker-track { animation: none; justify-content: center; }
+  .concert-ticker { animation: none; }
+}
+
 .topbar {
   position: sticky;
   top: 0;
