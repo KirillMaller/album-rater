@@ -531,7 +531,22 @@ nav .nav-soon { cursor: help; opacity: .85; }
 .score-pair-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
 .score-pair-labeled .score-pair-row:nth-child(1) .score-pair-label { color: var(--cyan); }
 .score-pair-labeled .score-pair-row:nth-child(2) .score-pair-label { color: #ffe600; }
-.score-pair-badge { min-width: 44px; height: 30px; padding: 0 8px; display: inline-grid; place-items: center; border-radius: 7px; font-family: "JetBrains Mono", ui-monospace, monospace; font-weight: 800; font-size: 14px; }
+.score-pair-badge,
+.catalog-thumb .score-pair .score-pair-badge,
+.featured-card .score-pair .score-pair-badge,
+.cover-wrap .score-pair .score-pair-badge {
+  position: static;
+  min-width: 44px;
+  height: 30px;
+  padding: 0 8px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 7px;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-weight: 800;
+  font-size: 14px;
+  box-shadow: none;
+}
 .score-pair.score-pos { position: absolute; right: 14px; top: 14px; z-index: 2; }
 
 .score-pos {
