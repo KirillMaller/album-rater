@@ -1509,7 +1509,7 @@ function ConcertTicker() {
     return () => window.clearInterval(id);
   }, []);
   if (now >= CONCERT_HIDE_AT_MS) return null;
-  const message = '🔥 7 ИЮНЯ · МОСКВА · клуб Эклипс · R1FMABES, VERCH.FATE, LEV MOVALEV · от 700 ₽ → купить билет';
+  const message = '🔥 7 ИЮНЯ · МОСКВА · клуб Эклипс · R1FMABES, VERCH.FATE, LEV MOVALEV · от 900 ₽ → купить билет';
   return (
     <a
       className="concert-ticker"
