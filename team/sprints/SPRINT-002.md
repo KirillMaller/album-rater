@@ -35,6 +35,7 @@
 | 22 | **Переименовать `R1fрейтинг` → `R1Fрейтинг`** во всём проекте (шапка, title вкладки, документация) | 🟡 P2 | ✅ выполнено 2026-05-27 **(10 мин)** — заменено в 10 файлах |
 | 23 | **Кнопка «Стереть всё» в редакторе** записи (альбом/баттл/трек) — сбросить все поля одним кликом | 🟡 P2 | ✅ выполнено 2026-05-27 **(10 мин)** — кнопка `.danger` с Trash2 + confirm; для существующей записи становится «Откатить правки» |
 | 24 | **Бегущая строка концерта тише** — приглушить цвета и замедлить переливание в 3 раза | 🟡 P2 | ✅ выполнено 2026-05-27 **(5 мин)** — анимация 12s→36s, hex-цвета приглушены вручную, текст белый |
+| 25 | **Фикс OAuth-возврата** — токен висел в URL, повторный клик «Войти» давал двойной хеш и ломал логин | 🟠 P1 | ✅ выполнено 2026-05-27 **(20 мин)** — redirectTo без hash/search, history.replaceState после SIGNED_IN, защита-таймаут 4с |
 
 ## Легенда
 
@@ -74,9 +75,10 @@
 | Задача 22 — `R1fрейтинг` → `R1Fрейтинг`: replace_all в `src/main.tsx`, `index.html`, `README.md`, `CLAUDE.md`, `AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, `docs/CHANGELOG.md`, `docs/DATA_SAFETY.md`, `mockups/home.html`. | **(10 мин)** |
 | Задача 23 — Кнопка «Стереть всё» в `publish-bar` редактора (`EditorPage`): рядом с «Сохранить черновик», красный `.danger`-стиль, иконка `Trash2`, `window.confirm` перед сбросом. Для существующей записи лейбл/текст подтверждения меняется на «Откатить правки» (тот же `resetLocalDraft` возвращает форму к `baseDraft = existing`). | **(10 мин)** |
 | Задача 24 — Бегущая строка тише: цвета `#9146ff/#ff2d8a/#00e5ff` → `#5e2da6/#a8246a/#0a8aa0` (та же палитра, но приглушённая), `animation: concert-ticker-bg 12s` → `36s`, цвет текста с `#0a0f1c` (тёмный) на `#f5f7ff` (белый) — на приглушённом фоне читается лучше. | **(5 мин)** |
+| Задача 25 — Фикс OAuth-возврата. Корень: `signInWithOAuth({ redirectTo: window.location.href })` таскал текущий URL целиком, включая hash. Повторный клик «Войти» на странице с уже застрявшим `#access_token=...` отдавал Supabase redirectTo с этим же хешом → callback возвращал `#access_token=A#access_token=B`. Supabase JS не справлялся с двойным хешом, сессия не устанавливалась, кнопка «Войти» висела, токены болтались в URL. Фикс: `redirectTo = origin+pathname+search` (без hash); в `onAuthStateChange` на `SIGNED_IN`/`TOKEN_REFRESHED` чистим `#access_token` через `history.replaceState`; защита-таймаут 4с при загрузке — если хеш с токеном есть, а Supabase так и не съел, чистим сами. | **(20 мин)** |
 | Задача 08 — Согласие на обработку ПДн. Миграция `008_viewer_profiles.sql` (additive, накачена через Management API): таблица `viewer_profiles(user_id pk, consented_at, consent_version, timestamps)` + RLS «свой профиль читает/пишет только сам пользователь». Миграция `009_viewer_votes_require_consent.sql` (destructive, **НЕ накачена** — катим вместе с UI голосования): меняет policies на `viewer_votes` так что insert/update пропускаются только если есть `consented_at`. Store: `viewerConsentedAt`, `viewerConsentLoaded`, `recordConsent()` (upsert в `viewer_profiles`). Компонент `ConsentModal` (overlay + модалка): показывается если `user && viewerConsentLoaded && !viewerConsentedAt && !dismissed`. Без чекбокса (клик «Принимаю» = явное согласие). «Позже»/крестик ставит `sessionStorage.consentDismissed:<userId>` — модалка не появится до signOut. Бонусом убрали `rules-head` с «Правовая информация» + h1 на `/privacy` и `/terms` (h1 уже есть в markdown). | **(90 мин)** |
 
-**Итого за день: 460 мин (~7 ч 40 мин)**
+**Итого за день: 480 мин (~8 ч)**
 
 ---
 

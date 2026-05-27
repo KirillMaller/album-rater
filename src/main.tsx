@@ -954,10 +954,31 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
       setUser((current) => (current?.id === nextUser?.id ? current : nextUser));
     };
 
+    const stripOAuthHash = () => {
+      if (window.location.hash.includes('access_token')) {
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+    };
+
     supabase.auth.getUser().then(({ data }) => setStableUser(data.user ?? null));
-    const { data } = supabase.auth.onAuthStateChange((_, session) => {
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
       setStableUser(session?.user ?? null);
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        stripOAuthHash();
+      }
     });
+
+    if (window.location.hash.includes('access_token')) {
+      const stuckTimer = window.setTimeout(() => {
+        if (window.location.hash.includes('access_token')) {
+          stripOAuthHash();
+        }
+      }, 4000);
+      return () => {
+        window.clearTimeout(stuckTimer);
+        data.subscription.unsubscribe();
+      };
+    }
 
     return () => data.subscription.unsubscribe();
   }, []);
@@ -1037,9 +1058,10 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
     },
     async signInWithGoogle() {
       if (!supabase) throw new Error('Вход через Google доступен только на проде с настроенным Supabase');
+      const cleanReturnUrl = window.location.origin + window.location.pathname + window.location.search;
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: window.location.href },
+        options: { redirectTo: cleanReturnUrl },
       });
       if (error) throw error;
     },
