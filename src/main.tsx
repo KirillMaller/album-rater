@@ -1096,6 +1096,32 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
       });
   }, [user]);
 
+  const applyLocalVote = (itemId: string, partial: { trackPosition: number | null; roundIndex: number | null; score?: number | null; winner?: BattleSide | null; isBest?: boolean }) => {
+    if (!user) return;
+    setViewerVotesByItem((prev) => {
+      const next = new Map(prev);
+      const list = next.get(itemId) ?? [];
+      const idx = list.findIndex((v) => v.viewerId === user.id && v.trackPosition === partial.trackPosition && v.roundIndex === partial.roundIndex);
+      const existingVote = idx >= 0 ? list[idx] : null;
+      const merged: AllVote = {
+        viewerId: user.id,
+        trackPosition: partial.trackPosition,
+        roundIndex: partial.roundIndex,
+        score: partial.score !== undefined ? partial.score : (existingVote?.score ?? null),
+        winner: partial.winner !== undefined ? partial.winner : (existingVote?.winner ?? null),
+        isBest: partial.isBest !== undefined ? partial.isBest : (existingVote?.isBest ?? false),
+      };
+      if (idx >= 0) {
+        const updated = [...list];
+        updated[idx] = merged;
+        next.set(itemId, updated);
+      } else {
+        next.set(itemId, [...list, merged]);
+      }
+      return next;
+    });
+  };
+
   const value = useMemo<Store>(() => ({
     items,
     loading,
@@ -1224,6 +1250,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
         });
         if (error) throw error;
       }
+      applyLocalVote(itemId, { trackPosition: position, roundIndex: null, isBest });
     },
     async saveMyAlbumVote(itemId, score) {
       if (!supabase) throw new Error('Голосование работает только на проде с Supabase');
@@ -1252,6 +1279,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
         });
         if (error) throw error;
       }
+      applyLocalVote(itemId, { trackPosition: null, roundIndex: null, score, winner: null });
     },
     async saveMyTrackVote(itemId, position, score) {
       if (!supabase) throw new Error('Голосование работает только на проде с Supabase');
@@ -1280,6 +1308,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
         });
         if (error) throw error;
       }
+      applyLocalVote(itemId, { trackPosition: position, roundIndex: null, score, winner: null });
     },
     async saveMyBattleRoundVote(itemId, roundIndex, side) {
       if (!supabase) throw new Error('Голосование работает только на проде с Supabase');
@@ -1308,6 +1337,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
         });
         if (error) throw error;
       }
+      applyLocalVote(itemId, { trackPosition: null, roundIndex, score: null, winner: side });
     },
     async saveMyBattleFinalVote(itemId, side) {
       if (!supabase) throw new Error('Голосование работает только на проде с Supabase');
@@ -1336,6 +1366,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
         });
         if (error) throw error;
       }
+      applyLocalVote(itemId, { trackPosition: null, roundIndex: null, score: null, winner: side });
     },
     async clearMyAlbumVote(itemId) {
       if (!supabase || !user) return;
