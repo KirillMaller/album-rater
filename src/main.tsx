@@ -1096,6 +1096,52 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
       });
   }, [user]);
 
+  const upsertViewerVote = async (params: {
+    itemId: string;
+    matchTrackPosition: number | null;
+    matchRoundIndex: number | null;
+    updateFields: Record<string, unknown>;
+    insertFields: Record<string, unknown>;
+  }) => {
+    if (!supabase) throw new Error('Голосование работает только на проде с Supabase');
+    if (!user) throw new Error('Войди через Google чтобы голосовать');
+    if (!viewerConsentedAt) throw new Error('Подтверди условия чтобы голосовать');
+    const sb = supabase;
+    const userId = user.id;
+    const findExisting = async () => {
+      let q = sb.from('viewer_votes').select('id').eq('viewer_id', userId).eq('item_id', params.itemId);
+      q = params.matchTrackPosition == null ? q.is('track_position', null) : q.eq('track_position', params.matchTrackPosition);
+      q = params.matchRoundIndex == null ? q.is('round_index', null) : q.eq('round_index', params.matchRoundIndex);
+      const { data, error } = await q.maybeSingle();
+      if (error) throw error;
+      return data;
+    };
+    const existing = await findExisting();
+    if (existing) {
+      const { error } = await sb.from('viewer_votes').update(params.updateFields).eq('id', existing.id);
+      if (error) throw error;
+      return;
+    }
+    const { error: insertError } = await sb.from('viewer_votes').insert({
+      viewer_id: userId,
+      item_id: params.itemId,
+      ...params.insertFields,
+    });
+    if (insertError) {
+      const code = (insertError as { code?: string }).code;
+      if (code === '23505') {
+        // Race condition: кто-то параллельно вставил строку. Повторно select + update.
+        const retryExisting = await findExisting();
+        if (retryExisting) {
+          const { error: retryError } = await sb.from('viewer_votes').update(params.updateFields).eq('id', retryExisting.id);
+          if (retryError) throw retryError;
+          return;
+        }
+      }
+      throw insertError;
+    }
+  };
+
   const applyLocalVote = (itemId: string, partial: { trackPosition: number | null; roundIndex: number | null; score?: number | null; winner?: BattleSide | null; isBest?: boolean }) => {
     if (!user) return;
     setViewerVotesByItem((prev) => {
@@ -1223,149 +1269,79 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
       }));
     },
     async toggleMyBestTrack(itemId, position, isBest) {
-      if (!supabase) throw new Error('Доступно только на проде с Supabase');
-      if (!user) throw new Error('Войди через Google');
-      if (!viewerConsentedAt) throw new Error('Подтверди условия');
-      const { data: existing, error: selectError } = await supabase
-        .from('viewer_votes')
-        .select('id')
-        .eq('viewer_id', user.id)
-        .eq('item_id', itemId)
-        .eq('track_position', position)
-        .is('round_index', null)
-        .maybeSingle();
-      if (selectError) throw selectError;
-      if (existing) {
-        const { error } = await supabase.from('viewer_votes').update({ is_best: isBest }).eq('id', existing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('viewer_votes').insert({
-          viewer_id: user.id,
-          item_id: itemId,
+      await upsertViewerVote({
+        itemId,
+        matchTrackPosition: position,
+        matchRoundIndex: null,
+        updateFields: { is_best: isBest },
+        insertFields: {
           track_position: position,
           round_index: null,
           score: null,
           winner_side: null,
           is_best: isBest,
-        });
-        if (error) throw error;
-      }
+        },
+      });
       applyLocalVote(itemId, { trackPosition: position, roundIndex: null, isBest });
     },
     async saveMyAlbumVote(itemId, score) {
-      if (!supabase) throw new Error('Голосование работает только на проде с Supabase');
-      if (!user) throw new Error('Войди через Google чтобы голосовать');
-      if (!viewerConsentedAt) throw new Error('Подтверди условия чтобы голосовать');
-      const { data: existing, error: selectError } = await supabase
-        .from('viewer_votes')
-        .select('id')
-        .eq('viewer_id', user.id)
-        .eq('item_id', itemId)
-        .is('round_index', null)
-        .is('track_position', null)
-        .maybeSingle();
-      if (selectError) throw selectError;
-      if (existing) {
-        const { error } = await supabase.from('viewer_votes').update({ score }).eq('id', existing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('viewer_votes').insert({
-          viewer_id: user.id,
-          item_id: itemId,
+      await upsertViewerVote({
+        itemId,
+        matchTrackPosition: null,
+        matchRoundIndex: null,
+        updateFields: { score },
+        insertFields: {
           score,
           round_index: null,
           track_position: null,
           winner_side: null,
-        });
-        if (error) throw error;
-      }
+        },
+      });
       applyLocalVote(itemId, { trackPosition: null, roundIndex: null, score });
     },
     async saveMyTrackVote(itemId, position, score) {
-      if (!supabase) throw new Error('Голосование работает только на проде с Supabase');
-      if (!user) throw new Error('Войди через Google чтобы голосовать');
-      if (!viewerConsentedAt) throw new Error('Подтверди условия чтобы голосовать');
-      const { data: existing, error: selectError } = await supabase
-        .from('viewer_votes')
-        .select('id')
-        .eq('viewer_id', user.id)
-        .eq('item_id', itemId)
-        .is('round_index', null)
-        .eq('track_position', position)
-        .maybeSingle();
-      if (selectError) throw selectError;
-      if (existing) {
-        const { error } = await supabase.from('viewer_votes').update({ score }).eq('id', existing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('viewer_votes').insert({
-          viewer_id: user.id,
-          item_id: itemId,
+      await upsertViewerVote({
+        itemId,
+        matchTrackPosition: position,
+        matchRoundIndex: null,
+        updateFields: { score },
+        insertFields: {
           score,
           round_index: null,
           track_position: position,
           winner_side: null,
-        });
-        if (error) throw error;
-      }
+        },
+      });
       applyLocalVote(itemId, { trackPosition: position, roundIndex: null, score });
     },
     async saveMyBattleRoundVote(itemId, roundIndex, side) {
-      if (!supabase) throw new Error('Голосование работает только на проде с Supabase');
-      if (!user) throw new Error('Войди через Google чтобы голосовать');
-      if (!viewerConsentedAt) throw new Error('Подтверди условия чтобы голосовать');
-      const { data: existing, error: selectError } = await supabase
-        .from('viewer_votes')
-        .select('id')
-        .eq('viewer_id', user.id)
-        .eq('item_id', itemId)
-        .eq('round_index', roundIndex)
-        .is('track_position', null)
-        .maybeSingle();
-      if (selectError) throw selectError;
-      if (existing) {
-        const { error } = await supabase.from('viewer_votes').update({ winner_side: side }).eq('id', existing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('viewer_votes').insert({
-          viewer_id: user.id,
-          item_id: itemId,
+      await upsertViewerVote({
+        itemId,
+        matchTrackPosition: null,
+        matchRoundIndex: roundIndex,
+        updateFields: { winner_side: side },
+        insertFields: {
           round_index: roundIndex,
           track_position: null,
           score: null,
           winner_side: side,
-        });
-        if (error) throw error;
-      }
+        },
+      });
       applyLocalVote(itemId, { trackPosition: null, roundIndex, winner: side });
     },
     async saveMyBattleFinalVote(itemId, side) {
-      if (!supabase) throw new Error('Голосование работает только на проде с Supabase');
-      if (!user) throw new Error('Войди через Google чтобы голосовать');
-      if (!viewerConsentedAt) throw new Error('Подтверди условия чтобы голосовать');
-      const { data: existing, error: selectError } = await supabase
-        .from('viewer_votes')
-        .select('id')
-        .eq('viewer_id', user.id)
-        .eq('item_id', itemId)
-        .is('round_index', null)
-        .is('track_position', null)
-        .maybeSingle();
-      if (selectError) throw selectError;
-      if (existing) {
-        const { error } = await supabase.from('viewer_votes').update({ winner_side: side }).eq('id', existing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('viewer_votes').insert({
-          viewer_id: user.id,
-          item_id: itemId,
+      await upsertViewerVote({
+        itemId,
+        matchTrackPosition: null,
+        matchRoundIndex: null,
+        updateFields: { winner_side: side },
+        insertFields: {
           round_index: null,
           track_position: null,
           score: null,
           winner_side: side,
-        });
-        if (error) throw error;
-      }
+        },
+      });
       applyLocalVote(itemId, { trackPosition: null, roundIndex: null, winner: side });
     },
     async clearMyAlbumVote(itemId) {
