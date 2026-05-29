@@ -12,7 +12,7 @@
 
 - R1Fmabes было **удобно вести каталог** того что он оценивает (вставил ссылку — всё заполнилось само).
 - Зрителям было где **смотреть его оценки** в одном месте.
-- **В будущем:** зрители смогут голосовать сами — один аккаунт = один голос за трек или раунд баттла. Тогда на каждой карточке будет **две оценки**: стримера и зрителей.
+- Зрители могли **голосовать сами** — один Google-аккаунт = один голос за трек / альбом / итог баттла. На каждой карточке две оценки: R1Fmabes и средняя зрителей.
 
 Это **личный проект Кирилла**, отдельный от платформы Yvane. Здесь **Supabase Cloud** (`*.supabase.co`), а **не** self-hosted Postgres на VPS. Никита в этот репо не лазит.
 
@@ -30,7 +30,7 @@
 |---|---|
 | [src/main.tsx](src/main.tsx) | **Вся логика SPA**: типы, маршруты, страницы, редактор, импорт Яндекса, аукционы, голосование зрителей. ~5000 строк, монолит. |
 | [src/styles.css](src/styles.css) | Все стили. |
-| [vite.config.ts](vite.config.ts) | Vite-конфиг. Минимальный — только React-плагин и `base: '/'` (с момента переезда на кастомный домен). |
+| [vite.config.ts](vite.config.ts) | Vite-конфиг. React-плагин, `base: '/'`, `manualChunks` для разделения вендор-зависимостей (react/markdown/supabase/icons) — даёт хорошее кеширование на повторных заходах. |
 | [db/migrations/001_init.sql](db/migrations/001_init.sql) | Базовая схема: `rated_items`, `track_scores`, `media_links`, `admin_users`, RLS, `is_admin()`. |
 | [db/migrations/002_add_track_type.sql](db/migrations/002_add_track_type.sql) | Добавляет тип `track` и колонку `metadata jsonb`. |
 | [db/migrations/003_auction_items.sql](db/migrations/003_auction_items.sql) | Таблица очереди аукционов (`auction_items`) + RLS. |
