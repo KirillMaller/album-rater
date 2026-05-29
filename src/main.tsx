@@ -2374,8 +2374,11 @@ const AlbumVotePanel = forwardRef<AlbumVoteHandle, { item: RatedItem; votes: Ite
   draftRef.current = draftScore;
   const touchedRef = useRef(touched);
   touchedRef.current = touched;
+  const savedAlbumRef = useRef(votes.album);
+  savedAlbumRef.current = votes.album;
 
   const setTouched = (value: boolean) => {
+    touchedRef.current = value;
     setTouchedState(value);
     onTouchedChange?.(value);
   };
@@ -2392,9 +2395,14 @@ const AlbumVotePanel = forwardRef<AlbumVoteHandle, { item: RatedItem; votes: Ite
 
   useImperativeHandle(ref, () => ({
     saveIfTouched: async () => {
-      if (!touchedRef.current) return;
+      const score = draftRef.current;
+      const saved = savedAlbumRef.current;
+      const hasChange = touchedRef.current || (score > 0 && score !== saved);
+      if (!hasChange) return;
+      if (score <= 0) return;
       try {
-        await save(draftRef.current);
+        await save(score);
+        touchedRef.current = false;
         setTouchedState(false);
         onTouchedChange?.(false);
       } catch (err) {
@@ -2518,7 +2526,11 @@ const TrackVoteSlider = forwardRef<TrackSliderHandle, { item: RatedItem; positio
   touchedRef.current = touched;
   void item;
 
+  const savedTrackRef = useRef(currentScore);
+  savedTrackRef.current = currentScore;
+
   const setTouched = (value: boolean) => {
+    touchedRef.current = value;
     setTouchedState(value);
     onTouchedChange?.(position, value);
   };
@@ -2531,16 +2543,21 @@ const TrackVoteSlider = forwardRef<TrackSliderHandle, { item: RatedItem; positio
       setDraftScore(0);
       setDraftText('');
     }
+    touchedRef.current = false;
     setTouchedState(false);
     onTouchedChange?.(position, false);
   }, [currentScore]);
 
   useImperativeHandle(ref, () => ({
     saveIfTouched: async () => {
-      if (!touchedRef.current) return;
-      if (draftRef.current <= 0) return;
+      const score = draftRef.current;
+      const saved = savedTrackRef.current;
+      const hasChange = touchedRef.current || (score > 0 && score !== saved);
+      if (!hasChange) return;
+      if (score <= 0) return;
       try {
-        await saveTrack(draftRef.current);
+        await saveTrack(score);
+        touchedRef.current = false;
         setTouchedState(false);
         onTouchedChange?.(position, false);
       } catch (err) {
@@ -2630,22 +2647,31 @@ const BattleVoteBlock = forwardRef<BattleVoteHandle, {
   const touchedRef = useRef(touched);
   touchedRef.current = touched;
 
+  const savedSideRef = useRef(mySide);
+  savedSideRef.current = mySide;
+
   const setTouched = (value: boolean) => {
+    touchedRef.current = value;
     setTouchedState(value);
     onTouchedChange(voteKey, value);
   };
 
   useEffect(() => {
     setDraftSide(mySide);
+    touchedRef.current = false;
     setTouchedState(false);
     onTouchedChange(voteKey, false);
   }, [mySide]);
 
   useImperativeHandle(ref, () => ({
     saveIfTouched: async () => {
-      if (!touchedRef.current || draftRef.current == null) return;
+      const side = draftRef.current;
+      const saved = savedSideRef.current;
+      const hasChange = touchedRef.current || (side != null && side !== saved);
+      if (!hasChange || side == null) return;
       try {
-        await saveVote(draftRef.current);
+        await saveVote(side);
+        touchedRef.current = false;
         setTouchedState(false);
         onTouchedChange(voteKey, false);
       } catch (err) {
@@ -2738,7 +2764,7 @@ function ItemPage() {
   };
   const pendingCount = touchedTracks.size + touchedBattles.size + (albumTouched ? 1 : 0);
   const saveAll = async () => {
-    if (savingAll || pendingCount === 0) return;
+    if (savingAll) return;
     setSavingAll(true);
     setSaveAllError('');
     setSaveAllOk(false);
@@ -2752,9 +2778,10 @@ function ItemPage() {
     });
     try {
       const results = await Promise.allSettled(tasks);
-      const failed = results.filter((r) => r.status === 'rejected').length;
-      if (failed > 0) {
-        setSaveAllError(`Часть оценок не сохранилась (${failed}), попробуй ещё раз`);
+      const failed = results.filter((r) => r.status === 'rejected');
+      if (failed.length > 0) {
+        const firstMsg = failed[0].status === 'rejected' && failed[0].reason instanceof Error ? failed[0].reason.message : '';
+        setSaveAllError(`Не удалось сохранить (${failed.length}). ${firstMsg}`.trim());
       } else {
         setSaveAllOk(true);
         window.setTimeout(() => setSaveAllOk(false), 2500);
