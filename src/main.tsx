@@ -2810,13 +2810,15 @@ function ItemPage() {
       }
     };
     try {
+      // album и battle пишут в одну строку (item_id, track_position=null, round_index=null),
+      // делаем последовательно чтобы не словить unique violation между insert одной операции
+      // и insert другой.
       await runHandle(albumHandle.current);
-      for (const handle of trackHandles.current.values()) {
-        await runHandle(handle);
-      }
       for (const handle of battleHandles.current.values()) {
         await runHandle(handle);
       }
+      // Треки — каждый своя строка по track_position, можно параллельно для скорости.
+      await Promise.all([...trackHandles.current.values()].map((handle) => runHandle(handle)));
       const failed = results.filter((r) => !r.ok) as Array<{ ok: false; reason: unknown }>;
       if (failed.length > 0) {
         const firstMsg = failed[0].reason instanceof Error ? failed[0].reason.message : '';
