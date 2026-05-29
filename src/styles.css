@@ -1409,14 +1409,22 @@ input.vote-side-badge { padding: 0; text-align: center; display: inline-flex; li
 
 @media (max-width: 560px) {
   main, .home { width: min(100% - 20px, 1180px); padding-top: 16px; }
-  .topbar { align-items: flex-start; gap: 10px; flex-direction: column; }
-  nav { flex-wrap: wrap; }
+  .topbar { padding: 10px 14px; gap: 8px; }
+  .brand { font-size: 0; gap: 0; }
+  .brand .brand-mark { font-size: 13px; }
+  nav { gap: 10px; font-size: 13px; }
+  nav .nav-link { padding: 4px 6px; }
+  .auth-trigger, .auth-badge button { padding: 6px 10px !important; min-height: 32px; font-size: 13px; }
+  .ghost { min-height: 32px; padding: 6px 10px; font-size: 13px; }
   .hero, .detail-hero { min-height: auto; padding: 24px 0; }
   .grid { grid-template-columns: 1fr; }
   .featured-strip, .catalog-grid { grid-template-columns: 1fr; }
   .activity-nums { grid-template-columns: 1fr; display: grid; }
   .featured-card { min-height: 260px; }
-  .pillbar, .type-tabs { display: grid; grid-template-columns: 1fr; }
+  .pillbar, .type-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pillbar button, .type-tabs button { flex: 1 1 calc(50% - 4px); }
+  .home-tools { gap: 10px; }
+  .home-search { width: 100%; }
   .rail-item { grid-template-columns: 22px 38px minmax(0, 1fr); }
   .rail-score { grid-column: 3; justify-self: start; }
   .stat { justify-items: start; }
@@ -1430,7 +1438,35 @@ input.vote-side-badge { padding: 0; text-align: center; display: inline-flex; li
   .admin-head-actions a, .admin-head-actions .button { flex: 1; justify-content: center; }
   .catalog-tabs button, .type-tabs button { font-size: 12px; padding: 7px 12px; }
   .home, .auctions { padding: 0; }
-  .brand { font-size: 15px; }
+  /* Треклист — компактнее */
+  .track-title { font-size: 14px; }
+  .track-badge { min-width: 38px; height: 26px; font-size: 12px; padding: 0 6px; }
+  .track-scores { gap: 6px; }
+  .track-divider { height: 20px; }
+  .vote-input { width: 40px; min-width: 40px; height: 26px; font-size: 12px; padding: 0; }
+  .track-viewer .vote-input { width: 40px; min-width: 40px; }
+  .track-star-cell { width: 14px; }
+  .track-star-btn { width: 24px; height: 26px; }
+  .track-vote-cta { padding: 4px 6px; font-size: 10px; height: 26px; }
+  .track-locked-wide { min-width: 90px; padding: 4px 8px; font-size: 10px; margin-right: 14px; }
+  .tracklist-legend { font-size: 12px; gap: 6px; padding-right: 22px; }
+  .tracklist-legend > span:nth-child(1),
+  .tracklist-legend > span:nth-child(3),
+  .tracklist-legend > span:nth-child(5) { width: 38px; }
+  /* Hero страницы записи */
+  .detail-hero-scores { gap: 12px; flex-wrap: wrap; }
+  .vote-side-badge { width: 60px; min-width: 60px; height: 36px; font-size: 16px; }
+  input.vote-side-badge { line-height: 36px; }
+  /* Блок «Поставь оценку» — переносится свободнее */
+  .viewer-vote-bar { padding: 14px 16px; gap: 12px; }
+  .viewer-vote-title h2 { font-size: 18px; }
+  .vote-input-wrap { gap: 8px; }
+  .vote-input-wrap .vote-input { width: 60px; min-width: 60px; height: 36px; font-size: 16px; }
+  /* Карточки каталога: pair-badge мельче */
+  .score-pair-badge { min-width: 36px; height: 24px; font-size: 12px; padding: 0 6px; }
+  /* Концертная плашка победителя баттла */
+  .battle-winner-banner { font-size: 13px; padding: 10px 12px; }
+  .battle-winner-label, .battle-winner-name, .battle-winner-note { font-size: 13px; }
   .brand-mark { width: 24px; height: 24px; font-size: 12px; }
   .catalog-list-row-shell { grid-template-columns: 1fr; }
   .catalog-list-row { grid-template-columns: 48px minmax(0, 1fr) auto; min-height: 66px; }
