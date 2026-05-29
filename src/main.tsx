@@ -1266,7 +1266,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle();
       if (selectError) throw selectError;
       if (existing) {
-        const { error } = await supabase.from('viewer_votes').update({ score, winner_side: null }).eq('id', existing.id);
+        const { error } = await supabase.from('viewer_votes').update({ score }).eq('id', existing.id);
         if (error) throw error;
       } else {
         const { error } = await supabase.from('viewer_votes').insert({
@@ -1279,7 +1279,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
         });
         if (error) throw error;
       }
-      applyLocalVote(itemId, { trackPosition: null, roundIndex: null, score, winner: null });
+      applyLocalVote(itemId, { trackPosition: null, roundIndex: null, score });
     },
     async saveMyTrackVote(itemId, position, score) {
       if (!supabase) throw new Error('Голосование работает только на проде с Supabase');
@@ -1295,7 +1295,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle();
       if (selectError) throw selectError;
       if (existing) {
-        const { error } = await supabase.from('viewer_votes').update({ score, winner_side: null }).eq('id', existing.id);
+        const { error } = await supabase.from('viewer_votes').update({ score }).eq('id', existing.id);
         if (error) throw error;
       } else {
         const { error } = await supabase.from('viewer_votes').insert({
@@ -1308,7 +1308,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
         });
         if (error) throw error;
       }
-      applyLocalVote(itemId, { trackPosition: position, roundIndex: null, score, winner: null });
+      applyLocalVote(itemId, { trackPosition: position, roundIndex: null, score });
     },
     async saveMyBattleRoundVote(itemId, roundIndex, side) {
       if (!supabase) throw new Error('Голосование работает только на проде с Supabase');
@@ -1324,7 +1324,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle();
       if (selectError) throw selectError;
       if (existing) {
-        const { error } = await supabase.from('viewer_votes').update({ winner_side: side, score: null }).eq('id', existing.id);
+        const { error } = await supabase.from('viewer_votes').update({ winner_side: side }).eq('id', existing.id);
         if (error) throw error;
       } else {
         const { error } = await supabase.from('viewer_votes').insert({
@@ -1337,7 +1337,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
         });
         if (error) throw error;
       }
-      applyLocalVote(itemId, { trackPosition: null, roundIndex, score: null, winner: side });
+      applyLocalVote(itemId, { trackPosition: null, roundIndex, winner: side });
     },
     async saveMyBattleFinalVote(itemId, side) {
       if (!supabase) throw new Error('Голосование работает только на проде с Supabase');
@@ -1353,7 +1353,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle();
       if (selectError) throw selectError;
       if (existing) {
-        const { error } = await supabase.from('viewer_votes').update({ winner_side: side, score: null }).eq('id', existing.id);
+        const { error } = await supabase.from('viewer_votes').update({ winner_side: side }).eq('id', existing.id);
         if (error) throw error;
       } else {
         const { error } = await supabase.from('viewer_votes').insert({
@@ -1366,7 +1366,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
         });
         if (error) throw error;
       }
-      applyLocalVote(itemId, { trackPosition: null, roundIndex: null, score: null, winner: side });
+      applyLocalVote(itemId, { trackPosition: null, roundIndex: null, winner: side });
     },
     async clearMyAlbumVote(itemId) {
       if (!supabase || !user) return;
@@ -2799,19 +2799,27 @@ function ItemPage() {
     setSavingAll(true);
     setSaveAllError('');
     setSaveAllOk(false);
-    const tasks: Promise<void>[] = [];
-    if (albumHandle.current) tasks.push(albumHandle.current.saveIfTouched());
-    trackHandles.current.forEach((handle) => {
-      if (handle) tasks.push(handle.saveIfTouched());
-    });
-    battleHandles.current.forEach((handle) => {
-      if (handle) tasks.push(handle.saveIfTouched());
-    });
+    const results: Array<{ ok: true } | { ok: false; reason: unknown }> = [];
+    const runHandle = async (handle: { saveIfTouched: () => Promise<void> } | null | undefined) => {
+      if (!handle) return;
+      try {
+        await handle.saveIfTouched();
+        results.push({ ok: true });
+      } catch (reason) {
+        results.push({ ok: false, reason });
+      }
+    };
     try {
-      const results = await Promise.allSettled(tasks);
-      const failed = results.filter((r) => r.status === 'rejected');
+      await runHandle(albumHandle.current);
+      for (const handle of trackHandles.current.values()) {
+        await runHandle(handle);
+      }
+      for (const handle of battleHandles.current.values()) {
+        await runHandle(handle);
+      }
+      const failed = results.filter((r) => !r.ok) as Array<{ ok: false; reason: unknown }>;
       if (failed.length > 0) {
-        const firstMsg = failed[0].status === 'rejected' && failed[0].reason instanceof Error ? failed[0].reason.message : '';
+        const firstMsg = failed[0].reason instanceof Error ? failed[0].reason.message : '';
         setSaveAllError(`Не удалось сохранить (${failed.length}). ${firstMsg}`.trim());
       } else {
         setSaveAllOk(true);
