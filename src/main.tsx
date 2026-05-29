@@ -1243,7 +1243,8 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
         if (winner) {
           if (row.round_index == null) result.battleFinal = winner;
           else result.battleRounds.set(row.round_index, winner);
-          return;
+          // не возвращаемся: в той же строке может лежать и score (для баттла
+          // оценка цифрой и голос за победителя живут в одной строке БД)
         }
         if (row.score == null) return;
         const score = typeof row.score === 'number' ? row.score : Number(row.score);
