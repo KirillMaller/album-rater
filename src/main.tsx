@@ -1508,34 +1508,6 @@ function ScrollMemory() {
   return null;
 }
 
-const CONCERT_HIDE_AT_MS = Date.UTC(2026, 5, 7, 21, 0, 0);
-
-function ConcertTicker() {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 60_000);
-    return () => window.clearInterval(id);
-  }, []);
-  if (now >= CONCERT_HIDE_AT_MS) return null;
-  const message = '🔥 7 ИЮНЯ · МОСКВА · клуб Эклипс · R1FMABES, VERCH.FATE, LEV MOVALEV · от 900 ₽ → купить билет';
-  return (
-    <a
-      className="concert-ticker"
-      href="https://vk.cc/cYaCZ7"
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-label="Концерт 7 июня в Москве — купить билет"
-    >
-      <div className="concert-ticker-track">
-        <span className="concert-ticker-item">{message}</span>
-        <span className="concert-ticker-item" aria-hidden="true">{message}</span>
-        <span className="concert-ticker-item" aria-hidden="true">{message}</span>
-        <span className="concert-ticker-item" aria-hidden="true">{message}</span>
-      </div>
-    </a>
-  );
-}
-
 function ConsentModal() {
   const { user, viewerConsentedAt, viewerConsentLoaded, recordConsent } = useStore();
   const [saving, setSaving] = useState(false);
@@ -1615,7 +1587,6 @@ function Shell() {
           <AuthBadge />
         </nav>
       </header>
-      <ConcertTicker />
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/auctions" element={<AuctionsPage />} />
