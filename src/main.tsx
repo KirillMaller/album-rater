@@ -1657,7 +1657,6 @@ function HomePage() {
   const [catalogView, setCatalogView] = useState<CatalogView>(() => localStorage.getItem(catalogViewKey) === 'list' ? 'list' : 'cards');
   const [activeTournament, setActiveTournament] = useState<string>(cachedHomeFilters.activeTournament);
   const [activeSeason, setActiveSeason] = useState<string>(cachedHomeFilters.activeSeason);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   useEffect(() => localStorage.setItem(catalogViewKey, catalogView), [catalogView]);
   useEffect(() => {
     cachedHomeFilters = { query, activeType, sort, period, dateBasis, activeTournament, activeSeason };
@@ -1703,118 +1702,6 @@ function HomePage() {
     track: periodItems.filter((item) => item.type === 'track').length,
   };
 
-  const periodLabel = (value: HomePeriod) =>
-    value === 'all' ? 'За всё время'
-    : value === 'month' ? 'За месяц'
-    : value === 'week' ? 'За 7 дней'
-    : value === 'year' ? 'В этом году'
-    : 'За прошлый год';
-  const activeFiltersCount = (
-    (activeType !== 'all' ? 1 : 0) +
-    (sort !== 'new' ? 1 : 0) +
-    (period !== 'all' ? 1 : 0) +
-    (dateBasis !== 'reviewed' ? 1 : 0) +
-    (activeTournament ? 1 : 0) +
-    (activeSeason ? 1 : 0)
-  );
-  const resetFilters = () => {
-    setActiveType('all');
-    setSort('new');
-    setPeriod('all');
-    setDateBasis('reviewed');
-    setActiveTournament('');
-    setActiveSeason('');
-  };
-  const sidebar = (
-    <aside className="catalog-sidebar" aria-label="Фильтры каталога">
-      <div className="catalog-sidebar-head">
-        <span>Фильтры</span>
-        {activeFiltersCount > 0 && (
-          <button type="button" className="link-button" onClick={resetFilters}>Сбросить</button>
-        )}
-        <button type="button" className="link-button catalog-sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="Закрыть фильтры">×</button>
-      </div>
-
-      <div className="filter-group">
-        <h4>Тип записи</h4>
-        <div className="filter-options">
-          {homeTypeTabs.map((tab) => (
-            <button
-              key={tab.value}
-              type="button"
-              className={`filter-pill ${activeType === tab.value ? 'on' : ''}`}
-              onClick={() => { setActiveType(tab.value); setActiveTournament(''); setActiveSeason(''); }}
-            >
-              {tab.value !== 'all' && <ItemTypeIcon type={tab.value as ItemType} size={12} />}
-              <span>{tab.label}</span>
-              <span className="filter-pill-count">{counts[tab.value]}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="filter-group">
-        <h4>Сортировка</h4>
-        <div className="filter-options">
-          <button type="button" className={`filter-pill ${sort === 'new' ? 'on' : ''}`} onClick={() => setSort('new')}>Новые</button>
-          <button type="button" className={`filter-pill ${sort === 'best' ? 'on' : ''}`} onClick={() => setSort('best')}>Лучшие</button>
-          <button type="button" className={`filter-pill ${sort === 'worst' ? 'on' : ''}`} onClick={() => setSort('worst')}>Худшие</button>
-        </div>
-      </div>
-
-      <div className="filter-group">
-        <h4>Период</h4>
-        <select value={period} onChange={(event) => setPeriod(event.target.value as HomePeriod)} aria-label="Период">
-          <option value="all">{periodLabel('all')}</option>
-          <option value="month">{periodLabel('month')}</option>
-          <option value="week">{periodLabel('week')}</option>
-          <option value="year">{periodLabel('year')}</option>
-          <option value="last-year">{periodLabel('last-year')}</option>
-        </select>
-      </div>
-
-      <div className="filter-group">
-        <h4>Дата считается по</h4>
-        <div className="filter-options">
-          <button type="button" className={`filter-pill ${dateBasis === 'reviewed' ? 'on' : ''}`} onClick={() => setDateBasis('reviewed')}>Когда оценил</button>
-          <button type="button" className={`filter-pill ${dateBasis === 'released' ? 'on' : ''}`} onClick={() => setDateBasis('released')}>Когда вышел</button>
-        </div>
-      </div>
-
-      {activeType === 'battle' && battleTournaments.length > 0 && (
-        <div className="filter-group">
-          <h4>Площадка</h4>
-          <div className="filter-options">
-            <button type="button" className={`filter-pill ${activeTournament === '' ? 'on' : ''}`} onClick={() => { setActiveTournament(''); setActiveSeason(''); }}>
-              Все <span className="filter-pill-count">{typeFiltered.length}</span>
-            </button>
-            {battleTournaments.map((t) => (
-              <button key={t} type="button" className={`filter-pill ${activeTournament === t ? 'on' : ''}`} onClick={() => { setActiveTournament(t); setActiveSeason(''); }}>
-                {t} <span className="filter-pill-count">{typeFiltered.filter((item) => item.metadata?.battle?.tournament === t).length}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {activeType === 'battle' && activeTournament && battleSeasons.length > 0 && (
-        <div className="filter-group">
-          <h4>Сезон</h4>
-          <div className="filter-options">
-            <button type="button" className={`filter-pill ${activeSeason === '' ? 'on' : ''}`} onClick={() => setActiveSeason('')}>
-              Все <span className="filter-pill-count">{tournamentFiltered.length}</span>
-            </button>
-            {battleSeasons.map((s) => (
-              <button key={s} type="button" className={`filter-pill ${activeSeason === s ? 'on' : ''}`} onClick={() => setActiveSeason(s)}>
-                {s} <span className="filter-pill-count">{tournamentFiltered.filter((item) => item.metadata?.battle?.season === s).length}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </aside>
-  );
-
   return (
     <main className="home">
       <section className="home-intro">
@@ -1833,59 +1720,97 @@ function HomePage() {
         </section>
       )}
 
-      <div className={`catalog-layout ${sidebarOpen ? 'catalog-layout-sidebar-open' : ''}`}>
-        {sidebarOpen && <div className="catalog-sidebar-overlay" onClick={() => setSidebarOpen(false)} aria-hidden="true" />}
-        {sidebar}
+      <section className="home-search-row">
+        <label className="home-search"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Поиск по артисту, названию или жанру" /></label>
+      </section>
 
-        <div className="catalog-main">
-          <section className="catalog-toolbar">
-            <button type="button" className="catalog-filters-toggle" onClick={() => setSidebarOpen(true)} aria-label="Открыть фильтры">
-              <span>Фильтры</span>
-              {activeFiltersCount > 0 && <span className="filter-badge">{activeFiltersCount}</span>}
-            </button>
-            <label className="home-search"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Поиск по артисту, названию или жанру" /></label>
-            <div className="pillbar view-toggle" aria-label="Вид каталога">
-              <button className={catalogView === 'cards' ? 'on' : ''} onClick={() => setCatalogView('cards')} title="Карточки"><LayoutGrid size={16} /></button>
-              <button className={catalogView === 'list' ? 'on' : ''} onClick={() => setCatalogView('list')} title="Список"><List size={16} /></button>
-            </div>
-          </section>
-
-          {error && <div className="empty">Ошибка загрузки: {error}</div>}
-          {loading && !error && <HomeCatalogSkeleton />}
-
-          {!loading && !error && (
-            <section className="catalog-split">
-              <div>
-                {!visibleItems.length ? (
-                  <div className="empty">По этим фильтрам пока нет опубликованных записей.</div>
-                ) : catalogView === 'list' ? (
-                  <div className="catalog-list">
-                    {visibleItems.map((item) => <ItemListRow key={item.id} item={item} admin={admin} />)}
-                  </div>
-                ) : (
-                  <div className="catalog-grid">
-                    {visibleItems.map((item) => <ItemCard key={item.id} item={item} admin={admin} />)}
-                  </div>
-                )}
-              </div>
-              <aside className="home-rail">
-                <RailPanel title={`${topTitlePrefix} альбомы ${periodTitle}`} items={topAlbums} ranked empty="Альбомов в этот период нет." />
-                <RailPanel title={`${topTitlePrefix} баттлы ${periodTitle}`} items={topBattles} ranked empty="Баттлов в этот период нет." />
-                <RailPanel title={`${topTitlePrefix} треки ${periodTitle}`} items={topTracks} ranked empty="Треков в этот период нет." />
-              </aside>
-            </section>
-          )}
-
-          <section className="activity-strip">
-            <div className="activity-nums">
-              <div><strong>{weekItems.filter((item) => item.type === 'album').length}</strong><small>альбомов за неделю</small></div>
-              <div><strong>{weekItems.filter((item) => item.type === 'battle').length}</strong><small>баттлов за неделю</small></div>
-              <div><strong>{weekItems.filter((item) => item.type === 'track').length}</strong><small>треков за неделю</small></div>
-              <div><strong>{published.length}</strong><small>всего опубликовано</small></div>
-            </div>
-          </section>
+      <section className="home-tools">
+        <div className="pillbar" aria-label="Сортировка">
+          <button className={sort === 'new' ? 'on' : ''} onClick={() => setSort('new')}>Новые</button>
+          <button className={sort === 'best' ? 'on' : ''} onClick={() => setSort('best')}>Лучшие</button>
+          <button className={sort === 'worst' ? 'on' : ''} onClick={() => setSort('worst')}>Худшие</button>
         </div>
-      </div>
+        <div className="pillbar" aria-label="Какую дату учитывать">
+          <button className={dateBasis === 'reviewed' ? 'on' : ''} onClick={() => setDateBasis('reviewed')}>Оценённые</button>
+          <button className={dateBasis === 'released' ? 'on' : ''} onClick={() => setDateBasis('released')}>Вышедшие</button>
+        </div>
+        <div className="pillbar view-toggle" aria-label="Вид каталога">
+          <button className={catalogView === 'cards' ? 'on' : ''} onClick={() => setCatalogView('cards')} title="Карточки"><LayoutGrid size={16} /></button>
+          <button className={catalogView === 'list' ? 'on' : ''} onClick={() => setCatalogView('list')} title="Список"><List size={16} /></button>
+        </div>
+        <select value={period} onChange={(event) => setPeriod(event.target.value as HomePeriod)} aria-label="Период">
+          <option value="all">За всё время</option>
+          <option value="month">За месяц</option>
+          <option value="week">За 7 дней</option>
+          <option value="year">В этом году</option>
+          <option value="last-year">За прошлый год</option>
+        </select>
+      </section>
+
+      <section className="type-tabs" aria-label="Типы записей">
+        {homeTypeTabs.map((tab) => (
+          <button key={tab.value} className={activeType === tab.value ? 'on' : ''} onClick={() => { setActiveType(tab.value); setActiveTournament(''); setActiveSeason(''); }}>
+            {tab.value !== 'all' && <ItemTypeIcon type={tab.value as ItemType} size={12} />}
+            {tab.label} <span>{counts[tab.value]}</span>
+          </button>
+        ))}
+      </section>
+      {activeType === 'battle' && battleTournaments.length > 0 && (
+        <section className="type-tabs type-subtabs" aria-label="Площадка баттла">
+          <button className={activeTournament === '' ? 'on' : ''} onClick={() => { setActiveTournament(''); setActiveSeason(''); }}>Все площадки <span>{typeFiltered.length}</span></button>
+          {battleTournaments.map((t) => (
+            <button key={t} className={activeTournament === t ? 'on' : ''} onClick={() => { setActiveTournament(t); setActiveSeason(''); }}>
+              {t} <span>{typeFiltered.filter((item) => item.metadata?.battle?.tournament === t).length}</span>
+            </button>
+          ))}
+        </section>
+      )}
+      {activeType === 'battle' && activeTournament && battleSeasons.length > 0 && (
+        <section className="type-tabs type-subtabs" aria-label="Сезон">
+          <button className={activeSeason === '' ? 'on' : ''} onClick={() => setActiveSeason('')}>Все сезоны <span>{tournamentFiltered.length}</span></button>
+          {battleSeasons.map((s) => (
+            <button key={s} className={activeSeason === s ? 'on' : ''} onClick={() => setActiveSeason(s)}>
+              {s} <span>{tournamentFiltered.filter((item) => item.metadata?.battle?.season === s).length}</span>
+            </button>
+          ))}
+        </section>
+      )}
+
+      {error && <div className="empty">Ошибка загрузки: {error}</div>}
+
+      {loading && !error && <HomeCatalogSkeleton />}
+
+      {!loading && !error && (
+        <section className="catalog-split">
+          <div>
+            {!visibleItems.length ? (
+              <div className="empty">По этим фильтрам пока нет опубликованных записей.</div>
+            ) : catalogView === 'list' ? (
+              <div className="catalog-list">
+                {visibleItems.map((item) => <ItemListRow key={item.id} item={item} admin={admin} />)}
+              </div>
+            ) : (
+              <div className="catalog-grid">
+                {visibleItems.map((item) => <ItemCard key={item.id} item={item} admin={admin} />)}
+              </div>
+            )}
+          </div>
+          <aside className="home-rail">
+            <RailPanel title={`${topTitlePrefix} альбомы ${periodTitle}`} items={topAlbums} ranked empty="Альбомов в этот период нет." />
+            <RailPanel title={`${topTitlePrefix} баттлы ${periodTitle}`} items={topBattles} ranked empty="Баттлов в этот период нет." />
+            <RailPanel title={`${topTitlePrefix} треки ${periodTitle}`} items={topTracks} ranked empty="Треков в этот период нет." />
+          </aside>
+        </section>
+      )}
+
+      <section className="activity-strip">
+        <div className="activity-nums">
+          <div><strong>{weekItems.filter((item) => item.type === 'album').length}</strong><small>альбомов за неделю</small></div>
+          <div><strong>{weekItems.filter((item) => item.type === 'battle').length}</strong><small>баттлов за неделю</small></div>
+          <div><strong>{weekItems.filter((item) => item.type === 'track').length}</strong><small>треков за неделю</small></div>
+          <div><strong>{published.length}</strong><small>всего опубликовано</small></div>
+        </div>
+      </section>
     </main>
   );
 }

@@ -154,6 +154,15 @@ h2 { font-size: 24px; }
 
 .legal-panel { margin-top: 28px; }
 
+.home-search-row {
+  margin: 20px 0 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255,255,255,0.02);
+}
+.home-search-row .home-search { width: 100%; }
+
 .catalog-layout {
   display: block;
   margin-top: 18px;
