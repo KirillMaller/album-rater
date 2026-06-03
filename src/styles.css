@@ -714,8 +714,8 @@ nav .nav-soon { cursor: help; opacity: .85; }
 
 .home-tools {
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) auto auto auto 190px;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) auto minmax(140px, 1fr);
+  gap: 10px;
   margin-bottom: 12px;
 }
 .home-search {
@@ -730,14 +730,22 @@ nav .nav-soon { cursor: help; opacity: .85; }
 .home-search input { border: 0; background: transparent; }
 .pillbar {
   display: flex;
-  gap: 6px;
-  padding: 4px;
+  gap: 4px;
+  padding: 3px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: rgba(13, 17, 28, .72);
 }
+.home-tools .pillbar button:not(.view-toggle button) {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.home-tools .view-toggle button { flex: 0 0 auto; padding: 0 10px; }
+.home-tools select { min-height: 32px; padding: 4px 10px; font-size: 13px; }
 .pillbar button {
-  min-height: 34px;
+  min-height: 28px;
+  padding: 4px 10px;
+  font-size: 13px;
   border: 1px solid transparent;
   background: transparent;
   color: var(--muted);
