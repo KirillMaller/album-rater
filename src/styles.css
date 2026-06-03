@@ -1036,6 +1036,19 @@ nav .nav-soon { cursor: help; opacity: .85; }
 .battle-vote-option:disabled { cursor: not-allowed; opacity: 0.6; }
 .battle-vote-agg { font-size: 13px; color: rgba(255,255,255,0.75); }
 .battle-vote-agg b { color: var(--text); }
+
+/* Компактный вариант — под каждым раундом */
+.battle-vote-compact { gap: 6px; margin-top: 6px; padding-top: 6px; border-top: 1px dashed rgba(255,255,255,0.08); }
+.battle-vote-compact .battle-vote-options { gap: 6px; }
+.battle-vote-compact .battle-vote-option {
+  flex: 1 1 60px;
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.battle-vote-compact .battle-vote-agg { font-size: 11px; color: var(--muted); }
+.battle-vote-compact .battle-vote-agg b { color: var(--text); font-weight: 600; }
 .vote-input {
   box-sizing: border-box;
   min-width: 48px;

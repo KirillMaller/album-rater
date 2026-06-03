@@ -2614,9 +2614,10 @@ const BattleVoteBlock = forwardRef<BattleVoteHandle, {
   mySide: BattleSide | null;
   allVotes: AllVote[];
   roundIndex: number | null;
+  compact?: boolean;
   saveVote: (side: BattleSide) => Promise<void>;
   onTouchedChange: (key: string, touched: boolean) => void;
-}>(function BattleVoteBlock({ voteKey, sideALabel, sideBLabel, mySide, allVotes, roundIndex, saveVote, onTouchedChange }, ref) {
+}>(function BattleVoteBlock({ voteKey, sideALabel, sideBLabel, mySide, allVotes, roundIndex, compact, saveVote, onTouchedChange }, ref) {
   const { user, viewerConsentedAt, viewerConsentLoaded, signInWithGoogle } = useStore();
   const [draftSide, setDraftSide] = useState<BattleSide | null>(mySide);
   const [touched, setTouchedState] = useState(false);
@@ -2679,7 +2680,7 @@ const BattleVoteBlock = forwardRef<BattleVoteHandle, {
   );
 
   return (
-    <div className="battle-vote">
+    <div className={`battle-vote ${compact ? 'battle-vote-compact' : ''}`}>
       <div className="battle-vote-options">
         {renderOption('a', sideALabel)}
         {renderOption('draw', 'Ничья')}
@@ -2687,18 +2688,18 @@ const BattleVoteBlock = forwardRef<BattleVoteHandle, {
       </div>
       {agg ? (
         <div className="battle-vote-agg">
-          Зрители: <b>{sideALabel}</b> {Math.round((agg.counts.a / agg.total) * 100)}% ·
+          {compact ? 'Зрители: ' : 'Зрители: '}<b>{sideALabel}</b> {Math.round((agg.counts.a / agg.total) * 100)}% ·
           {' '}<b>ничья</b> {Math.round((agg.counts.draw / agg.total) * 100)}% ·
           {' '}<b>{sideBLabel}</b> {Math.round((agg.counts.b / agg.total) * 100)}%
-          {' '}<span className="muted">({agg.total} {agg.total === 1 ? 'голос' : agg.total < 5 ? 'голоса' : 'голосов'})</span>
+          {' '}<span className="muted">({agg.total})</span>
         </div>
       ) : (
-        <div className="battle-vote-agg muted">Голосов ещё нет</div>
+        !compact && <div className="battle-vote-agg muted">Голосов ещё нет</div>
       )}
-      {!user && (
+      {!user && !compact && (
         <button type="button" className="track-vote-cta" onClick={() => signInWithGoogle().catch(() => undefined)}>войти, чтобы голосовать</button>
       )}
-      {user && viewerConsentLoaded && !viewerConsentedAt && (
+      {user && viewerConsentLoaded && !viewerConsentedAt && !compact && (
         <button type="button" className="track-vote-cta" onClick={requestConsent}>принять условия</button>
       )}
       {error && <span className="track-vote-error">{error}</span>}
@@ -2842,14 +2843,34 @@ function ItemPage() {
             <>
               <h2>Раунды</h2>
               <BattleWinnerSummary battle={battle} />
-              {(battle?.rounds ?? []).map((round) => (
-                <div className="battle-round-view" key={round.id}>
-                  <b>Раунд {round.position}</b>
-                  <span>{battle?.sideA || 'A'}: {round.scoreA === '' || round.scoreA == null ? '-' : round.scoreA} · {battle?.sideB || 'B'}: {round.scoreB === '' || round.scoreB == null ? '-' : round.scoreB}</span>
-                  <span>Раунд за: {round.winner === 'a' ? battle?.sideA || 'A' : round.winner === 'b' ? battle?.sideB || 'B' : 'ничья / спорно'}</span>
-                  {round.comment && <p>{round.comment}</p>}
-                </div>
-              ))}
+              {(battle?.rounds ?? []).map((round) => {
+                const voteKey = `round:${round.position}`;
+                return (
+                  <div className="battle-round-view" key={round.id}>
+                    <b>Раунд {round.position}</b>
+                    <span>{battle?.sideA || 'A'}: {round.scoreA === '' || round.scoreA == null ? '-' : round.scoreA} · {battle?.sideB || 'B'}: {round.scoreB === '' || round.scoreB == null ? '-' : round.scoreB}</span>
+                    <span>Раунд за: {round.winner === 'a' ? battle?.sideA || 'A' : round.winner === 'b' ? battle?.sideB || 'B' : 'ничья / спорно'}</span>
+                    {round.comment && <p>{round.comment}</p>}
+                    {supabase && votes.state.loaded && (
+                      <BattleVoteBlock
+                        ref={(handle) => {
+                          if (handle) battleHandles.current.set(voteKey, handle);
+                          else battleHandles.current.delete(voteKey);
+                        }}
+                        voteKey={voteKey}
+                        sideALabel={battle?.sideA || 'A'}
+                        sideBLabel={battle?.sideB || 'B'}
+                        mySide={votes.state.battleRounds.get(round.position) ?? null}
+                        allVotes={votes.state.allVotes}
+                        roundIndex={round.position}
+                        compact
+                        saveVote={(side) => votes.saveBattleRound(round.position, side)}
+                        onTouchedChange={handleBattleTouched}
+                      />
+                    )}
+                  </div>
+                );
+              })}
               {!battle?.rounds?.length && <p className="muted">Раунды пока не добавлены.</p>}
               {supabase && votes.state.loaded && (
                 <div className="battle-vote-wrap">
