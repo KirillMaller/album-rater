@@ -220,6 +220,11 @@ h2 { font-size: 24px; }
   padding: 8px 10px;
   font-size: 14px;
 }
+.filter-group select option {
+  background: #10131c;
+  color: var(--text);
+  padding: 8px 10px;
+}
 .filter-options { display: flex; flex-wrap: wrap; gap: 6px; }
 .filter-pill {
   display: inline-flex;
