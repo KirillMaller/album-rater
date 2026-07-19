@@ -1716,6 +1716,7 @@ input.vote-side-badge { padding: 0; text-align: center; display: inline-flex; li
   margin-bottom: 14px;
 }
 .admin-auction-head h2 { margin: 0; font-size: 18px; }
+.admin-auction-head-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .admin-auction-list { display: grid; gap: 8px; }
 .admin-auction-row {
   display: grid;
@@ -1894,4 +1895,183 @@ input.vote-side-badge { padding: 0; text-align: center; display: inline-flex; li
 }
 .auth-menu-signout:hover {
   background: rgba(255, 77, 109, .12);
+}
+
+/* Модалка «Добавить сумму» */
+.add-amount-modal { display: grid; gap: 12px; }
+.add-amount-item-title { margin: 0; font-size: 15px; }
+.amount-quick-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.amount-quick-buttons button { min-height: 34px; padding: 6px 12px; font-size: 13px; }
+.add-amount-modal label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
+.amount-preview {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .03);
+  color: #c7cde0;
+  font-size: 13px;
+}
+.amount-preview b { color: var(--yellow); }
+
+/* Колесо аукциона */
+.wheel-page .admin-head { align-items: flex-start; }
+.wheel-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+.wheel-back-link:hover { color: var(--text); }
+
+.wheel-prep { display: grid; gap: 14px; margin-top: 18px; }
+.wheel-prep-list { display: grid; gap: 8px; }
+.wheel-prep-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 70px 120px;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #0d111c;
+}
+.wheel-prep-title { min-width: 0; }
+.wheel-chance {
+  text-align: right;
+  font-weight: 700;
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+}
+.wheel-prep-inactive { color: var(--muted); font-size: 13px; }
+.wheel-prep-inactive ul { margin: 6px 0 0; padding-left: 18px; }
+
+.wheel-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+  gap: 24px;
+  margin-top: 18px;
+  align-items: start;
+}
+.wheel-circle-col { display: grid; justify-items: center; gap: 16px; }
+.wheel-circle-wrap {
+  position: relative;
+  width: min(340px, 82vw);
+  aspect-ratio: 1;
+}
+.wheel-pointer {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 13px solid transparent;
+  border-right: 13px solid transparent;
+  border-top: 22px solid var(--yellow);
+  z-index: 5;
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, .5));
+}
+.wheel-circle {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, .5), inset 0 0 0 6px rgba(9, 11, 18, .6);
+}
+.wheel-svg { width: 100%; height: 100%; display: block; border-radius: 50%; }
+.wheel-sector { stroke: rgba(9, 11, 18, .8); stroke-width: 2; }
+.wheel-circle-outline { fill: none; stroke: var(--line); stroke-width: 3; }
+.wheel-sector-label {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.wheel-sector-label-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 92px;
+  margin-left: -46px;
+  margin-top: -16px;
+  pointer-events: auto;
+  text-align: center;
+}
+.wheel-sector-label-title {
+  display: block;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text);
+}
+.wheel-sector-label-amount {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--yellow);
+  font-family: ui-monospace, monospace;
+}
+.wheel-spin-btn { min-height: 46px; padding: 0 26px; font-size: 15px; }
+
+.wheel-participant-col { display: grid; gap: 12px; align-content: start; }
+.wheel-participant-col h2 { margin: 0; font-size: 18px; }
+.wheel-participant-list { display: grid; gap: 8px; }
+.wheel-participant-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 60px 110px;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #0d111c;
+}
+.wheel-participant-row.eliminated { opacity: .55; }
+.wheel-participant-row.winner {
+  border-color: rgba(255, 230, 0, .55);
+  background: rgba(255, 230, 0, .07);
+}
+.wheel-participant-main { min-width: 0; display: grid; gap: 3px; }
+.wheel-participant-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.wheel-participant-row.winner .wheel-participant-status { color: var(--yellow); font-weight: 700; }
+.wheel-rank { color: var(--muted); font-weight: 800; text-align: center; }
+
+.wheel-history { margin-top: 6px; display: grid; gap: 6px; }
+.wheel-history h3 { margin: 0 0 2px; font-size: 14px; color: var(--muted); }
+.wheel-history-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  padding: 6px 10px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  color: #c7cde0;
+}
+
+.wheel-finished { display: grid; gap: 16px; margin-top: 18px; }
+.wheel-winner-panel { text-align: center; display: grid; justify-items: center; gap: 6px; }
+.wheel-winner-icon { color: var(--yellow); }
+.wheel-winner-panel h2 { margin: 4px 0; }
+.wheel-winner-amount { font-size: 20px; margin: 0 0 12px; }
+
+@media (max-width: 860px) {
+  .wheel-layout { grid-template-columns: 1fr; }
+  .wheel-prep-row { grid-template-columns: minmax(0, 1fr) 90px; }
+  .wheel-prep-row .admin-auction-amount { grid-column: 2; text-align: right; }
 }
