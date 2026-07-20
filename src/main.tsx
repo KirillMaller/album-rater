@@ -4255,6 +4255,10 @@ function WheelCircle({
 const WHEEL_MECHANIC_HINT =
   'Колесо выбивает по одному. Чем больше собрано донатов — тем меньше сектор и тем безопаснее позиция. Кто останется последним — тот и победитель.';
 
+// Сколько результат завершённого розыгрыша висит у зрителей после окончания, прежде чем сам
+// пропасть (страница снова покажет «розыгрыша нет»). Админ может убрать раньше крестиком.
+const WHEEL_RESULT_TTL_MS = 24 * 60 * 60 * 1000; // 24 часа
+
 // Склонение слова «раунд» по русским правилам (1 раунд, 2 раунда, 5 раундов).
 function pluralRounds(n: number): string {
   const abs = Math.abs(n) % 100;
@@ -4309,6 +4313,8 @@ function WheelConfetti() {
 // колесо остановилось в то же самое время что и у админа, используется revealed_at + duration_ms
 // того раунда: зритель считает сколько времени уже прошло и доигрывает анимацию на остаток.
 function PublicWheelPage() {
+  const { admin } = useStore();
+  const [dismissing, setDismissing] = useState(false);
   const [session, setSession] = useState<WheelSession | null>(null);
   const [participants, setParticipants] = useState<WheelParticipant[]>([]);
   const [rounds, setRounds] = useState<WheelRound[]>([]);
@@ -4358,6 +4364,24 @@ function PublicWheelPage() {
         }
 
         const loadedSession = fromDbWheelSession(sessionRow);
+
+        // Завершённый розыгрыш висит у зрителей 24 часа после окончания, потом сам пропадает —
+        // страница снова показывает «розыгрыша нет». (Для суток расхождение часов клиент/сервер
+        // роли не играет.) Живой (locked) розыгрыш это не трогает.
+        if (loadedSession.status === 'finished' && loadedSession.finishedAt) {
+          const ageMs = Date.now() - new Date(loadedSession.finishedAt).getTime();
+          if (ageMs > WHEEL_RESULT_TTL_MS) {
+            setSession(null);
+            setParticipants([]);
+            setRounds([]);
+            setSectorOrder([]);
+            seenRoundIdRef.current = null;
+            firstLoadRef.current = true;
+            setLoadError('');
+            return;
+          }
+        }
+
         const [pRes, rRes] = await Promise.all([
           supabase.from('wheel_participants').select('*').eq('session_id', loadedSession.id),
           supabase.from('wheel_rounds').select('*').eq('session_id', loadedSession.id).order('reveal_order', { ascending: true }),
@@ -4493,6 +4517,28 @@ function PublicWheelPage() {
   const showWheel = session?.status === 'locked' || (session?.status === 'finished' && spinningAnim);
   const showWinner = session?.status === 'finished' && !spinningAnim;
 
+  // Админ может убрать результат завершённого розыгрыша сразу, не дожидаясь авто-скрытия через 24 ч:
+  // помечаем сессию 'cancelled' (тот же механизм, что «Отменить сессию» в админке), и она перестаёт
+  // попадать в зрительский запрос. Локально сразу чистим состояние для мгновенной реакции.
+  const handleDismissResult = async () => {
+    if (!supabase || !session || !admin) return;
+    setDismissing(true);
+    try {
+      const { error } = await supabase.from('wheel_sessions').update({ status: 'cancelled' }).eq('id', session.id);
+      if (error) throw error;
+      setSession(null);
+      setParticipants([]);
+      setRounds([]);
+      setSectorOrder([]);
+      seenRoundIdRef.current = null;
+      firstLoadRef.current = true;
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Не удалось убрать результат');
+    } finally {
+      setDismissing(false);
+    }
+  };
+
   return (
     <main className="wheel-public">
       <section className="admin-head">
@@ -4616,10 +4662,19 @@ function PublicWheelPage() {
         <section className="wheel-finished">
           <div className="panel wheel-winner-panel">
             <WheelConfetti />
+            {admin && (
+              <button
+                className="ghost icon-btn wheel-dismiss-btn"
+                title="Убрать результат со страницы (для зрителей)"
+                onClick={handleDismissResult}
+                disabled={dismissing}
+              ><X size={18} /></button>
+            )}
             <Trophy size={40} className="wheel-winner-icon" />
             <p className="eyebrow">Победитель розыгрыша</p>
             <h2>{winnerParticipant ? (winnerParticipant.artist ? `${winnerParticipant.artist} — ${winnerParticipant.title}` : winnerParticipant.title) : '—'}</h2>
             {winnerParticipant && <p className="admin-auction-amount wheel-winner-amount">{winnerParticipant.amount.toLocaleString('ru-RU')} ₽</p>}
+            {admin && <p className="muted wheel-dismiss-hint">Результат виден зрителям 24 часа, потом скроется сам. Крестик убирает его сразу.</p>}
           </div>
           <div className="panel">
             <h3>Итоги</h3>

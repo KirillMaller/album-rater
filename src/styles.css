@@ -2262,6 +2262,17 @@ input.vote-side-badge { padding: 0; text-align: center; display: inline-flex; li
 }
 .wheel-winner-panel h2 { margin: 4px 0; }
 .wheel-winner-amount { font-size: 20px; margin: 0 0 12px; }
+.wheel-finished .wheel-winner-panel .wheel-dismiss-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 3;
+  min-height: 32px;
+  width: 32px;
+  min-width: 32px;
+  padding: 0;
+}
+.wheel-dismiss-hint { font-size: 12px; margin: 4px 0 0; max-width: 340px; }
 
 .wheel-explainer {
   display: flex;
