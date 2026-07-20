@@ -37,6 +37,7 @@ import {
   List,
   Lock,
   LogOut,
+  Minus,
   Music,
   Plus,
   RefreshCw,
@@ -925,6 +926,7 @@ type Store = {
   loading: boolean;
   error?: string;
   admin: boolean;
+  authReady: boolean;
   user: User | null;
   viewerConsentedAt: string | null;
   viewerConsentLoaded: boolean;
@@ -1078,6 +1080,11 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string>();
   const [user, setUser] = useState<User | null>(null);
   const [admin, setAdminState] = useState(!supabase && localStorage.getItem(authKey) === '1');
+  // Пока supabase не ответил хотя бы раз (сессия валидна? admin_users подтверждает?) — authReady=false.
+  // AdminRoute должен ждать этого флага, а не редиректить на /admin/login по дефолтному admin=false
+  // сразу после перезагрузки страницы — иначе рабочая сессия каждый раз на долю секунды выглядит
+  // как «не залогинен».
+  const [authReady, setAuthReady] = useState(!supabase);
   const [auctions, setAuctions] = useState<AuctionItem[]>([]);
   const [auctionRules, setAuctionRules] = useState<AuctionRules | null>(null);
   const [auctionsLoading, setAuctionsLoading] = useState(Boolean(supabase));
@@ -1157,7 +1164,12 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    supabase.auth.getUser().then(({ data }) => setStableUser(data.user ?? null));
+    supabase.auth.getUser().then(({ data }) => {
+      setStableUser(data.user ?? null);
+      // Сессии нет вообще — проверка admin_users не понадобится, можно сразу считать что auth "готов".
+      // Если сессия есть — authReady выставится ниже, в эффекте на [user], после ответа checkAdmin.
+      if (!data.user) setAuthReady(true);
+    });
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
       setStableUser(session?.user ?? null);
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
@@ -1223,7 +1235,8 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
 
     checkAdmin(user.id)
       .then(setAdminState)
-      .catch(() => setAdminState(false));
+      .catch(() => setAdminState(false))
+      .finally(() => setAuthReady(true));
   }, [user]);
 
   useEffect(() => {
@@ -1328,6 +1341,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
     loading,
     error,
     admin,
+    authReady,
     user,
     setAdmin(value) {
       if (supabase) return;
@@ -1622,7 +1636,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
       if (error) throw error;
       await loadAuctions();
     },
-  }), [admin, error, items, loading, user, viewerConsentedAt, viewerConsentLoaded, viewerVotesByItem, auctions, auctionRules, auctionsLoading, auctionsError]);  // eslint-disable-line react-hooks/exhaustive-deps
+  }), [admin, authReady, error, items, loading, user, viewerConsentedAt, viewerConsentLoaded, viewerVotesByItem, auctions, auctionRules, auctionsLoading, auctionsError]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
@@ -3268,7 +3282,12 @@ function LoginPage() {
 }
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
-  return useStore().admin ? <>{children}</> : <Navigate to="/admin/login" replace />;
+  const { admin, authReady } = useStore();
+  // Пока supabase не подтвердил (не)авторизацию хотя бы раз — не редиректим. Иначе рабочая сессия
+  // после перезагрузки страницы на долю секунды выглядит как admin=false (дефолт состояния) и
+  // страница мгновенно перекидывает на /admin/login раньше, чем придёт настоящий ответ.
+  if (!authReady) return <main className="empty">Проверяем доступ...</main>;
+  return admin ? <>{children}</> : <Navigate to="/admin/login" replace />;
 }
 
 function AdminPage() {
@@ -3916,6 +3935,18 @@ function AddAmountModal({ item, onClose, onSubmit }: {
   );
 }
 
+// Перемешивает участников на самом колесе (Fisher–Yates) — секторы идут вразнобой, а не
+// сгруппированы по категории и не отсортированы по сумме. Список участников справа
+// сортируется и группируется отдельно, эта функция его не трогает.
+function shuffled<T>(items: T[]): T[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
 // Колесо аукциона — геометрия секторов. Угол 0° = верх (12 часов), растёт по часовой стрелке.
 function wheelPolarPoint(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = (angleDeg * Math.PI) / 180;
@@ -3953,11 +3984,13 @@ function WheelCircle({
   rotation,
   spinning,
   centerEmoji,
+  spinDurationSec,
 }: {
   sectors: WheelParticipant[];
   rotation: number;
   spinning: boolean;
   centerEmoji: string;
+  spinDurationSec: number;
 }) {
   const cx = 150;
   const cy = 150;
@@ -3971,7 +4004,7 @@ function WheelCircle({
       </div>
       <div
         className="wheel-circle"
-        style={{ transform: `rotate(${rotation}deg)`, transition: spinning ? 'transform 4.6s cubic-bezier(.15,.65,.2,1)' : 'none' }}
+        style={{ transform: `rotate(${rotation}deg)`, transition: spinning ? `transform ${spinDurationSec}s cubic-bezier(.15,.65,.2,1)` : 'none' }}
       >
         <svg viewBox="0 0 300 300" className="wheel-svg">
           {sectors.map((participant, index) => (
@@ -4005,7 +4038,9 @@ function WheelCircle({
 }
 
 function AdminWheelPage() {
-  const { auctions, user } = useStore();
+  const { auctions, user, addAuctionAmount } = useStore();
+  const [addingAmountFor, setAddingAmountFor] = useState<AuctionItem | null>(null);
+  const [lastEliminated, setLastEliminated] = useState<WheelParticipant | null>(null);
   const [searchParams] = useSearchParams();
   const sortCategories = (cats: AuctionCategory[]) =>
     [...cats].sort((a, b) => auctionCategoryOrder.indexOf(a) - auctionCategoryOrder.indexOf(b));
@@ -4039,6 +4074,7 @@ function AdminWheelPage() {
   const [spinning, setSpinning] = useState(false);
   const [spinError, setSpinError] = useState<string>('');
   const [wheelRotation, setWheelRotation] = useState(0);
+  const [spinDurationSec, setSpinDurationSec] = useState(5);
 
   const [resetBusy, setResetBusy] = useState(false);
 
@@ -4051,11 +4087,8 @@ function AdminWheelPage() {
     sessionIdRef.current = loadedSession?.id ?? null;
     setParticipants(loadedParticipants);
     setRounds(loadedRounds);
-    setSectorOrder(
-      loadedParticipants
-        .filter((p) => p.status === 'active')
-        .sort((a, b) => b.amount - a.amount)
-    );
+    setSectorOrder(shuffled(loadedParticipants.filter((p) => p.status === 'active')));
+    setLastEliminated(null);
   };
 
   const refreshState = async (mode: 'restore' | 'refetch', opts: { silent?: boolean } = {}) => {
@@ -4221,6 +4254,7 @@ function AdminWheelPage() {
         return;
       }
 
+      const eliminatedParticipant = sectorOrder[idx];
       const sectorCenter = wheelSectorRanges(sectorOrder)[idx].mid;
       const currentMod = ((wheelRotation % 360) + 360) % 360;
       const targetMod = ((-sectorCenter % 360) + 360) % 360;
@@ -4231,9 +4265,10 @@ function AdminWheelPage() {
 
       window.setTimeout(async () => {
         await refreshState('refetch', { silent: true });
+        setLastEliminated(eliminatedParticipant);
         spinningRef.current = false;
         setSpinning(false);
-      }, 4700);
+      }, spinDurationSec * 1000 + 100);
     } catch (err) {
       setSpinError(err instanceof Error ? err.message : 'Не удалось прокрутить колесо');
       spinningRef.current = false;
@@ -4368,6 +4403,7 @@ function AdminWheelPage() {
                       {items.map((item) => (
                         <div className="wheel-prep-row" key={item.id}>
                           <div className="wheel-prep-title">
+                            <button type="button" className="ghost icon-btn" title="Добавить сумму" onClick={() => setAddingAmountFor(item)}><Plus size={14} /></button>
                             {auctionCategoryHasArtist[item.category] && item.artist ? <><b>{item.artist}</b> — {item.title}</> : <b>{item.title}</b>}
                           </div>
                           <div className="wheel-chance">{chanceOf(item.amount, totalActiveAmount)}%</div>
@@ -4383,10 +4419,18 @@ function AdminWheelPage() {
 
           {inactiveAuctionItems.length > 0 && (
             <div className="wheel-prep-inactive">
-              <p className="muted">Не участвуют — сумма 0:</p>
-              <ul>
-                {inactiveAuctionItems.map((item) => <li key={item.id}>{item.title}</li>)}
-              </ul>
+              <p className="muted">Не участвуют — сумма 0. Можно докинуть сумму, чтобы позиция попала в розыгрыш:</p>
+              <div className="wheel-prep-list">
+                {inactiveAuctionItems.map((item) => (
+                  <div className="wheel-prep-row wheel-prep-row-inactive" key={item.id}>
+                    <div className="wheel-prep-title">
+                      <button type="button" className="ghost icon-btn" title="Добавить сумму" onClick={() => setAddingAmountFor(item)}><Plus size={14} /></button>
+                      {auctionCategoryHasArtist[item.category] && item.artist ? <><b>{item.artist}</b> — {item.title}</> : <b>{item.title}</b>}
+                    </div>
+                    <div className="admin-auction-amount">{item.amount.toLocaleString('ru-RU')} ₽</div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -4414,6 +4458,7 @@ function AdminWheelPage() {
               rotation={wheelRotation}
               spinning={spinning}
               centerEmoji={(session?.settings?.centerEmoji as string) || wheelCenterEmojiOptions[0]}
+              spinDurationSec={spinDurationSec}
             />
             <button
               className="wheel-spin-btn"
@@ -4422,29 +4467,84 @@ function AdminWheelPage() {
             >
               {spinning ? 'Крутится…' : <><RotateCw size={18} /> Крутить</>}
             </button>
+            <div className="wheel-duration-control">
+              <span className="muted">Длительность вращения</span>
+              <div className="wheel-duration-buttons">
+                <button
+                  type="button"
+                  className="ghost icon-btn"
+                  onClick={() => setSpinDurationSec((s) => Math.max(2, s - 1))}
+                  disabled={spinDurationSec <= 2}
+                ><Minus size={14} /></button>
+                <span className="wheel-duration-value">{spinDurationSec} сек</span>
+                <button
+                  type="button"
+                  className="ghost icon-btn"
+                  onClick={() => setSpinDurationSec((s) => Math.min(30, s + 1))}
+                  disabled={spinDurationSec >= 30}
+                ><Plus size={14} /></button>
+              </div>
+            </div>
             {spinError && <p className="form-error">{spinError}</p>}
             {!spinning && sectorOrder.length === 1 && (
               <p className="muted">Победитель определён — нажмите «Обновить», если экран не обновился сам.</p>
             )}
+            {!spinning && lastEliminated && (
+              <div className="wheel-last-eliminated">
+                <span className="wheel-last-eliminated-label">Выбывает</span>
+                <strong>{lastEliminated.artist ? `${lastEliminated.artist} — ${lastEliminated.title}` : lastEliminated.title}</strong>
+                <span className="wheel-last-eliminated-amount">{lastEliminated.amount.toLocaleString('ru-RU')} ₽</span>
+              </div>
+            )}
           </div>
           <div className="wheel-participant-col">
             <h2>Участники</h2>
-            <div className="wheel-participant-list">
-              {rankedParticipants.map((p) => (
-                <div className={`wheel-participant-row${p.status === 'winner' ? ' winner' : ''}${p.status === 'eliminated' ? ' eliminated' : ''}`} key={p.id}>
-                  <div className="wheel-participant-main">
-                    <strong>{(session?.categories.length ?? 0) > 1 && p.category && <AuctionCategoryIcon category={p.category} size={13} />} {p.artist ? `${p.artist} — ${p.title}` : p.title}</strong>
-                    <span className="wheel-participant-status">
-                      {p.status === 'winner' && <><Trophy size={14} /> Победитель</>}
-                      {p.status === 'eliminated' && `Выбыл на раунде ${p.eliminatedAtRound}`}
-                      {p.status === 'active' && 'В игре'}
-                    </span>
+            {(session?.categories.length ?? 0) > 1 ? (
+              <div className="wheel-prep-groups">
+                {session!.categories.map((cat) => {
+                  const group = rankedParticipants.filter((p) => p.category === cat);
+                  if (group.length === 0) return null;
+                  return (
+                    <div className="wheel-prep-group" key={cat}>
+                      <h3 className="wheel-prep-group-title"><AuctionCategoryIcon category={cat} size={13} /> {auctionCategoryLabel[cat]}</h3>
+                      <div className="wheel-participant-list">
+                        {group.map((p) => (
+                          <div className={`wheel-participant-row${p.status === 'winner' ? ' winner' : ''}${p.status === 'eliminated' ? ' eliminated' : ''}`} key={p.id}>
+                            <div className="wheel-participant-main">
+                              <strong>{p.artist ? `${p.artist} — ${p.title}` : p.title}</strong>
+                              <span className="wheel-participant-status">
+                                {p.status === 'winner' && <><Trophy size={14} /> Победитель</>}
+                                {p.status === 'eliminated' && `Выбыл на раунде ${p.eliminatedAtRound}`}
+                                {p.status === 'active' && 'В игре'}
+                              </span>
+                            </div>
+                            <div className="wheel-chance">{p.status === 'active' ? `${eliminationChanceOf(p.amount)}% вылет` : '—'}</div>
+                            <div className="admin-auction-amount">{p.amount.toLocaleString('ru-RU')} ₽</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="wheel-participant-list">
+                {rankedParticipants.map((p) => (
+                  <div className={`wheel-participant-row${p.status === 'winner' ? ' winner' : ''}${p.status === 'eliminated' ? ' eliminated' : ''}`} key={p.id}>
+                    <div className="wheel-participant-main">
+                      <strong>{p.artist ? `${p.artist} — ${p.title}` : p.title}</strong>
+                      <span className="wheel-participant-status">
+                        {p.status === 'winner' && <><Trophy size={14} /> Победитель</>}
+                        {p.status === 'eliminated' && `Выбыл на раунде ${p.eliminatedAtRound}`}
+                        {p.status === 'active' && 'В игре'}
+                      </span>
+                    </div>
+                    <div className="wheel-chance">{p.status === 'active' ? `${eliminationChanceOf(p.amount)}% вылет` : '—'}</div>
+                    <div className="admin-auction-amount">{p.amount.toLocaleString('ru-RU')} ₽</div>
                   </div>
-                  <div className="wheel-chance">{p.status === 'active' ? `${eliminationChanceOf(p.amount)}% вылет` : '—'}</div>
-                  <div className="admin-auction-amount">{p.amount.toLocaleString('ru-RU')} ₽</div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
 
             {revealedRounds.length > 0 && (
               <div className="wheel-history">
@@ -4492,6 +4592,17 @@ function AdminWheelPage() {
             </div>
           </div>
         </section>
+      )}
+
+      {addingAmountFor && (
+        <AddAmountModal
+          item={addingAmountFor}
+          onClose={() => setAddingAmountFor(null)}
+          onSubmit={async (delta) => {
+            await addAuctionAmount(addingAmountFor.id, delta);
+            setAddingAmountFor(null);
+          }}
+        />
       )}
     </main>
   );
