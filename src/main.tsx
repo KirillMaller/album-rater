@@ -4517,15 +4517,26 @@ function PublicWheelPage() {
   const showWheel = session?.status === 'locked' || (session?.status === 'finished' && spinningAnim);
   const showWinner = session?.status === 'finished' && !spinningAnim;
 
-  // Админ может убрать результат завершённого розыгрыша сразу, не дожидаясь авто-скрытия через 24 ч:
-  // помечаем сессию 'cancelled' (тот же механизм, что «Отменить сессию» в админке), и она перестаёт
-  // попадать в зрительский запрос. Локально сразу чистим состояние для мгновенной реакции.
+  // Админ может убрать результат завершённого розыгрыша сразу, не дожидаясь авто-скрытия через 24 ч.
+  // Помечаем 'cancelled' ВСЕ завершённые сессии (а не только текущую) — иначе после отмены одной
+  // опрос подтянул бы следующий оставшийся результат, и казалось бы, что «вернулось». Это серверное
+  // изменение в базе, поэтому результат пропадает у ВСЕХ зрителей, а не только локально. Живые
+  // (locked) розыгрыши не трогаем. .select() — чтобы убедиться, что база реально применила апдейт
+  // (если прав нет, вернётся 0 строк — тогда честно показываем ошибку, а не молча «удаляем» локально).
   const handleDismissResult = async () => {
-    if (!supabase || !session || !admin) return;
+    if (!supabase || !admin) return;
     setDismissing(true);
     try {
-      const { error } = await supabase.from('wheel_sessions').update({ status: 'cancelled' }).eq('id', session.id);
+      const { data, error } = await supabase
+        .from('wheel_sessions')
+        .update({ status: 'cancelled' })
+        .eq('status', 'finished')
+        .select('id');
       if (error) throw error;
+      if (!data || data.length === 0) {
+        setLoadError('Не удалось убрать результат — база не приняла изменение (проверьте, что вы вошли как админ).');
+        return;
+      }
       setSession(null);
       setParticipants([]);
       setRounds([]);
