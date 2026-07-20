@@ -20,7 +20,6 @@ import {
   useLocation,
   useNavigate,
   useParams,
-  useSearchParams,
 } from 'react-router-dom';
 import {
   ArrowDown,
@@ -32,6 +31,7 @@ import {
   ExternalLink,
   Gamepad2,
   Headphones,
+  Info,
   Library,
   LayoutGrid,
   List,
@@ -1808,26 +1808,53 @@ function ConsentModal() {
   );
 }
 
+// Идёт ли прямо сейчас живой розыгрыш колеса. Нужно шапке, чтобы зажигать метку «в эфире» на
+// кнопке «Колесо» — зритель на любой странице сразу видит, что Рифмабес запустил, и заходит одним
+// кликом. Лёгкий опрос раз в 8 сек (один запрос limit 1), в демо-режиме без Supabase просто выключен.
+function useLiveWheel(): boolean {
+  const [isLive, setIsLive] = useState(false);
+  useEffect(() => {
+    if (!supabase) return;
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const { data, error } = await supabase.from('wheel_sessions').select('id').eq('status', 'locked').limit(1);
+        if (!cancelled && !error) setIsLive((data?.length ?? 0) > 0);
+      } catch {
+        /* сеть моргнула — тихо игнорируем, повторим на следующем тике */
+      }
+    };
+    check();
+    const interval = window.setInterval(check, 8000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, []);
+  return isLive;
+}
+
 function Shell() {
   const { admin } = useStore();
-  const location = useLocation();
-  // Полноэкранный режим колеса для захвата в OBS — без шапки/футера сайта, чистая картинка.
-  const isFullscreenWheel = location.pathname === '/auctions/wheel' && new URLSearchParams(location.search).get('fullscreen') === '1';
+  const wheelLive = useLiveWheel();
   return (
     <>
       <ConsentModal />
-      {!isFullscreenWheel && (
-        <header className="topbar">
-          <Link to="/" className="brand"><span className="brand-mark">R1</span> R1Fрейтинг</Link>
-          <nav>
-            <Link to="/" className="nav-link">Каталог</Link>
-            <Link to="/auctions" className="nav-link">Аукционы</Link>
-            <Link to="/auctions/rules" className="nav-link">Правила</Link>
-            {admin && <Link to="/admin" className="nav-link">Админка</Link>}
-            <AuthBadge />
-          </nav>
-        </header>
-      )}
+      <header className="topbar">
+        <Link to="/" className="brand"><span className="brand-mark">R1</span> R1Fрейтинг</Link>
+        <nav>
+          <Link to="/" className="nav-link">Каталог</Link>
+          <Link to="/auctions" className="nav-link">Аукционы</Link>
+          <Link to="/auctions/wheel" className={`nav-link nav-wheel${wheelLive ? ' live' : ''}`}>
+            {wheelLive && <span className="live-dot" aria-hidden="true" />}
+            Колесо
+            {wheelLive && <span className="live-label">в эфире</span>}
+          </Link>
+          <Link to="/auctions/rules" className="nav-link">Правила</Link>
+          {admin && <Link to="/admin" className="nav-link">Админка</Link>}
+          <AuthBadge />
+        </nav>
+      </header>
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/auctions" element={<AuctionsPage />} />
@@ -1844,15 +1871,13 @@ function Shell() {
         <Route path="/admin/new/:type" element={<AdminRoute><EditorPage /></AdminRoute>} />
         <Route path="/admin/edit/:id" element={<AdminRoute><EditorPage /></AdminRoute>} />
       </Routes>
-      {!isFullscreenWheel && (
-        <footer className="site-footer">
-          <span className="footer-age">16+</span>
-          <span className="footer-sep">·</span>
-          <Link to="/privacy" className="footer-link">Политика конфиденциальности</Link>
-          <span className="footer-sep">·</span>
-          <Link to="/terms" className="footer-link">Условия использования</Link>
-        </footer>
-      )}
+      <footer className="site-footer">
+        <span className="footer-age">16+</span>
+        <span className="footer-sep">·</span>
+        <Link to="/privacy" className="footer-link">Политика конфиденциальности</Link>
+        <span className="footer-sep">·</span>
+        <Link to="/terms" className="footer-link">Условия использования</Link>
+      </footer>
     </>
   );
 }
@@ -4225,6 +4250,58 @@ function WheelCircle({
   );
 }
 
+// Короткое пояснение механики выбывания — колесо не «выбирает победителя стрелкой», а выбивает
+// по одному. Без этой подписи обычный зритель путается: стрелка указывает на ВЫЛЕТЕВШЕГО.
+const WHEEL_MECHANIC_HINT =
+  'Колесо выбивает по одному. Чем больше собрано донатов — тем меньше сектор и тем безопаснее позиция. Кто останется последним — тот и победитель.';
+
+// Склонение слова «раунд» по русским правилам (1 раунд, 2 раунда, 5 раундов).
+function pluralRounds(n: number): string {
+  const abs = Math.abs(n) % 100;
+  const last = abs % 10;
+  if (abs > 10 && abs < 20) return 'раундов';
+  if (last === 1) return 'раунд';
+  if (last >= 2 && last <= 4) return 'раунда';
+  return 'раундов';
+}
+
+// Праздничное конфетти на экране победителя. Чистый CSS/JSX, без внешних библиотек. Уважает
+// prefers-reduced-motion (в CSS просто прячется). Порядок/цвета фиксируются один раз через useMemo,
+// чтобы не пересоздавались на каждый ре-рендер поллинга.
+function WheelConfetti() {
+  const pieces = useMemo(
+    () =>
+      Array.from({ length: 46 }, (_, i) => ({
+        id: i,
+        left: Math.random() * 100,
+        delay: Math.random() * 0.8,
+        duration: 2.6 + Math.random() * 2,
+        color: ['#00e5ff', '#9146ff', '#ffe600', '#ff4d6d', '#39d98a'][i % 5],
+        drift: (Math.random() * 2 - 1) * 70,
+        rot: (Math.random() * 4 - 2) * 360,
+      })),
+    []
+  );
+  return (
+    <div className="wheel-confetti" aria-hidden="true">
+      {pieces.map((p) => (
+        <span
+          key={p.id}
+          className="wheel-confetti-piece"
+          style={{
+            left: `${p.left}%`,
+            background: p.color,
+            animationDelay: `${p.delay}s`,
+            animationDuration: `${p.duration}s`,
+            ['--drift' as string]: `${p.drift}px`,
+            ['--rot' as string]: `${p.rot}deg`,
+          } as React.CSSProperties}
+        />
+      ))}
+    </div>
+  );
+}
+
 // Публичная зрительская страница колеса — только смотреть, ничего нажать нельзя (ни на клиенте,
 // ни на сервере: RLS отдаёт select всем, но insert/update/RPC — только is_admin()). Живых
 // обновлений через Supabase Realtime нет (сознательное решение, см. docs/wheel-auction/PLAN.md) —
@@ -4232,9 +4309,6 @@ function WheelCircle({
 // колесо остановилось в то же самое время что и у админа, используется revealed_at + duration_ms
 // того раунда: зритель считает сколько времени уже прошло и доигрывает анимацию на остаток.
 function PublicWheelPage() {
-  const [searchParams] = useSearchParams();
-  const fullscreen = searchParams.get('fullscreen') === '1';
-
   const [session, setSession] = useState<WheelSession | null>(null);
   const [participants, setParticipants] = useState<WheelParticipant[]>([]);
   const [rounds, setRounds] = useState<WheelRound[]>([]);
@@ -4302,6 +4376,11 @@ function PublicWheelPage() {
         const latestRound = [...loadedRounds].sort((a, b) => b.revealOrder - a.revealOrder)[0];
 
         if (!latestRound) {
+          // Первый снимок сделан (сессия есть, но «Крутить» ещё не нажимали) — снимаем флаг «первой
+          // загрузки», чтобы САМЫЙ ПЕРВЫЙ спин, который зритель застанет вживую, тоже анимировался,
+          // а не показался резко готовым результатом. Без этого зритель, открывший страницу до
+          // первого спина, видел мгновенный итог (баг, найденный на тесте с 5-сек прокруткой).
+          firstLoadRef.current = false;
           seenRoundIdRef.current = null;
           setSectorOrder(stableWheelOrder(loadedParticipants.filter((p) => p.status === 'active')));
           return;
@@ -4319,21 +4398,32 @@ function PublicWheelPage() {
         seenRoundIdRef.current = latestRound.id;
 
         const eliminatedP = loadedParticipants.find((p) => p.id === latestRound.participantId) ?? null;
-        const preRoundActive = loadedParticipants.filter((p) => p.status === 'active' || p.id === latestRound.participantId);
+        // Восстанавливаем состав колеса «как было перед этим спином»: все ещё активные + тот, кто
+        // выбывает в этом раунде. На ПОСЛЕДНЕМ спине сервер уже пометил победителя как 'winner'
+        // (не 'active'), поэтому его тоже возвращаем на колесо — иначе финальное вращение осталось бы
+        // с одним сектором. На обычных раундах 'winner' ещё нет, так что это влияет только на финал.
+        const preRoundActive = loadedParticipants.filter(
+          (p) => p.status === 'active' || p.status === 'winner' || p.id === latestRound.participantId
+        );
         const order = stableWheelOrder(preRoundActive);
         const idx = order.findIndex((p) => p.id === latestRound.participantId);
 
-        const durationMs = latestRound.durationMs ?? 5000;
-        const elapsed = latestRound.revealedAt ? Date.now() - new Date(latestRound.revealedAt).getTime() : durationMs;
-        const remaining = durationMs - elapsed;
-
-        if (isFirstLoad || idx === -1 || !eliminatedP || remaining <= 200) {
-          // первая загрузка страницы, или опоздали к анимации (вкладка была свёрнута и т.п.) —
-          // просто показываем текущий итог без прокрутки, а не гоняем анимацию задним числом
+        if (isFirstLoad || idx === -1 || !eliminatedP) {
+          // первая загрузка страницы (зашли уже во время/после вращения) или не нашли сектор —
+          // показываем текущий итог без прокрутки, а не гоняем анимацию задним числом
           setSectorOrder(stableWheelOrder(loadedParticipants.filter((p) => p.status === 'active')));
           setLastEliminated(eliminatedP);
           return;
         }
+
+        // Зритель активно смотрит, и появился новый раунд — крутим. Целимся закончить примерно тогда
+        // же, что и админ (revealed_at + duration_ms), доигрывая остаток. Но часы клиента и сервера
+        // могут расходиться, поэтому НЕ доверяем разнице слепо: гарантируем зрителю видимую прокрутку
+        // (минимум ~2 сек) и не дольше полной длительности. Это лечит «резко показал итог».
+        const durationMs = latestRound.durationMs ?? 5000;
+        const elapsedRaw = latestRound.revealedAt ? Date.now() - new Date(latestRound.revealedAt).getTime() : 0;
+        const minSpinMs = Math.min(durationMs, 2000);
+        const remaining = Math.min(durationMs, Math.max(durationMs - elapsedRaw, minSpinMs));
 
         const ranges = wheelSectorRanges(order);
         const sectorCenter = ranges[idx].mid;
@@ -4393,26 +4483,33 @@ function PublicWheelPage() {
   });
   const winnerParticipant = participants.find((p) => p.status === 'winner');
   const multiCategory = (session?.categories.length ?? 0) > 1;
+  const activeCount = participants.filter((p) => p.status === 'active').length;
+  const totalCount = participants.length;
+  // На последнем (решающем) спине сервер сразу помечает сессию finished. Но у зрителя в этот момент
+  // ещё доигрывается анимация вращения — нельзя показывать экран победителя раньше, чем колесо
+  // докрутится, иначе зритель видит итог до того, как крутящий (Рифмабес) его увидит. Поэтому пока
+  // идёт анимация (spinningAnim) — показываем колесо, даже если статус уже finished; экран
+  // победителя — только после остановки.
+  const showWheel = session?.status === 'locked' || (session?.status === 'finished' && spinningAnim);
+  const showWinner = session?.status === 'finished' && !spinningAnim;
 
   return (
-    <main className={`wheel-public${fullscreen ? ' wheel-fullscreen' : ''}`}>
-      {!fullscreen && (
-        <section className="admin-head">
-          <div>
-            <p className="eyebrow">Прямой эфир</p>
-            <h1 className="wheel-title">
-              Колесо
-              {session && (
-                <span className="wheel-title-categories">
-                  {session.categories.map((c) => (
-                    <span className="wheel-title-category" key={c}><AuctionCategoryIcon category={c} size={16} /> {auctionCategoryLabel[c]}</span>
-                  ))}
-                </span>
-              )}
-            </h1>
-          </div>
-        </section>
-      )}
+    <main className="wheel-public">
+      <section className="admin-head">
+        <div>
+          <p className="eyebrow">Прямой эфир</p>
+          <h1 className="wheel-title">
+            Колесо
+            {session && (
+              <span className="wheel-title-categories">
+                {session.categories.map((c) => (
+                  <span className="wheel-title-category" key={c}><AuctionCategoryIcon category={c} size={16} /> {auctionCategoryLabel[c]}</span>
+                ))}
+              </span>
+            )}
+          </h1>
+        </div>
+      </section>
 
       {loading && <div className="empty">Загружаем колесо...</div>}
       {!loading && loadError && <div className="empty">Ошибка: {loadError}</div>}
@@ -4423,9 +4520,10 @@ function PublicWheelPage() {
         </section>
       )}
 
-      {!loading && !loadError && session?.status === 'locked' && (
+      {!loading && !loadError && showWheel && (
         <section className="wheel-layout">
           <div className="wheel-circle-col">
+            <div className="wheel-explainer"><Info size={15} /><span>{WHEEL_MECHANIC_HINT}</span></div>
             <WheelCircle
               sectors={sectorOrder}
               rotation={wheelRotation}
@@ -4433,12 +4531,17 @@ function PublicWheelPage() {
               centerEmoji={(session?.settings?.centerEmoji as string) || wheelCenterEmojiOptions[0]}
               spinDurationSec={animDurationSec}
             />
-            {!spinningAnim && lastEliminated && (
+            {spinningAnim ? (
+              <div className="wheel-spin-status"><RotateCw size={16} className="wheel-spin-status-icon" /> Идёт розыгрыш…</div>
+            ) : lastEliminated ? (
               <div className="wheel-last-eliminated">
                 <span className="wheel-last-eliminated-label">Выбывает</span>
                 <strong>{lastEliminated.artist ? `${lastEliminated.artist} — ${lastEliminated.title}` : lastEliminated.title}</strong>
                 <span className="wheel-last-eliminated-amount">{lastEliminated.amount.toLocaleString('ru-RU')} ₽</span>
               </div>
+            ) : null}
+            {activeCount > 1 && (
+              <div className="wheel-progress">В игре ещё <b>{activeCount}</b> из {totalCount} · до победителя {activeCount - 1} {pluralRounds(activeCount - 1)}</div>
             )}
           </div>
           <div className="wheel-participant-col">
@@ -4509,9 +4612,10 @@ function PublicWheelPage() {
         </section>
       )}
 
-      {!loading && !loadError && session?.status === 'finished' && (
+      {!loading && !loadError && showWinner && (
         <section className="wheel-finished">
           <div className="panel wheel-winner-panel">
+            <WheelConfetti />
             <Trophy size={40} className="wheel-winner-icon" />
             <p className="eyebrow">Победитель розыгрыша</p>
             <h2>{winnerParticipant ? (winnerParticipant.artist ? `${winnerParticipant.artist} — ${winnerParticipant.title}` : winnerParticipant.title) : '—'}</h2>
@@ -4854,6 +4958,8 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
     return (b.eliminatedAtRound ?? 0) - (a.eliminatedAtRound ?? 0);
   });
   const winnerParticipant = participants.find((p) => p.status === 'winner');
+  const activeCount = participants.filter((p) => p.status === 'active').length;
+  const totalCount = participants.length;
 
   return (
     <section className="panel wheel-page wheel-embed">
@@ -5047,6 +5153,9 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
                 <span className="wheel-last-eliminated-amount">{lastEliminated.amount.toLocaleString('ru-RU')} ₽</span>
               </div>
             )}
+            {activeCount > 1 && (
+              <div className="wheel-progress">В игре ещё <b>{activeCount}</b> из {totalCount} · до победителя {activeCount - 1} {pluralRounds(activeCount - 1)}</div>
+            )}
           </div>
           <div className="wheel-participant-col">
             <h2>Участники</h2>
@@ -5119,6 +5228,7 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
       {!loading && !loadError && session?.status === 'finished' && (
         <section className="wheel-finished">
           <div className="panel wheel-winner-panel">
+            <WheelConfetti />
             <Trophy size={40} className="wheel-winner-icon" />
             <p className="eyebrow">Победитель розыгрыша</p>
             <h2>{winnerParticipant ? (winnerParticipant.artist ? `${winnerParticipant.artist} — ${winnerParticipant.title}` : winnerParticipant.title) : '—'}</h2>
