@@ -1916,6 +1916,18 @@ input.vote-side-badge { padding: 0; text-align: center; display: inline-flex; li
 
 /* Колесо аукциона */
 .wheel-page .admin-head { align-items: flex-start; }
+.wheel-embed { margin-top: 18px; }
+.wheel-embed .admin-head { padding: 0 0 16px; align-items: center; }
+.wheel-embed-head .admin-head-actions { align-items: center; }
+.wheel-resume-prompt {
+  display: grid;
+  gap: 10px;
+  border-color: rgba(255, 230, 0, .4);
+  background: rgba(255, 230, 0, .06);
+  margin-bottom: 16px;
+}
+.wheel-resume-prompt h3 { margin: 0; }
+.wheel-resume-prompt .modal-actions { justify-content: flex-start; }
 .wheel-back-link {
   display: inline-flex;
   align-items: center;

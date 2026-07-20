@@ -51,6 +51,7 @@ import {
   Trophy,
   Tv,
   Video,
+  X,
 } from 'lucide-react';
 import './styles.css';
 
@@ -1772,7 +1773,7 @@ function Shell() {
         <Route path="/admin/login" element={<LoginPage />} />
         <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
         <Route path="/admin/auctions" element={<AdminRoute><AdminAuctionsPage /></AdminRoute>} />
-        <Route path="/admin/auctions/wheel" element={<AdminRoute><AdminWheelPage /></AdminRoute>} />
+        <Route path="/admin/auctions/wheel" element={<Navigate to="/admin/auctions" replace />} />
         <Route path="/admin/new" element={<AdminRoute><TypePickerPage /></AdminRoute>} />
         <Route path="/admin/new/:type" element={<AdminRoute><EditorPage /></AdminRoute>} />
         <Route path="/admin/edit/:id" element={<AdminRoute><EditorPage /></AdminRoute>} />
@@ -3676,10 +3677,10 @@ function TermsPage() {
 
 function AdminAuctionsPage() {
   const { auctions, auctionRules, saveAuction, deleteAuction, saveAuctionRules, addAuctionAmount } = useStore();
-  const navigate = useNavigate();
   const [editing, setEditing] = useState<AuctionItem | null>(null);
   const [addingAmountFor, setAddingAmountFor] = useState<AuctionItem | null>(null);
   const [activeCategory, setActiveCategory] = useState<AuctionCategory>('album');
+  const [wheelOpen, setWheelOpen] = useState(false);
   const [rulesDraft, setRulesDraft] = useState<string>('');
   const [rulesSaving, setRulesSaving] = useState(false);
   const [rulesSavedAt, setRulesSavedAt] = useState<string>('');
@@ -3756,12 +3757,14 @@ function AdminAuctionsPage() {
         ))}
       </section>
 
+      {wheelOpen && <WheelPanel initialCategory={activeCategory} onClose={() => setWheelOpen(false)} />}
+
       <section className="panel admin-auction-block">
         <div className="admin-auction-head">
           <h2>{auctionCategoryLabel[activeCategory]} <span className="muted">({activeList.length})</span></h2>
           <div className="admin-auction-head-actions">
-            <button className="ghost" onClick={() => navigate(`/admin/auctions/wheel?category=${activeCategory}`)}>
-              <RotateCw size={16} /> Открыть колесо
+            <button className={wheelOpen ? '' : 'ghost'} onClick={() => setWheelOpen((v) => !v)}>
+              <RotateCw size={16} /> {wheelOpen ? 'Свернуть колесо' : 'Колесо'}
             </button>
             <button onClick={() => startNew(activeCategory)}><Plus size={16} /> Добавить</button>
           </div>
@@ -4037,17 +4040,20 @@ function WheelCircle({
   );
 }
 
-function AdminWheelPage() {
+function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCategory; onClose: () => void }) {
   const { auctions, user, addAuctionAmount } = useStore();
   const [addingAmountFor, setAddingAmountFor] = useState<AuctionItem | null>(null);
   const [lastEliminated, setLastEliminated] = useState<WheelParticipant | null>(null);
-  const [searchParams] = useSearchParams();
   const sortCategories = (cats: AuctionCategory[]) =>
     [...cats].sort((a, b) => auctionCategoryOrder.indexOf(a) - auctionCategoryOrder.indexOf(b));
-  const rawCategories = searchParams.getAll('category').filter((c) => (auctionCategoryOrder as string[]).includes(c)) as AuctionCategory[];
-  const initialCategories = sortCategories(rawCategories.length > 0 ? Array.from(new Set(rawCategories)) : ['album']);
 
-  const [categories, setCategories] = useState<AuctionCategory[]>(initialCategories);
+  const [categories, setCategories] = useState<AuctionCategory[]>([initialCategory]);
+  const [pendingResume, setPendingResume] = useState<{
+    session: WheelSession;
+    participants: WheelParticipant[];
+    rounds: WheelRound[];
+  } | null>(null);
+  const [resumeBusy, setResumeBusy] = useState(false);
   const toggleCategory = (cat: AuctionCategory) => {
     setCategories((prev) => {
       if (prev.includes(cat)) {
@@ -4089,6 +4095,7 @@ function AdminWheelPage() {
     setRounds(loadedRounds);
     setSectorOrder(shuffled(loadedParticipants.filter((p) => p.status === 'active')));
     setLastEliminated(null);
+    setPendingResume(null);
   };
 
   const refreshState = async (mode: 'restore' | 'refetch', opts: { silent?: boolean } = {}) => {
@@ -4097,6 +4104,10 @@ function AdminWheelPage() {
     setLoadError('');
     try {
       let sessionRow: any = null;
+      // discovered=true — сессию нашли широким поиском по набору категорий, а не по id, который
+      // уже точно наш (тот, что сейчас на экране). В этом случае это МОЖЕТ быть чужой незавершённый
+      // розыгрыш, оставшийся с прошлого раза — не подгружаем его молча, а сначала спрашиваем.
+      let discovered = false;
       if (mode === 'refetch' && sessionIdRef.current) {
         const { data, error } = await supabase.from('wheel_sessions').select('*').eq('id', sessionIdRef.current).maybeSingle();
         if (error) throw error;
@@ -4115,6 +4126,7 @@ function AdminWheelPage() {
           );
           return rowCategories.length === wanted.length && rowCategories.every((c, i) => c === wanted[i]);
         }) ?? null;
+        discovered = true;
       }
 
       if (!sessionRow) {
@@ -4130,11 +4142,15 @@ function AdminWheelPage() {
       if (participantsResult.error) throw participantsResult.error;
       if (roundsResult.error) throw roundsResult.error;
 
-      applyLoadedSession(
-        loadedSession,
-        (participantsResult.data ?? []).map(fromDbWheelParticipant),
-        (roundsResult.data ?? []).map(fromDbWheelRound)
-      );
+      const loadedParticipants = (participantsResult.data ?? []).map(fromDbWheelParticipant);
+      const loadedRounds = (roundsResult.data ?? []).map(fromDbWheelRound);
+
+      if (discovered) {
+        setPendingResume({ session: loadedSession, participants: loadedParticipants, rounds: loadedRounds });
+        return;
+      }
+
+      applyLoadedSession(loadedSession, loadedParticipants, loadedRounds);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'Не удалось загрузить состояние колеса');
     } finally {
@@ -4227,6 +4243,33 @@ function AdminWheelPage() {
     }
   };
 
+  const handleResumeExisting = () => {
+    if (!pendingResume) return;
+    applyLoadedSession(pendingResume.session, pendingResume.participants, pendingResume.rounds);
+    setWheelRotation(0);
+  };
+
+  const handleStartFresh = async () => {
+    if (!supabase || !pendingResume) return;
+    setResumeBusy(true);
+    try {
+      const { session: oldSession } = pendingResume;
+      if (oldSession.status === 'draft') {
+        const { error } = await supabase.from('wheel_sessions').delete().eq('id', oldSession.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('wheel_sessions').update({ status: 'cancelled' }).eq('id', oldSession.id);
+        if (error) throw error;
+      }
+      applyLoadedSession(null, [], []);
+      setWheelRotation(0);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Не удалось начать заново');
+    } finally {
+      setResumeBusy(false);
+    }
+  };
+
   // Честный live-спин: сервер выбирает выбывшего ИМЕННО в момент нажатия «Крутить» —
   // никакой заранее просчитанной очереди нет. Анимация просто крутит колесо к уже
   // случившемуся (и уже сохранённому в базе) результату, вес = 1/сумма — тот же расчёт,
@@ -4283,17 +4326,9 @@ function AdminWheelPage() {
 
   if (!supabase) {
     return (
-      <main>
-        <section className="admin-head">
-          <div>
-            <Link to="/admin/auctions" className="wheel-back-link"><ArrowLeft size={16} /> Назад к аукциону</Link>
-            <h1>Колесо аукциона</h1>
-          </div>
-        </section>
-        <section className="panel">
-          <p className="muted">Колесо доступно только с подключённым Supabase.</p>
-        </section>
-      </main>
+      <section className="panel wheel-embed">
+        <p className="muted">Колесо доступно только с подключённым Supabase.</p>
+      </section>
     );
   }
 
@@ -4321,18 +4356,17 @@ function AdminWheelPage() {
   const winnerParticipant = participants.find((p) => p.status === 'winner');
 
   return (
-    <main className="wheel-page">
-      <section className="admin-head">
+    <section className="panel wheel-page wheel-embed">
+      <div className="admin-head wheel-embed-head">
         <div>
-          <Link to="/admin/auctions" className="wheel-back-link"><ArrowLeft size={16} /> Назад к аукциону</Link>
-          <h1 className="wheel-title">
+          <h2 className="wheel-title">
             Колесо
             <span className="wheel-title-categories">
               {(session ? session.categories : categories).map((c) => (
                 <span className="wheel-title-category" key={c}><AuctionCategoryIcon category={c} size={16} /> {auctionCategoryLabel[c]}</span>
               ))}
             </span>
-          </h1>
+          </h2>
         </div>
         <div className="admin-head-actions">
           <button className="ghost" onClick={() => refreshState('refetch')} disabled={loading}><RefreshCw size={16} /> Обновить</button>
@@ -4341,13 +4375,30 @@ function AdminWheelPage() {
               <Trash2 size={16} /> {session.status === 'draft' ? 'Удалить черновик' : 'Отменить сессию'}
             </button>
           )}
+          <button className="ghost icon-btn" title="Свернуть колесо" onClick={onClose}><X size={16} /></button>
         </div>
-      </section>
+      </div>
+
+      {pendingResume && (
+        <section className="panel wheel-resume-prompt">
+          <h3>Найден незавершённый розыгрыш</h3>
+          <p className="muted">
+            Для категори{pendingResume.session.categories.length > 1 ? 'й' : 'и'} «{pendingResume.session.categories.map((c) => auctionCategoryLabel[c]).join(', ')}»
+            уже есть {pendingResume.session.status === 'draft' ? 'незафиксированный черновик' : `запущенное колесо (${pendingResume.participants.filter((p) => p.status === 'active').length} ещё в игре из ${pendingResume.participants.length})`}.
+          </p>
+          <div className="modal-actions">
+            <button className="ghost" onClick={handleStartFresh} disabled={resumeBusy}>
+              {resumeBusy ? 'Начинаю…' : 'Начать заново'}
+            </button>
+            <button onClick={handleResumeExisting} disabled={resumeBusy}><RotateCw size={16} /> Продолжить</button>
+          </div>
+        </section>
+      )}
 
       {loading && <div className="empty">Загружаем колесо...</div>}
       {loadError && <div className="empty">Ошибка: {loadError}</div>}
 
-      {!loading && !loadError && !session && (
+      {!loading && !loadError && !session && !pendingResume && (
         <section className="panel wheel-prep">
           <h2>Подготовка розыгрыша</h2>
 
@@ -4604,7 +4655,7 @@ function AdminWheelPage() {
           }}
         />
       )}
-    </main>
+    </section>
   );
 }
 
