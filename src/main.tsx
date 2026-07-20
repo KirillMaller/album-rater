@@ -933,11 +933,15 @@ type Store = {
   viewerConsentedAt: string | null;
   viewerConsentLoaded: boolean;
   viewerVotesByItem: Map<string, AllVote[]>;
+  profileDisplayName: string | null;
+  profileAvatarUrl: string | null;
   setAdmin: (value: boolean) => void;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   recordConsent: () => Promise<void>;
+  updateProfile: (patch: { displayName?: string | null; avatarUrl?: string | null }) => Promise<void>;
+  uploadAvatar: (file: File) => Promise<string>;
   loadMyItemVotes: (itemId: string) => Promise<{ album: number | null; tracks: Map<number, number>; battleRounds: Map<number, BattleSide>; battleFinal: BattleSide | null; bestTracks: Set<number> }>;
   loadItemAllVotes: (itemId: string) => Promise<Array<{ viewerId: string; trackPosition: number | null; roundIndex: number | null; score: number | null; winner: BattleSide | null; isBest: boolean }>>;
   toggleMyBestTrack: (itemId: string, position: number, isBest: boolean) => Promise<void>;
@@ -960,6 +964,25 @@ type Store = {
 };
 
 const CONSENT_VERSION = 1;
+
+// Сжимает аватарку на клиенте ДО загрузки — иначе кто-нибудь закинет 8-мегапиксельное фото
+// с телефона, и каталог начнёт грузиться заметно дольше у всех остальных. Уменьшаем до 256px
+// по длинной стороне и пережимаем в JPEG — итоговый файл обычно 15-40 КБ.
+async function compressAvatarImage(file: File, maxDim = 256, quality = 0.82): Promise<Blob> {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
+  const width = Math.max(1, Math.round(bitmap.width * scale));
+  const height = Math.max(1, Math.round(bitmap.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Браузер не поддерживает обработку картинок');
+  ctx.drawImage(bitmap, 0, 0, width, height);
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Не удалось обработать картинку'))), 'image/jpeg', quality);
+  });
+}
 
 type BattleSide = 'a' | 'b' | 'draw';
 
@@ -1095,6 +1118,8 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
   const [viewerConsentedAt, setViewerConsentedAt] = useState<string | null>(null);
   const [viewerConsentLoaded, setViewerConsentLoaded] = useState(false);
   const [viewerVotesByItem, setViewerVotesByItem] = useState<Map<string, AllVote[]>>(new Map());
+  const [profileDisplayName, setProfileDisplayName] = useState<string | null>(null);
+  const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
 
   const loadAuctions = async () => {
     if (!supabase) return;
@@ -1247,21 +1272,27 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!user) {
       setViewerConsentedAt(null);
       setViewerConsentLoaded(false);
+      setProfileDisplayName(null);
+      setProfileAvatarUrl(null);
       return;
     }
 
     setViewerConsentLoaded(false);
     supabase
       .from('viewer_profiles')
-      .select('consented_at')
+      .select('consented_at, display_name, avatar_url')
       .eq('user_id', user.id)
       .maybeSingle()
       .then(({ data, error }) => {
         if (error) {
           console.error('Не удалось загрузить профиль зрителя', error);
           setViewerConsentedAt(null);
+          setProfileDisplayName(null);
+          setProfileAvatarUrl(null);
         } else {
           setViewerConsentedAt(data?.consented_at ?? null);
+          setProfileDisplayName(data?.display_name ?? null);
+          setProfileAvatarUrl(data?.avatar_url ?? null);
         }
         setViewerConsentLoaded(true);
       });
@@ -1398,6 +1429,31 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
       });
       if (error) throw error;
       setViewerConsentedAt(consentedAt);
+    },
+    async updateProfile(patch) {
+      if (!supabase) throw new Error('Профиль работает только на проде с Supabase');
+      if (!user) throw new Error('Войди через Google чтобы менять профиль');
+      const row: Record<string, unknown> = { user_id: user.id };
+      if (patch.displayName !== undefined) row.display_name = patch.displayName;
+      if (patch.avatarUrl !== undefined) row.avatar_url = patch.avatarUrl;
+      const { error } = await supabase.from('viewer_profiles').upsert(row);
+      if (error) throw error;
+      if (patch.displayName !== undefined) setProfileDisplayName(patch.displayName);
+      if (patch.avatarUrl !== undefined) setProfileAvatarUrl(patch.avatarUrl);
+    },
+    async uploadAvatar(file) {
+      if (!supabase) throw new Error('Загрузка аватара работает только на проде с Supabase');
+      if (!user) throw new Error('Войди через Google чтобы загрузить аватар');
+      const blob = await compressAvatarImage(file);
+      const path = `${user.id}/avatar.jpg`;
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(path, blob, { upsert: true, contentType: 'image/jpeg', cacheControl: '3600' });
+      if (uploadError) throw uploadError;
+      const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+      // cache-bust — путь всегда одинаковый (перезаписываем свой же файл), без этого браузер
+      // может показать старую аватарку из кеша после смены
+      return `${data.publicUrl}?v=${Date.now()}`;
     },
     async loadMyItemVotes(itemId) {
       const empty = { album: null as number | null, tracks: new Map<number, number>(), battleRounds: new Map<number, BattleSide>(), battleFinal: null as BattleSide | null, bestTracks: new Set<number>() };
@@ -1542,6 +1598,8 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
     viewerConsentedAt,
     viewerConsentLoaded,
     viewerVotesByItem,
+    profileDisplayName,
+    profileAvatarUrl,
     async saveItem(item) {
       const normalized = {
         ...item,
@@ -1639,7 +1697,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
       if (error) throw error;
       await loadAuctions();
     },
-  }), [admin, authReady, error, items, loading, user, viewerConsentedAt, viewerConsentLoaded, viewerVotesByItem, auctions, auctionRules, auctionsLoading, auctionsError]);  // eslint-disable-line react-hooks/exhaustive-deps
+  }), [admin, authReady, error, items, loading, user, viewerConsentedAt, viewerConsentLoaded, viewerVotesByItem, profileDisplayName, profileAvatarUrl, auctions, auctionRules, auctionsLoading, auctionsError]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
@@ -3604,9 +3662,10 @@ function AuctionRulesPage() {
 }
 
 function AuthBadge() {
-  const { user, admin, signInWithGoogle, signOut } = useStore();
+  const { user, admin, profileDisplayName, profileAvatarUrl, signInWithGoogle, signOut } = useStore();
   const [menuOpen, setMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -3636,8 +3695,8 @@ function AuthBadge() {
   }
 
   const meta = (user.user_metadata ?? {}) as { full_name?: string; name?: string; avatar_url?: string; picture?: string };
-  const displayName = meta.full_name || meta.name || user.email || 'Аккаунт';
-  const avatarUrl = meta.avatar_url || meta.picture || '';
+  const displayName = profileDisplayName || meta.full_name || meta.name || user.email || 'Аккаунт';
+  const avatarUrl = profileAvatarUrl || meta.avatar_url || meta.picture || '';
   const initial = displayName.trim().charAt(0).toUpperCase() || 'A';
 
   return (
@@ -3652,6 +3711,15 @@ function AuthBadge() {
         <div className="auth-menu">
           {admin && <Link to="/admin" className="auth-menu-item" onClick={() => setMenuOpen(false)}>Админка</Link>}
           <button
+            className="auth-menu-item"
+            onClick={() => {
+              setMenuOpen(false);
+              setProfileModalOpen(true);
+            }}
+          >
+            <Edit3 size={14} /> Настроить профиль
+          </button>
+          <button
             className="auth-menu-item auth-menu-signout"
             onClick={async () => {
               setMenuOpen(false);
@@ -3662,6 +3730,115 @@ function AuthBadge() {
           </button>
         </div>
       )}
+      {profileModalOpen && <ProfileModal onClose={() => setProfileModalOpen(false)} />}
+    </div>
+  );
+}
+
+function ProfileModal({ onClose }: { onClose: () => void }) {
+  const { user, profileDisplayName, profileAvatarUrl, updateProfile, uploadAvatar } = useStore();
+  const meta = (user?.user_metadata ?? {}) as { full_name?: string; name?: string; avatar_url?: string; picture?: string };
+  const googleName = meta.full_name || meta.name || user?.email || 'Аккаунт';
+  const googleAvatar = meta.avatar_url || meta.picture || '';
+
+  const [nameDraft, setNameDraft] = useState(profileDisplayName ?? '');
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(profileAvatarUrl);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Нужна картинка (jpg, png и т.п.)');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setError('Файл слишком большой (максимум 10 МБ)');
+      return;
+    }
+    setError('');
+    setPendingFile(file);
+    setAvatarPreview(URL.createObjectURL(file));
+  };
+
+  const handleResetAvatar = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      await updateProfile({ avatarUrl: null });
+      setPendingFile(null);
+      setAvatarPreview(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось сбросить аватар');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSave = async () => {
+    const trimmed = nameDraft.trim();
+    if (trimmed.length > 32) {
+      setError('Ник длиннее 32 символов');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      let newAvatarUrl: string | undefined;
+      if (pendingFile) {
+        newAvatarUrl = await uploadAvatar(pendingFile);
+      }
+      await updateProfile({
+        displayName: trimmed || null,
+        ...(newAvatarUrl !== undefined ? { avatarUrl: newAvatarUrl } : {}),
+      });
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось сохранить профиль');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const shownAvatar = avatarPreview || googleAvatar;
+  const shownInitial = (nameDraft || googleName).trim().charAt(0).toUpperCase() || 'A';
+
+  return (
+    <div className="modal-backdrop" onClick={() => !saving && onClose()}>
+      <div className="modal profile-modal" onClick={(event) => event.stopPropagation()}>
+        <h2>Настроить профиль</h2>
+        <p className="muted">Видно только тебе, в твоей же шапке сайта — никто другой это не увидит.</p>
+
+        <div className="profile-avatar-row">
+          {shownAvatar
+            ? <img className="profile-avatar-preview" src={shownAvatar} alt="" referrerPolicy="no-referrer" />
+            : <span className="profile-avatar-preview profile-avatar-fallback">{shownInitial}</span>}
+          <div className="profile-avatar-actions">
+            <label className="ghost profile-avatar-upload">
+              Выбрать картинку
+              <input type="file" accept="image/*" onChange={handleFileChange} hidden />
+            </label>
+            {(avatarPreview || profileAvatarUrl) && (
+              <button type="button" className="ghost" onClick={handleResetAvatar} disabled={saving}>Сбросить на аватар Google</button>
+            )}
+          </div>
+        </div>
+
+        <label>
+          Ник
+          <input value={nameDraft} onChange={(event) => setNameDraft(event.target.value)} placeholder={googleName} maxLength={32} />
+        </label>
+
+        {error && <p className="form-error">{error}</p>}
+
+        <div className="modal-actions">
+          <button className="ghost" onClick={onClose} disabled={saving}>Отмена</button>
+          <button onClick={handleSave} disabled={saving}>{saving ? 'Сохраняю…' : 'Сохранить'}</button>
+        </div>
+      </div>
     </div>
   );
 }
