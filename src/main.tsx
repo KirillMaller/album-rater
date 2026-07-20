@@ -22,6 +22,7 @@ import {
   useParams,
 } from 'react-router-dom';
 import {
+  Aperture,
   ArrowDown,
   ArrowLeft,
   ArrowUp,
@@ -30,6 +31,7 @@ import {
   Edit3,
   ExternalLink,
   Gamepad2,
+  Gavel,
   Headphones,
   Info,
   Library,
@@ -3430,7 +3432,7 @@ function AdminPage() {
           <h1>Админка</h1>
         </div>
         <div className="admin-head-actions">
-          <Link className="ghost" to="/admin/auctions">Аукционы и правила</Link>
+          <Link className="button" to="/admin/auctions"><Gavel size={16} /> Аукционные правила</Link>
           <Link className="button" to="/admin/new"><Plus size={16} /> Начать оценку</Link>
         </div>
       </section>
@@ -3972,12 +3974,13 @@ function AdminAuctionsPage() {
 
       {wheelOpen && <WheelPanel initialCategory={activeCategory} onClose={() => setWheelOpen(false)} />}
 
+      {!wheelOpen && (
       <section className="panel admin-auction-block">
         <div className="admin-auction-head">
           <h2>{auctionCategoryLabel[activeCategory]} <span className="muted">({activeList.length})</span></h2>
           <div className="admin-auction-head-actions">
-            <button className={wheelOpen ? '' : 'ghost'} onClick={() => setWheelOpen((v) => !v)}>
-              <RotateCw size={16} /> {wheelOpen ? 'Свернуть колесо' : 'Колесо'}
+            <button onClick={() => setWheelOpen((v) => !v)}>
+              <Aperture size={16} /> {wheelOpen ? 'Свернуть' : 'Запустить аукцион'}
             </button>
             <button onClick={() => startNew(activeCategory)}><Plus size={16} /> Добавить</button>
           </div>
@@ -4012,6 +4015,7 @@ function AdminAuctionsPage() {
           </div>
         )}
       </section>
+      )}
 
       {editing && (
         <div className="modal-backdrop" onClick={() => setEditing(null)}>
@@ -4711,8 +4715,10 @@ function PublicWheelPage() {
 }
 
 function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCategory; onClose: () => void }) {
-  const { auctions, user, addAuctionAmount } = useStore();
+  const { auctions, user, addAuctionAmount, saveAuction, deleteAuction } = useStore();
   const [addingAmountFor, setAddingAmountFor] = useState<AuctionItem | null>(null);
+  const [editingItem, setEditingItem] = useState<AuctionItem | null>(null);
+  const [addingParticipantAmount, setAddingParticipantAmount] = useState<WheelParticipant | null>(null);
   const [lastEliminated, setLastEliminated] = useState<WheelParticipant | null>(null);
   const sortCategories = (cats: AuctionCategory[]) =>
     [...cats].sort((a, b) => auctionCategoryOrder.indexOf(a) - auctionCategoryOrder.indexOf(b));
@@ -5026,6 +5032,38 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
   const winnerParticipant = participants.find((p) => p.status === 'winner');
   const activeCount = participants.filter((p) => p.status === 'active').length;
   const totalCount = participants.length;
+  // Пока не было ни одного спина, админ ещё может править суммы участников (прилетел донат и т.п.).
+  const noSpinsYet = rounds.length === 0;
+
+  const startNewItem = () => {
+    setEditingItem({
+      id: crypto.randomUUID(),
+      category: categories[0],
+      title: '',
+      artist: '',
+      amount: 0,
+      note: '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+  };
+  const handleSaveItem = async () => {
+    if (!editingItem || !editingItem.title.trim()) return;
+    await saveAuction({ ...editingItem, title: editingItem.title.trim(), artist: editingItem.artist?.trim() || undefined, note: editingItem.note?.trim() || undefined });
+    setEditingItem(null);
+  };
+  const handleDeleteItem = async (item: AuctionItem) => {
+    if (!window.confirm(`Удалить «${item.title}» из очереди? Это не вернёшь.`)) return;
+    await deleteAuction(item.id);
+  };
+  // До первого спина докинуть сумму участнику: меняем снапшот в wheel_participants напрямую (это и есть
+  // вес на колесе = 1/сумма; RLS разрешает админу). После — refetch, чтобы сектора пересчитались.
+  const addParticipantAmount = async (participant: WheelParticipant, delta: number) => {
+    if (!supabase || !session) return;
+    const { error } = await supabase.from('wheel_participants').update({ amount: participant.amount + delta }).eq('id', participant.id);
+    if (error) throw error;
+    await refreshState('refetch', { silent: true });
+  };
 
   return (
     <section className="panel wheel-page wheel-embed">
@@ -5072,7 +5110,10 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
 
       {!loading && !loadError && !session && !pendingResume && (
         <section className="panel wheel-prep">
-          <h2>Подготовка розыгрыша</h2>
+          <div className="admin-auction-head">
+            <h2>Подготовка розыгрыша</h2>
+            <button onClick={startNewItem}><Plus size={16} /> Добавить позицию</button>
+          </div>
 
           <div className="wheel-category-picker">
             <p className="muted">Категории розыгрыша:</p>
@@ -5127,7 +5168,9 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
                         <div className="wheel-prep-row" key={item.id}>
                           <div className="wheel-prep-title">
                             <button type="button" className="ghost icon-btn" title="Добавить сумму" onClick={() => setAddingAmountFor(item)}><Plus size={14} /></button>
-                            {auctionCategoryHasArtist[item.category] && item.artist ? <><b>{item.artist}</b> — {item.title}</> : <b>{item.title}</b>}
+                            <button type="button" className="ghost icon-btn" title="Изменить" onClick={() => setEditingItem({ ...item })}><Edit3 size={14} /></button>
+                            <button type="button" className="ghost icon-btn" title="Удалить" onClick={() => handleDeleteItem(item)}><Trash2 size={14} /></button>
+                            <span className="wheel-prep-name">{auctionCategoryHasArtist[item.category] && item.artist ? <><b>{item.artist}</b> — {item.title}</> : <b>{item.title}</b>}</span>
                           </div>
                           <div className="wheel-chance">{chanceOf(item.amount, totalActiveAmount)}%</div>
                           <div className="admin-auction-amount">{item.amount.toLocaleString('ru-RU')} ₽</div>
@@ -5148,7 +5191,9 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
                   <div className="wheel-prep-row wheel-prep-row-inactive" key={item.id}>
                     <div className="wheel-prep-title">
                       <button type="button" className="ghost icon-btn" title="Добавить сумму" onClick={() => setAddingAmountFor(item)}><Plus size={14} /></button>
-                      {auctionCategoryHasArtist[item.category] && item.artist ? <><b>{item.artist}</b> — {item.title}</> : <b>{item.title}</b>}
+                      <button type="button" className="ghost icon-btn" title="Изменить" onClick={() => setEditingItem({ ...item })}><Edit3 size={14} /></button>
+                      <button type="button" className="ghost icon-btn" title="Удалить" onClick={() => handleDeleteItem(item)}><Trash2 size={14} /></button>
+                      <span className="wheel-prep-name">{auctionCategoryHasArtist[item.category] && item.artist ? <><b>{item.artist}</b> — {item.title}</> : <b>{item.title}</b>}</span>
                     </div>
                     <div className="admin-auction-amount">{item.amount.toLocaleString('ru-RU')} ₽</div>
                   </div>
@@ -5160,7 +5205,7 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
           {createError && <p className="form-error">{createError}</p>}
 
           <button onClick={handleLockParticipants} disabled={creating || activeAuctionItems.length < 2}>
-            {creating ? 'Фиксирую…' : <><RotateCw size={16} /> Зафиксировать участников</>}
+            {creating ? 'Сохраняю…' : <><Aperture size={16} /> Сохранить, начать аукцион</>}
           </button>
         </section>
       )}
@@ -5225,6 +5270,9 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
           </div>
           <div className="wheel-participant-col">
             <h2>Участники</h2>
+            {noSpinsYet && (
+              <p className="muted wheel-preround-hint">До первого «Крутить» можно докинуть сумму участнику (нажмите «+») — например, прилетел донат.</p>
+            )}
             {(session?.categories.length ?? 0) > 1 ? (
               <div className="wheel-prep-groups">
                 {session!.categories.map((cat) => {
@@ -5237,7 +5285,12 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
                         {group.map((p) => (
                           <div className={`wheel-participant-row${p.status === 'winner' ? ' winner' : ''}${p.status === 'eliminated' ? ' eliminated' : ''}`} key={p.id}>
                             <div className="wheel-participant-main">
-                              <strong>{p.artist ? `${p.artist} — ${p.title}` : p.title}</strong>
+                              <div className="wheel-participant-name-row">
+                                {noSpinsYet && p.status === 'active' && (
+                                  <button type="button" className="ghost icon-btn" title="Добавить сумму" onClick={() => setAddingParticipantAmount(p)}><Plus size={13} /></button>
+                                )}
+                                <strong>{p.artist ? `${p.artist} — ${p.title}` : p.title}</strong>
+                              </div>
                               <span className="wheel-participant-status">
                                 {p.status === 'winner' && <><Trophy size={14} /> Победитель</>}
                                 {p.status === 'eliminated' && `Выбыл на раунде ${p.eliminatedAtRound}`}
@@ -5258,7 +5311,12 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
                 {rankedParticipants.map((p) => (
                   <div className={`wheel-participant-row${p.status === 'winner' ? ' winner' : ''}${p.status === 'eliminated' ? ' eliminated' : ''}`} key={p.id}>
                     <div className="wheel-participant-main">
-                      <strong>{p.artist ? `${p.artist} — ${p.title}` : p.title}</strong>
+                      <div className="wheel-participant-name-row">
+                        {noSpinsYet && p.status === 'active' && (
+                          <button type="button" className="ghost icon-btn" title="Добавить сумму" onClick={() => setAddingParticipantAmount(p)}><Plus size={13} /></button>
+                        )}
+                        <strong>{p.artist ? `${p.artist} — ${p.title}` : p.title}</strong>
+                      </div>
                       <span className="wheel-participant-status">
                         {p.status === 'winner' && <><Trophy size={14} /> Победитель</>}
                         {p.status === 'eliminated' && `Выбыл на раунде ${p.eliminatedAtRound}`}
@@ -5328,6 +5386,35 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
           onSubmit={async (delta) => {
             await addAuctionAmount(addingAmountFor.id, delta);
             setAddingAmountFor(null);
+          }}
+        />
+      )}
+
+      {editingItem && (
+        <AuctionEditorModal
+          item={editingItem}
+          isNew={!auctions.some((a) => a.id === editingItem.id)}
+          onChange={setEditingItem}
+          onClose={() => setEditingItem(null)}
+          onSave={handleSaveItem}
+        />
+      )}
+
+      {addingParticipantAmount && (
+        <AddAmountModal
+          item={{
+            id: addingParticipantAmount.id,
+            category: addingParticipantAmount.category,
+            title: addingParticipantAmount.title,
+            artist: addingParticipantAmount.artist,
+            amount: addingParticipantAmount.amount,
+            createdAt: '',
+            updatedAt: '',
+          } as AuctionItem}
+          onClose={() => setAddingParticipantAmount(null)}
+          onSubmit={async (delta) => {
+            await addParticipantAmount(addingParticipantAmount, delta);
+            setAddingParticipantAmount(null);
           }}
         />
       )}
