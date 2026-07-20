@@ -963,6 +963,7 @@ type Store = {
   deleteAuction: (id: string) => Promise<void>;
   saveAuctionRules: (content: string) => Promise<void>;
   addAuctionAmount: (itemId: string, delta: number) => Promise<void>;
+  reloadAuctions: () => Promise<void>;
 };
 
 const CONSENT_VERSION = 1;
@@ -1699,6 +1700,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
       if (error) throw error;
       await loadAuctions();
     },
+    reloadAuctions: loadAuctions,
   }), [admin, authReady, error, items, loading, user, viewerConsentedAt, viewerConsentLoaded, viewerVotesByItem, profileDisplayName, profileAvatarUrl, auctions, auctionRules, auctionsLoading, auctionsError]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
@@ -3496,9 +3498,18 @@ function AdminPage() {
 }
 
 function AuctionsPage() {
-  const { auctions, auctionsLoading, auctionsError, admin, saveAuction, deleteAuction } = useStore();
+  const { auctions, auctionsLoading, auctionsError, admin, saveAuction, deleteAuction, reloadAuctions } = useStore();
   const [activeCategory, setActiveCategory] = useState<AuctionCategory>('album');
   const [editing, setEditing] = useState<AuctionItem | null>(null);
+
+  // Живой сбор: страница сама подтягивает свежие суммы раз в 5 сек, чтобы зрители во время стрима
+  // видели, сколько на что собрано, без ручной перезагрузки. Тихо, без индикатора загрузки.
+  useEffect(() => {
+    if (!supabase) return;
+    const interval = window.setInterval(() => { reloadAuctions(); }, 5000);
+    return () => window.clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const counts = auctionCategoryOrder.reduce((acc, category) => {
     acc[category] = auctions.filter((item) => item.category === category).length;
     return acc;
