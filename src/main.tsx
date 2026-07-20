@@ -1849,7 +1849,7 @@ function Shell() {
         <nav>
           <Link to="/" className="nav-link">Каталог</Link>
           <Link to="/auctions" className="nav-link">Аукционы</Link>
-          <Link to="/auctions/wheel" className={`nav-link nav-wheel${wheelLive ? ' live' : ''}`}>
+          <Link to={admin ? '/admin/auctions?wheel=1' : '/auctions/wheel'} className={`nav-link nav-wheel${wheelLive ? ' live' : ''}`}>
             {wheelLive && <span className="live-dot" aria-hidden="true" />}
             Колесо
             {wheelLive && <span className="live-label">в эфире</span>}
@@ -3903,10 +3903,16 @@ function TermsPage() {
 
 function AdminAuctionsPage() {
   const { auctions, auctionRules, saveAuction, deleteAuction, saveAuctionRules, addAuctionAmount } = useStore();
+  const location = useLocation();
   const [editing, setEditing] = useState<AuctionItem | null>(null);
   const [addingAmountFor, setAddingAmountFor] = useState<AuctionItem | null>(null);
   const [activeCategory, setActiveCategory] = useState<AuctionCategory>('album');
-  const [wheelOpen, setWheelOpen] = useState(false);
+  // Админ пришёл по кнопке «Колесо» из шапки (?wheel=1) — сразу разворачиваем панель колеса, чтобы
+  // попасть прямо в текущий розыгрыш и управлять им, а не открывать колесо вручную.
+  const [wheelOpen, setWheelOpen] = useState(() => new URLSearchParams(location.search).get('wheel') === '1');
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get('wheel') === '1') setWheelOpen(true);
+  }, [location.search]);
   const [rulesDraft, setRulesDraft] = useState<string>('');
   const [rulesSaving, setRulesSaving] = useState(false);
   const [rulesSavedAt, setRulesSavedAt] = useState<string>('');
