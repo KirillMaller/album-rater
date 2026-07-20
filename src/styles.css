@@ -1562,10 +1562,10 @@ input.vote-side-badge { padding: 0; text-align: center; display: inline-flex; li
 
 @media (max-width: 560px) {
   main, .home { width: min(100% - 20px, 1180px); padding-top: 16px; }
-  .topbar { padding: 10px 14px; gap: 8px; }
+  .topbar { padding: 10px 14px; gap: 8px; flex-wrap: wrap; row-gap: 8px; }
   .brand { font-size: 0; gap: 0; }
   .brand .brand-mark { font-size: 13px; }
-  nav { gap: 10px; font-size: 13px; }
+  nav { gap: 8px 12px; font-size: 13px; flex-wrap: wrap; justify-content: flex-end; }
   nav .nav-link { padding: 4px 6px; }
   .live-label { display: none; }
   .auth-trigger, .auth-badge button { padding: 6px 10px !important; min-height: 32px; font-size: 13px; }
@@ -1585,8 +1585,23 @@ input.vote-side-badge { padding: 0; text-align: center; display: inline-flex; li
   .track-edit { grid-template-columns: 28px minmax(0, 1fr); }
   .track-edit input[type="text"], .best-track-toggle, .track-row-actions { grid-column: 2; }
   .auctions, .auctions-head { width: auto; padding-left: 0; padding-right: 0; }
-  .auction-table tbody td, .auction-table thead th { padding: 8px 10px; font-size: 13px; }
-  .auction-amount { width: 100px; }
+  /* Аукцион на телефоне — строки-карточки, без горизонтальной прокрутки (сумма всегда видна) */
+  .auction-table { display: block; overflow: visible; }
+  .auction-table thead { display: none; }
+  .auction-table tbody { display: block; width: 100%; min-width: 0; }
+  .auction-table tr {
+    display: grid;
+    grid-template-columns: 26px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 3px 10px;
+    padding: 10px 4px;
+    border-bottom: 1px solid var(--line);
+  }
+  .auction-table td { display: block; padding: 0 !important; border: none !important; font-size: 14px; }
+  .auction-table .auction-rank { color: var(--muted); font-weight: 800; align-self: start; padding-top: 2px !important; }
+  .auction-table .auction-amount { text-align: right; white-space: nowrap; width: auto; font-weight: 700; align-self: start; }
+  .auction-table .auction-actions-col { grid-column: 1 / -1; margin-top: 6px; }
+  .auction-table .auction-row-actions { justify-content: flex-start; }
   .admin-head { padding: 18px 0 12px; gap: 12px; }
   .admin-head-actions { width: 100%; }
   .admin-head-actions a, .admin-head-actions .button { flex: 1; justify-content: center; }
