@@ -155,6 +155,7 @@ type WheelRound = {
   participantId: string;
   revealed: boolean;
   revealedAt?: string;
+  durationMs?: number;
   createdAt: string;
 };
 
@@ -1050,6 +1051,7 @@ function fromDbWheelRound(row: any): WheelRound {
     participantId: row.participant_id,
     revealed: Boolean(row.revealed),
     revealedAt: row.revealed_at ?? undefined,
+    durationMs: row.duration_ms ?? undefined,
     createdAt: row.created_at,
   };
 }
@@ -1750,22 +1752,28 @@ function ConsentModal() {
 
 function Shell() {
   const { admin } = useStore();
+  const location = useLocation();
+  // Полноэкранный режим колеса для захвата в OBS — без шапки/футера сайта, чистая картинка.
+  const isFullscreenWheel = location.pathname === '/auctions/wheel' && new URLSearchParams(location.search).get('fullscreen') === '1';
   return (
     <>
       <ConsentModal />
-      <header className="topbar">
-        <Link to="/" className="brand"><span className="brand-mark">R1</span> R1Fрейтинг</Link>
-        <nav>
-          <Link to="/" className="nav-link">Каталог</Link>
-          <Link to="/auctions" className="nav-link">Аукционы</Link>
-          <Link to="/auctions/rules" className="nav-link">Правила</Link>
-          {admin && <Link to="/admin" className="nav-link">Админка</Link>}
-          <AuthBadge />
-        </nav>
-      </header>
+      {!isFullscreenWheel && (
+        <header className="topbar">
+          <Link to="/" className="brand"><span className="brand-mark">R1</span> R1Fрейтинг</Link>
+          <nav>
+            <Link to="/" className="nav-link">Каталог</Link>
+            <Link to="/auctions" className="nav-link">Аукционы</Link>
+            <Link to="/auctions/rules" className="nav-link">Правила</Link>
+            {admin && <Link to="/admin" className="nav-link">Админка</Link>}
+            <AuthBadge />
+          </nav>
+        </header>
+      )}
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/auctions" element={<AuctionsPage />} />
+        <Route path="/auctions/wheel" element={<PublicWheelPage />} />
         <Route path="/auctions/rules" element={<AuctionRulesPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/terms" element={<TermsPage />} />
@@ -1778,13 +1786,15 @@ function Shell() {
         <Route path="/admin/new/:type" element={<AdminRoute><EditorPage /></AdminRoute>} />
         <Route path="/admin/edit/:id" element={<AdminRoute><EditorPage /></AdminRoute>} />
       </Routes>
-      <footer className="site-footer">
-        <span className="footer-age">16+</span>
-        <span className="footer-sep">·</span>
-        <Link to="/privacy" className="footer-link">Политика конфиденциальности</Link>
-        <span className="footer-sep">·</span>
-        <Link to="/terms" className="footer-link">Условия использования</Link>
-      </footer>
+      {!isFullscreenWheel && (
+        <footer className="site-footer">
+          <span className="footer-age">16+</span>
+          <span className="footer-sep">·</span>
+          <Link to="/privacy" className="footer-link">Политика конфиденциальности</Link>
+          <span className="footer-sep">·</span>
+          <Link to="/terms" className="footer-link">Условия использования</Link>
+        </footer>
+      )}
     </>
   );
 }
@@ -3442,6 +3452,7 @@ function AuctionsPage() {
         <p className="lead">Зрители скидывают донаты — чем больше собрано, тем раньше разбор. После того как R1Fmabes разобрал — запись уходит в каталог с оценкой.</p>
         <div className="auctions-meta">
           <span>Всего в очереди: <b>{auctions.length}</b></span>
+          <Link to="/auctions/wheel" className="auctions-rules-link"><RotateCw size={14} /> Смотреть колесо</Link>
           <Link to="/auctions/rules" className="auctions-rules-link">Правила →</Link>
         </div>
       </section>
@@ -3938,16 +3949,13 @@ function AddAmountModal({ item, onClose, onSubmit }: {
   );
 }
 
-// Перемешивает участников на самом колесе (Fisher–Yates) — секторы идут вразнобой, а не
-// сгруппированы по категории и не отсортированы по сумме. Список участников справа
-// сортируется и группируется отдельно, эта функция его не трогает.
-function shuffled<T>(items: T[]): T[] {
-  const copy = [...items];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
+// Порядок участников на самом колесе: вразнобой (не сгруппирован по категории, не отсортирован
+// по сумме), но ДЕТЕРМИНИРОВАННО — сортировка по id (uuid) выглядит случайной на глаз, но даёт
+// одинаковое расположение секторов у всех, кто сейчас смотрит на это же колесо (админ +
+// зрительская страница), без лишней синхронизации. Список участников справа сортируется и
+// группируется отдельно, эта функция его не трогает.
+function stableWheelOrder<T extends { id: string }>(items: T[]): T[] {
+  return [...items].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
 
 // Колесо аукциона — геометрия секторов. Угол 0° = верх (12 часов), растёт по часовой стрелке.
@@ -4040,6 +4048,321 @@ function WheelCircle({
   );
 }
 
+// Публичная зрительская страница колеса — только смотреть, ничего нажать нельзя (ни на клиенте,
+// ни на сервере: RLS отдаёт select всем, но insert/update/RPC — только is_admin()). Живых
+// обновлений через Supabase Realtime нет (сознательное решение, см. docs/wheel-auction/PLAN.md) —
+// вместо этого обычный опрос раз в 2.5 сек. Чтобы у зрителя, подключившегося на середине вращения,
+// колесо остановилось в то же самое время что и у админа, используется revealed_at + duration_ms
+// того раунда: зритель считает сколько времени уже прошло и доигрывает анимацию на остаток.
+function PublicWheelPage() {
+  const [searchParams] = useSearchParams();
+  const fullscreen = searchParams.get('fullscreen') === '1';
+
+  const [session, setSession] = useState<WheelSession | null>(null);
+  const [participants, setParticipants] = useState<WheelParticipant[]>([]);
+  const [rounds, setRounds] = useState<WheelRound[]>([]);
+  const [sectorOrder, setSectorOrder] = useState<WheelParticipant[]>([]);
+  const [wheelRotation, setWheelRotation] = useState(0);
+  const [animDurationSec, setAnimDurationSec] = useState(5);
+  const [spinningAnim, setSpinningAnim] = useState(false);
+  const [lastEliminated, setLastEliminated] = useState<WheelParticipant | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+
+  const participantsRef = useRef<WheelParticipant[]>([]);
+  const seenRoundIdRef = useRef<string | null>(null);
+  const firstLoadRef = useRef(true);
+  const animTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    participantsRef.current = participants;
+  }, [participants]);
+
+  useEffect(() => {
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+
+    const poll = async () => {
+      try {
+        const { data: sessionRows, error } = await supabase
+          .from('wheel_sessions')
+          .select('*')
+          .in('status', ['locked', 'finished'])
+          .order('created_at', { ascending: false })
+          .limit(1);
+        if (error) throw error;
+        const sessionRow = sessionRows?.[0] ?? null;
+
+        if (!sessionRow) {
+          setSession(null);
+          setParticipants([]);
+          setRounds([]);
+          setSectorOrder([]);
+          seenRoundIdRef.current = null;
+          firstLoadRef.current = true;
+          setLoadError('');
+          return;
+        }
+
+        const loadedSession = fromDbWheelSession(sessionRow);
+        const [pRes, rRes] = await Promise.all([
+          supabase.from('wheel_participants').select('*').eq('session_id', loadedSession.id),
+          supabase.from('wheel_rounds').select('*').eq('session_id', loadedSession.id).order('reveal_order', { ascending: true }),
+        ]);
+        if (pRes.error) throw pRes.error;
+        if (rRes.error) throw rRes.error;
+
+        const loadedParticipants = (pRes.data ?? []).map(fromDbWheelParticipant);
+        const loadedRounds = (rRes.data ?? []).map(fromDbWheelRound);
+
+        setSession(loadedSession);
+        setParticipants(loadedParticipants);
+        setRounds(loadedRounds);
+        setLoadError('');
+
+        const latestRound = [...loadedRounds].sort((a, b) => b.revealOrder - a.revealOrder)[0];
+
+        if (!latestRound) {
+          seenRoundIdRef.current = null;
+          setSectorOrder(stableWheelOrder(loadedParticipants.filter((p) => p.status === 'active')));
+          return;
+        }
+
+        if (seenRoundIdRef.current === latestRound.id) {
+          if (!animTimeoutRef.current) {
+            setSectorOrder(stableWheelOrder(loadedParticipants.filter((p) => p.status === 'active')));
+          }
+          return;
+        }
+
+        const isFirstLoad = firstLoadRef.current;
+        firstLoadRef.current = false;
+        seenRoundIdRef.current = latestRound.id;
+
+        const eliminatedP = loadedParticipants.find((p) => p.id === latestRound.participantId) ?? null;
+        const preRoundActive = loadedParticipants.filter((p) => p.status === 'active' || p.id === latestRound.participantId);
+        const order = stableWheelOrder(preRoundActive);
+        const idx = order.findIndex((p) => p.id === latestRound.participantId);
+
+        const durationMs = latestRound.durationMs ?? 5000;
+        const elapsed = latestRound.revealedAt ? Date.now() - new Date(latestRound.revealedAt).getTime() : durationMs;
+        const remaining = durationMs - elapsed;
+
+        if (isFirstLoad || idx === -1 || !eliminatedP || remaining <= 200) {
+          // первая загрузка страницы, или опоздали к анимации (вкладка была свёрнута и т.п.) —
+          // просто показываем текущий итог без прокрутки, а не гоняем анимацию задним числом
+          setSectorOrder(stableWheelOrder(loadedParticipants.filter((p) => p.status === 'active')));
+          setLastEliminated(eliminatedP);
+          return;
+        }
+
+        const ranges = wheelSectorRanges(order);
+        const sectorCenter = ranges[idx].mid;
+        setSectorOrder(order);
+        setAnimDurationSec(Math.max(remaining, 300) / 1000);
+        setSpinningAnim(true);
+        setWheelRotation((prev) => {
+          const currentMod = ((prev % 360) + 360) % 360;
+          const targetMod = ((-sectorCenter % 360) + 360) % 360;
+          let delta = targetMod - currentMod;
+          if (delta <= 0) delta += 360;
+          delta += 360 * (4 + Math.floor(Math.random() * 2));
+          return prev + delta;
+        });
+
+        if (animTimeoutRef.current) window.clearTimeout(animTimeoutRef.current);
+        animTimeoutRef.current = window.setTimeout(() => {
+          animTimeoutRef.current = null;
+          setSpinningAnim(false);
+          setSectorOrder(stableWheelOrder(participantsRef.current.filter((p) => p.status === 'active')));
+          setLastEliminated(eliminatedP);
+        }, Math.max(remaining, 300));
+      } catch (err) {
+        setLoadError(err instanceof Error ? err.message : 'Не удалось загрузить колесо');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    poll();
+    const interval = window.setInterval(poll, 2500);
+    return () => {
+      window.clearInterval(interval);
+      if (animTimeoutRef.current) window.clearTimeout(animTimeoutRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (!supabase) {
+    return <main className="empty">Колесо доступно только с подключённым Supabase.</main>;
+  }
+
+  const revealedRounds = [...rounds].filter((r) => r.revealed).sort((a, b) => a.revealOrder - b.revealOrder);
+  const participantById = new Map(participants.map((p) => [p.id, p]));
+  const totalEliminationWeight = sectorOrder.reduce((sum, p) => sum + 1 / Math.max(p.amount, 1), 0);
+  const eliminationChanceOf = (amount: number) =>
+    totalEliminationWeight > 0 ? (((1 / Math.max(amount, 1)) / totalEliminationWeight) * 100).toFixed(1) : '0.0';
+  const rankedParticipants = [...participants].sort((a, b) => {
+    if (a.status !== b.status) return a.status === 'active' ? -1 : 1;
+    if (a.status === 'active') return b.amount - a.amount;
+    return (b.eliminatedAtRound ?? 0) - (a.eliminatedAtRound ?? 0);
+  });
+  const finishedResults = [...participants].sort((a, b) => {
+    if (a.status === 'winner') return -1;
+    if (b.status === 'winner') return 1;
+    return (b.eliminatedAtRound ?? 0) - (a.eliminatedAtRound ?? 0);
+  });
+  const winnerParticipant = participants.find((p) => p.status === 'winner');
+  const multiCategory = (session?.categories.length ?? 0) > 1;
+
+  return (
+    <main className={`wheel-public${fullscreen ? ' wheel-fullscreen' : ''}`}>
+      {!fullscreen && (
+        <section className="admin-head">
+          <div>
+            <p className="eyebrow">Прямой эфир</p>
+            <h1 className="wheel-title">
+              Колесо
+              {session && (
+                <span className="wheel-title-categories">
+                  {session.categories.map((c) => (
+                    <span className="wheel-title-category" key={c}><AuctionCategoryIcon category={c} size={16} /> {auctionCategoryLabel[c]}</span>
+                  ))}
+                </span>
+              )}
+            </h1>
+          </div>
+        </section>
+      )}
+
+      {loading && <div className="empty">Загружаем колесо...</div>}
+      {!loading && loadError && <div className="empty">Ошибка: {loadError}</div>}
+
+      {!loading && !loadError && !session && (
+        <section className="panel wheel-public-empty">
+          <p className="muted">Сейчас розыгрыша нет — загляните, когда R1Fmabes запустит колесо на стриме.</p>
+        </section>
+      )}
+
+      {!loading && !loadError && session?.status === 'locked' && (
+        <section className="wheel-layout">
+          <div className="wheel-circle-col">
+            <WheelCircle
+              sectors={sectorOrder}
+              rotation={wheelRotation}
+              spinning={spinningAnim}
+              centerEmoji={(session?.settings?.centerEmoji as string) || wheelCenterEmojiOptions[0]}
+              spinDurationSec={animDurationSec}
+            />
+            {!spinningAnim && lastEliminated && (
+              <div className="wheel-last-eliminated">
+                <span className="wheel-last-eliminated-label">Выбывает</span>
+                <strong>{lastEliminated.artist ? `${lastEliminated.artist} — ${lastEliminated.title}` : lastEliminated.title}</strong>
+                <span className="wheel-last-eliminated-amount">{lastEliminated.amount.toLocaleString('ru-RU')} ₽</span>
+              </div>
+            )}
+          </div>
+          <div className="wheel-participant-col">
+            <h2>Участники</h2>
+            {multiCategory ? (
+              <div className="wheel-prep-groups">
+                {session!.categories.map((cat) => {
+                  const group = rankedParticipants.filter((p) => p.category === cat);
+                  if (group.length === 0) return null;
+                  return (
+                    <div className="wheel-prep-group" key={cat}>
+                      <h3 className="wheel-prep-group-title"><AuctionCategoryIcon category={cat} size={13} /> {auctionCategoryLabel[cat]}</h3>
+                      <div className="wheel-participant-list">
+                        {group.map((p) => (
+                          <div className={`wheel-participant-row${p.status === 'winner' ? ' winner' : ''}${p.status === 'eliminated' ? ' eliminated' : ''}`} key={p.id}>
+                            <div className="wheel-participant-main">
+                              <strong>{p.artist ? `${p.artist} — ${p.title}` : p.title}</strong>
+                              <span className="wheel-participant-status">
+                                {p.status === 'winner' && <><Trophy size={14} /> Победитель</>}
+                                {p.status === 'eliminated' && `Выбыл на раунде ${p.eliminatedAtRound}`}
+                                {p.status === 'active' && 'В игре'}
+                              </span>
+                            </div>
+                            <div className="wheel-chance">{p.status === 'active' ? `${eliminationChanceOf(p.amount)}% вылет` : '—'}</div>
+                            <div className="admin-auction-amount">{p.amount.toLocaleString('ru-RU')} ₽</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="wheel-participant-list">
+                {rankedParticipants.map((p) => (
+                  <div className={`wheel-participant-row${p.status === 'winner' ? ' winner' : ''}${p.status === 'eliminated' ? ' eliminated' : ''}`} key={p.id}>
+                    <div className="wheel-participant-main">
+                      <strong>{p.artist ? `${p.artist} — ${p.title}` : p.title}</strong>
+                      <span className="wheel-participant-status">
+                        {p.status === 'winner' && <><Trophy size={14} /> Победитель</>}
+                        {p.status === 'eliminated' && `Выбыл на раунде ${p.eliminatedAtRound}`}
+                        {p.status === 'active' && 'В игре'}
+                      </span>
+                    </div>
+                    <div className="wheel-chance">{p.status === 'active' ? `${eliminationChanceOf(p.amount)}% вылет` : '—'}</div>
+                    <div className="admin-auction-amount">{p.amount.toLocaleString('ru-RU')} ₽</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {revealedRounds.length > 0 && (
+              <div className="wheel-history">
+                <h3>История раундов</h3>
+                {revealedRounds.map((round) => {
+                  const p = participantById.get(round.participantId);
+                  return (
+                    <div className="wheel-history-row" key={round.id}>
+                      <span>Раунд {round.revealOrder}</span>
+                      <span>{p ? (p.artist ? `${p.artist} — ${p.title}` : p.title) : 'неизвестный участник'}</span>
+                      {round.revealedAt && <span className="muted">{formatMSK(round.revealedAt)}</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {!loading && !loadError && session?.status === 'finished' && (
+        <section className="wheel-finished">
+          <div className="panel wheel-winner-panel">
+            <Trophy size={40} className="wheel-winner-icon" />
+            <p className="eyebrow">Победитель розыгрыша</p>
+            <h2>{winnerParticipant ? (winnerParticipant.artist ? `${winnerParticipant.artist} — ${winnerParticipant.title}` : winnerParticipant.title) : '—'}</h2>
+            {winnerParticipant && <p className="admin-auction-amount wheel-winner-amount">{winnerParticipant.amount.toLocaleString('ru-RU')} ₽</p>}
+          </div>
+          <div className="panel">
+            <h3>Итоги</h3>
+            <div className="wheel-participant-list">
+              {finishedResults.map((p, index) => (
+                <div className={`wheel-participant-row${p.status === 'winner' ? ' winner' : ''}${p.status === 'eliminated' ? ' eliminated' : ''}`} key={p.id}>
+                  <div className="wheel-rank">{index + 1}</div>
+                  <div className="wheel-participant-main">
+                    <strong>{multiCategory && p.category && <AuctionCategoryIcon category={p.category} size={13} />} {p.artist ? `${p.artist} — ${p.title}` : p.title}</strong>
+                    <span className="wheel-participant-status">
+                      {p.status === 'winner' ? <><Trophy size={14} /> Победитель</> : `Выбыл на раунде ${p.eliminatedAtRound}`}
+                    </span>
+                  </div>
+                  <div className="admin-auction-amount">{p.amount.toLocaleString('ru-RU')} ₽</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+    </main>
+  );
+}
+
 function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCategory; onClose: () => void }) {
   const { auctions, user, addAuctionAmount } = useStore();
   const [addingAmountFor, setAddingAmountFor] = useState<AuctionItem | null>(null);
@@ -4093,7 +4416,7 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
     sessionIdRef.current = loadedSession?.id ?? null;
     setParticipants(loadedParticipants);
     setRounds(loadedRounds);
-    setSectorOrder(shuffled(loadedParticipants.filter((p) => p.status === 'active')));
+    setSectorOrder(stableWheelOrder(loadedParticipants.filter((p) => p.status === 'active')));
     setLastEliminated(null);
     setPendingResume(null);
   };
@@ -4283,7 +4606,7 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
     setSpinError('');
     setSpinning(true);
     try {
-      const { data, error } = await supabase.rpc('spin_wheel_round', { p_session_id: session.id });
+      const { data, error } = await supabase.rpc('spin_wheel_round', { p_session_id: session.id, p_duration_ms: spinDurationSec * 1000 });
       if (error) throw error;
       const result = Array.isArray(data) ? data[0] : data;
       if (!result?.eliminated_participant_id) throw new Error('Пустой ответ от сервера');

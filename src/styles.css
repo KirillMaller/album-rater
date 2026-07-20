@@ -81,6 +81,15 @@ input:focus, textarea:focus, select:focus {
 }
 textarea { min-height: 120px; resize: vertical; }
 main { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 24px 0 44px; animation: fade-slide-up .28s var(--ease); }
+main.wheel-fullscreen {
+  width: 100%;
+  min-height: 100vh;
+  padding: 24px;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+}
+main.wheel-fullscreen .wheel-layout { width: min(1100px, 100%); }
 h1, h2, h3, p { margin-top: 0; }
 h1 { font-size: clamp(34px, 6vw, 76px); line-height: .95; letter-spacing: 0; }
 h2 { font-size: 24px; }
@@ -1615,6 +1624,9 @@ input.vote-side-badge { padding: 0; text-align: center; display: inline-flex; li
 }
 .auctions-meta b { color: var(--text); font-weight: 800; }
 .auctions-rules-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   color: var(--cyan);
   font-weight: 700;
   font-size: 13px;
@@ -1916,6 +1928,8 @@ input.vote-side-badge { padding: 0; text-align: center; display: inline-flex; li
 
 /* Колесо аукциона */
 .wheel-page .admin-head { align-items: flex-start; }
+.wheel-public { display: grid; gap: 18px; }
+.wheel-public-empty { text-align: center; padding: 40px 20px; }
 .wheel-embed { margin-top: 18px; }
 .wheel-embed .admin-head { padding: 0 0 16px; align-items: center; }
 .wheel-embed-head .admin-head-actions { align-items: center; }
