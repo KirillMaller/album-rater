@@ -3964,13 +3964,15 @@ function AdminAuctionsPage() {
         </div>
       </section>
 
-      <section className="type-tabs" aria-label="Категории аукционов">
-        {auctionCategoryOrder.map((category) => (
-          <button key={category} className={activeCategory === category ? 'on' : ''} onClick={() => setActiveCategory(category)}>
-            {auctionCategoryLabel[category]} <span>{counts[category]}</span>
-          </button>
-        ))}
-      </section>
+      {!wheelOpen && (
+        <section className="type-tabs" aria-label="Категории аукционов">
+          {auctionCategoryOrder.map((category) => (
+            <button key={category} className={activeCategory === category ? 'on' : ''} onClick={() => setActiveCategory(category)}>
+              {auctionCategoryLabel[category]} <span>{counts[category]}</span>
+            </button>
+          ))}
+        </section>
+      )}
 
       {wheelOpen && <WheelPanel initialCategory={activeCategory} onClose={() => setWheelOpen(false)} />}
 
@@ -4780,28 +4782,25 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
     setLoadError('');
     try {
       let sessionRow: any = null;
-      // discovered=true — сессию нашли широким поиском по набору категорий, а не по id, который
-      // уже точно наш (тот, что сейчас на экране). В этом случае это МОЖЕТ быть чужой незавершённый
-      // розыгрыш, оставшийся с прошлого раза — не подгружаем его молча, а сначала спрашиваем.
+      // discovered=true — сессию нашли широким поиском (а не по id, который уже точно наш). Теперь
+      // это единственный активный розыгрыш: подхватываем его и синхронизируем категории панели с ним.
       let discovered = false;
       if (mode === 'refetch' && sessionIdRef.current) {
         const { data, error } = await supabase.from('wheel_sessions').select('*').eq('id', sessionIdRef.current).maybeSingle();
         if (error) throw error;
         sessionRow = data;
       } else {
+        // Единственный активный розыгрыш за раз: берём ПОСЛЕДНЮЮ незавершённую сессию (draft/locked)
+        // независимо от выбранных категорий — чтобы при заходе в колесо сразу попасть на неё, а не
+        // плодить дубли и не искать по точному совпадению категорий.
         const { data, error } = await supabase
           .from('wheel_sessions')
           .select('*')
           .in('status', ['draft', 'locked'])
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false })
+          .limit(1);
         if (error) throw error;
-        const wanted = sortCategories(categories);
-        sessionRow = (data ?? []).find((row: any) => {
-          const rowCategories = sortCategories(
-            Array.isArray(row.categories) && row.categories.length > 0 ? row.categories : [row.category]
-          );
-          return rowCategories.length === wanted.length && rowCategories.every((c, i) => c === wanted[i]);
-        }) ?? null;
+        sessionRow = data?.[0] ?? null;
         discovered = true;
       }
 
@@ -4821,12 +4820,12 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
       const loadedParticipants = (participantsResult.data ?? []).map(fromDbWheelParticipant);
       const loadedRounds = (roundsResult.data ?? []).map(fromDbWheelRound);
 
-      if (discovered) {
-        setPendingResume({ session: loadedSession, participants: loadedParticipants, rounds: loadedRounds });
-        return;
-      }
-
       applyLoadedSession(loadedSession, loadedParticipants, loadedRounds);
+      if (discovered) {
+        // Подхватили активную сессию широким поиском — синхронизируем выбор категорий панели с ней,
+        // чтобы экран отражал именно её (а не то, с чем открыли колесо).
+        setCategories(sortCategories(loadedSession.categories));
+      }
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'Не удалось загрузить состояние колеса');
     } finally {
@@ -5150,7 +5149,7 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
           {activeAuctionItems.length < 2 ? (
             <p className="muted">Нужно минимум 2 позиции с ненулевой суммой в выбранных категориях, чтобы запустить колесо.</p>
           ) : (
-            <p className="muted">Участвуют позиции с донатами выше нуля. Чем больше собрано — тем меньше сектор на колесе и тем меньше шанс вылететь в конкретном раунде. Каждая прокрутка честная и случайная — исход не предрешён заранее.</p>
+            <p className="muted">Участвуют позиции с донатами выше нуля. «% банка» — доля собранного на позицию от всего банка. Чем больше собрано — тем меньше сектор на колесе и тем меньше шанс вылететь в конкретном раунде. Каждая прокрутка честная и случайная — исход не предрешён заранее.</p>
           )}
 
           {activeAuctionItems.length > 0 && (
@@ -5172,7 +5171,7 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
                             <button type="button" className="ghost icon-btn" title="Удалить" onClick={() => handleDeleteItem(item)}><Trash2 size={14} /></button>
                             <span className="wheel-prep-name">{auctionCategoryHasArtist[item.category] && item.artist ? <><b>{item.artist}</b> — {item.title}</> : <b>{item.title}</b>}</span>
                           </div>
-                          <div className="wheel-chance">{chanceOf(item.amount, totalActiveAmount)}%</div>
+                          <div className="wheel-chance">{chanceOf(item.amount, totalActiveAmount)}% банка</div>
                           <div className="admin-auction-amount">{item.amount.toLocaleString('ru-RU')} ₽</div>
                         </div>
                       ))}

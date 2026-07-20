@@ -2029,7 +2029,7 @@ input.vote-side-badge { padding: 0; text-align: center; display: inline-flex; li
 .wheel-prep-list { display: grid; gap: 8px; }
 .wheel-prep-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 70px 120px;
+  grid-template-columns: minmax(0, 1fr) 92px 120px;
   gap: 12px;
   align-items: center;
   padding: 10px 12px;
