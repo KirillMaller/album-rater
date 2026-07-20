@@ -2172,24 +2172,35 @@ input.vote-side-badge { padding: 0; text-align: center; display: inline-flex; li
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 10px 16px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 77, 109, .4);
-  background: rgba(255, 77, 109, .1);
+  padding: 12px 20px;
+  border-radius: 12px;
+  border: 1.5px solid rgba(255, 77, 109, .7);
+  background: rgba(255, 77, 109, .16);
   text-align: center;
-  animation: wheel-last-eliminated-pop .35s var(--ease);
+  box-shadow: 0 0 0 4px rgba(255, 77, 109, .08), 0 8px 26px rgba(255, 77, 109, .28);
+  animation: wheel-last-eliminated-pop .55s var(--ease);
 }
+.wheel-last-eliminated strong { font-size: 17px; }
 .wheel-last-eliminated-label {
-  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: .06em;
   color: var(--red);
-  font-weight: 800;
+  font-weight: 900;
 }
 .wheel-last-eliminated-amount { color: var(--muted); font-family: ui-monospace, monospace; font-size: 13px; }
 @keyframes wheel-last-eliminated-pop {
-  from { transform: scale(.9); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
+  0% { transform: scale(.55); opacity: 0; }
+  45% { transform: scale(1.14); opacity: 1; }
+  62% { transform: scale(.96); }
+  78% { transform: scale(1.03); }
+  100% { transform: scale(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wheel-last-eliminated { animation-duration: .2s; }
 }
 @keyframes wheel-spin-btn-glow {
   0%, 100% { box-shadow: 0 10px 26px rgba(145, 70, 255, .35); }
@@ -2233,13 +2244,28 @@ input.vote-side-badge { padding: 0; text-align: center; display: inline-flex; li
 .wheel-history h3 { margin: 0 0 2px; font-size: 14px; color: var(--muted); }
 .wheel-history-row {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
   gap: 10px;
   font-size: 12px;
   padding: 6px 10px;
   border: 1px dashed var(--line);
   border-radius: 8px;
   color: #c7cde0;
+}
+.wheel-history-row > span:nth-child(2) { flex: 1; min-width: 0; }
+.wheel-history-order {
+  flex-shrink: 0;
+  min-width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(255, 77, 109, .18);
+  color: #ff9db0;
+  font-weight: 800;
+  font-family: ui-monospace, monospace;
 }
 
 .wheel-finished { display: grid; gap: 16px; margin-top: 18px; }

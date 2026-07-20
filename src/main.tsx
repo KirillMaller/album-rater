@@ -4120,7 +4120,7 @@ function AddAmountModal({ item, onClose, onSubmit }: {
 
         <div className="amount-quick-buttons">
           {[100, 300, 500, 1000].map((value) => (
-            <button type="button" key={value} className="ghost" onClick={() => { setAmountText(String(value)); setError(''); }}>
+            <button type="button" key={value} className="ghost" onClick={() => { setAmountText(String(Math.max(0, Math.trunc(Number(amountText) || 0)) + value)); setError(''); }}>
               +{value.toLocaleString('ru-RU')} ₽
             </button>
           ))}
@@ -4598,7 +4598,7 @@ function PublicWheelPage() {
               <div className="wheel-spin-status"><RotateCw size={16} className="wheel-spin-status-icon" /> Идёт розыгрыш…</div>
             ) : lastEliminated ? (
               <div className="wheel-last-eliminated">
-                <span className="wheel-last-eliminated-label">Выбывает</span>
+                <span className="wheel-last-eliminated-label"><X size={14} /> Выбывает</span>
                 <strong>{lastEliminated.artist ? `${lastEliminated.artist} — ${lastEliminated.title}` : lastEliminated.title}</strong>
                 <span className="wheel-last-eliminated-amount">{lastEliminated.amount.toLocaleString('ru-RU')} ₽</span>
               </div>
@@ -4658,12 +4658,12 @@ function PublicWheelPage() {
 
             {revealedRounds.length > 0 && (
               <div className="wheel-history">
-                <h3>История раундов</h3>
+                <h3>Выбыли по порядку</h3>
                 {revealedRounds.map((round) => {
                   const p = participantById.get(round.participantId);
                   return (
                     <div className="wheel-history-row" key={round.id}>
-                      <span>Раунд {round.revealOrder}</span>
+                      <span className="wheel-history-order">{round.revealOrder}</span>
                       <span>{p ? (p.artist ? `${p.artist} — ${p.title}` : p.title) : 'неизвестный участник'}</span>
                       {round.revealedAt && <span className="muted">{formatMSK(round.revealedAt)}</span>}
                     </div>
@@ -4841,6 +4841,24 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
     refreshState('restore');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categories.join(',')]);
+
+  // Пока розыгрыш идёт (locked) и мы не крутим прямо сейчас — тихо подтягиваем состояние с сервера
+  // раз в 3 сек, чтобы админ видел актуальные суммы/участников без ручного «Обновить». Во время
+  // анимации спина (spinningRef) не трогаем, чтобы её не сбить.
+  const statusRef = useRef<WheelSessionStatus | undefined>(undefined);
+  useEffect(() => {
+    statusRef.current = session?.status;
+  }, [session?.status]);
+  useEffect(() => {
+    if (!supabase) return;
+    const interval = window.setInterval(() => {
+      if (sessionIdRef.current && statusRef.current === 'locked' && !spinningRef.current) {
+        refreshState('refetch', { silent: true });
+      }
+    }, 3000);
+    return () => window.clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const activeAuctionItems = auctions.filter((item) => categories.includes(item.category) && item.amount > 0).sort((a, b) => b.amount - a.amount);
   const inactiveAuctionItems = auctions.filter((item) => categories.includes(item.category) && item.amount <= 0);
@@ -5048,7 +5066,20 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
   };
   const handleSaveItem = async () => {
     if (!editingItem || !editingItem.title.trim()) return;
-    await saveAuction({ ...editingItem, title: editingItem.title.trim(), artist: editingItem.artist?.trim() || undefined, note: editingItem.note?.trim() || undefined });
+    const isNewItem = !auctions.some((a) => a.id === editingItem.id);
+    const clean = { ...editingItem, title: editingItem.title.trim(), artist: editingItem.artist?.trim() || undefined, note: editingItem.note?.trim() || undefined };
+    await saveAuction(clean);
+    // Новый лот, добавленный во время уже запущенного (но ещё не крученого) розыгрыша, сразу вводим
+    // участником на колесо — если у него есть сумма и его категория участвует в этой сессии. До
+    // первого спина это честно. Иначе лот просто уходит в очередь аукциона (на следующий раз).
+    if (
+      supabase && isNewItem && noSpinsYet && clean.amount > 0 &&
+      session && session.status === 'locked' && session.categories.includes(clean.category)
+    ) {
+      const { error } = await supabase.from('wheel_participants').insert(toDbWheelParticipant(session.id, clean));
+      if (error) throw error;
+      await refreshState('refetch', { silent: true });
+    }
     setEditingItem(null);
   };
   const handleDeleteItem = async (item: AuctionItem) => {
@@ -5258,7 +5289,7 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
             )}
             {!spinning && lastEliminated && (
               <div className="wheel-last-eliminated">
-                <span className="wheel-last-eliminated-label">Выбывает</span>
+                <span className="wheel-last-eliminated-label"><X size={14} /> Выбывает</span>
                 <strong>{lastEliminated.artist ? `${lastEliminated.artist} — ${lastEliminated.title}` : lastEliminated.title}</strong>
                 <span className="wheel-last-eliminated-amount">{lastEliminated.amount.toLocaleString('ru-RU')} ₽</span>
               </div>
@@ -5268,9 +5299,12 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
             )}
           </div>
           <div className="wheel-participant-col">
-            <h2>Участники</h2>
+            <div className="admin-auction-head">
+              <h2>Участники</h2>
+              {noSpinsYet && <button onClick={startNewItem}><Plus size={16} /> Добавить лот</button>}
+            </div>
             {noSpinsYet && (
-              <p className="muted wheel-preround-hint">До первого «Крутить» можно докинуть сумму участнику (нажмите «+») — например, прилетел донат.</p>
+              <p className="muted wheel-preround-hint">До первого «Крутить» можно докинуть сумму участнику (нажмите «+») или добавить новый лот — например, прилетел донат.</p>
             )}
             {(session?.categories.length ?? 0) > 1 ? (
               <div className="wheel-prep-groups">
@@ -5331,12 +5365,12 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
 
             {revealedRounds.length > 0 && (
               <div className="wheel-history">
-                <h3>История раундов</h3>
+                <h3>Выбыли по порядку</h3>
                 {revealedRounds.map((round) => {
                   const p = participantById.get(round.participantId);
                   return (
                     <div className="wheel-history-row" key={round.id}>
-                      <span>Раунд {round.revealOrder}</span>
+                      <span className="wheel-history-order">{round.revealOrder}</span>
                       <span>{p ? (p.artist ? `${p.artist} — ${p.title}` : p.title) : 'неизвестный участник'}</span>
                       {round.revealedAt && <span className="muted">{formatMSK(round.revealedAt)}</span>}
                     </div>
