@@ -26,9 +26,11 @@ import {
   ArrowDown,
   ArrowLeft,
   ArrowUp,
+  Clapperboard,
   Disc3,
   Edit3,
   ExternalLink,
+  Gamepad2,
   Headphones,
   Library,
   LayoutGrid,
@@ -41,10 +43,12 @@ import {
   RotateCw,
   Save,
   Search,
+  Sparkles,
   Star,
   Swords,
   Trash2,
   Trophy,
+  Tv,
   Video,
 } from 'lucide-react';
 import './styles.css';
@@ -99,6 +103,17 @@ const auctionCategoryHasArtist: Record<AuctionCategory, boolean> = {
   game: false,
 };
 
+const wheelCenterEmojiOptions = ['🎤', '🔥', '👑', '💰', '🐐', '⚡', '💀', '🏆'];
+
+function AuctionCategoryIcon({ category, size = 14 }: { category: AuctionCategory; size?: number }) {
+  if (category === 'album') return <Disc3 size={size} strokeWidth={2.2} />;
+  if (category === 'series') return <Tv size={size} strokeWidth={2.2} />;
+  if (category === 'film') return <Clapperboard size={size} strokeWidth={2.2} />;
+  if (category === 'anime') return <Sparkles size={size} strokeWidth={2.2} />;
+  if (category === 'game') return <Gamepad2 size={size} strokeWidth={2.2} />;
+  return <Swords size={size} strokeWidth={2.2} />;
+}
+
 // Колесо аукциона — розыгрыш следующей позиции, шанс пропорционален собранной сумме.
 type WheelSessionStatus = 'draft' | 'locked' | 'finished' | 'cancelled';
 type WheelParticipantStatus = 'active' | 'eliminated' | 'winner';
@@ -106,6 +121,7 @@ type WheelParticipantStatus = 'active' | 'eliminated' | 'winner';
 type WheelSession = {
   id: string;
   category: AuctionCategory;
+  categories: AuctionCategory[];
   status: WheelSessionStatus;
   currentRound: number;
   winnerParticipantId?: string;
@@ -120,6 +136,7 @@ type WheelParticipant = {
   id: string;
   sessionId: string;
   auctionItemId: string;
+  category?: AuctionCategory;
   title: string;
   artist?: string;
   amount: number;
@@ -967,9 +984,13 @@ function toDbAuction(item: AuctionItem) {
 }
 
 function fromDbWheelSession(row: any): WheelSession {
+  const categories: AuctionCategory[] = Array.isArray(row.categories) && row.categories.length > 0
+    ? row.categories
+    : [row.category];
   return {
     id: row.id,
     category: row.category,
+    categories,
     status: row.status,
     currentRound: Number(row.current_round ?? 0),
     winnerParticipantId: row.winner_participant_id ?? undefined,
@@ -981,11 +1002,13 @@ function fromDbWheelSession(row: any): WheelSession {
   };
 }
 
-function toDbWheelSession(session: Pick<WheelSession, 'category' | 'status' | 'createdBy'>) {
+function toDbWheelSession(session: Pick<WheelSession, 'categories' | 'status' | 'createdBy'> & { settings?: Record<string, unknown> }) {
   return {
-    category: session.category,
+    category: session.categories[0],
+    categories: session.categories,
     status: session.status,
     created_by: session.createdBy ?? null,
+    settings: session.settings ?? {},
   };
 }
 
@@ -994,6 +1017,7 @@ function fromDbWheelParticipant(row: any): WheelParticipant {
     id: row.id,
     sessionId: row.session_id,
     auctionItemId: row.auction_item_id,
+    category: row.category ?? undefined,
     title: row.title,
     artist: row.artist ?? undefined,
     amount: Number(row.amount ?? 0),
@@ -1008,6 +1032,7 @@ function toDbWheelParticipant(sessionId: string, item: AuctionItem) {
   return {
     session_id: sessionId,
     auction_item_id: item.id,
+    category: item.category,
     title: item.title,
     artist: item.artist || null,
     amount: item.amount,
@@ -3904,39 +3929,66 @@ function wheelWedgePath(cx: number, cy: number, r: number, startAngle: number, e
   return `M ${cx},${cy} L ${p1.x.toFixed(2)},${p1.y.toFixed(2)} A ${r},${r} 0 ${largeArc} 1 ${p2.x.toFixed(2)},${p2.y.toFixed(2)} Z`;
 }
 
-const wheelSectorPalette = ['#4a2338', '#33263f', '#26283f', '#3a2a20', '#2c2f22', '#2a2138'];
+const wheelSectorPalette = ['#3a1440', '#40102f', '#0a3540', '#123a24', '#403816', '#402210', '#400d1a'];
 
-function WheelCircle({ sectors, rotation, spinning }: { sectors: WheelParticipant[]; rotation: number; spinning: boolean }) {
+// Сектора по размеру ОБРАТНО пропорциональны сумме: у дешёвой позиции сектор больше (легче
+// вылететь), у дорогой — меньше (безопаснее). Это не декорация — та же формула веса (1/сумма)
+// используется на сервере в spin_wheel_round для реального честного выбора в момент клика
+// «Крутить», так что куда колесо визуально укажет, тот и выбывает по-настоящему.
+function wheelSectorRanges(sectors: WheelParticipant[]) {
+  const weights = sectors.map((p) => 1 / Math.max(p.amount, 1));
+  const total = weights.reduce((sum, w) => sum + w, 0) || 1;
+  let cursor = 0;
+  return sectors.map((participant, index) => {
+    const angle = (weights[index] / total) * 360;
+    const start = cursor;
+    const end = cursor + angle;
+    cursor = end;
+    return { id: participant.id, start, end, mid: (start + end) / 2 };
+  });
+}
+
+function WheelCircle({
+  sectors,
+  rotation,
+  spinning,
+  centerEmoji,
+}: {
+  sectors: WheelParticipant[];
+  rotation: number;
+  spinning: boolean;
+  centerEmoji: string;
+}) {
   const cx = 150;
   const cy = 150;
   const r = 148;
-  const n = Math.max(sectors.length, 1);
-  const sectorAngle = 360 / n;
+  const ranges = wheelSectorRanges(sectors);
   return (
     <div className="wheel-circle-wrap">
       <div className="wheel-pointer" aria-hidden="true" />
+      <div className={`wheel-hub${spinning ? ' spinning' : ''}`} aria-hidden="true">
+        <span className="wheel-hub-emoji">{centerEmoji}</span>
+      </div>
       <div
         className="wheel-circle"
         style={{ transform: `rotate(${rotation}deg)`, transition: spinning ? 'transform 4.6s cubic-bezier(.15,.65,.2,1)' : 'none' }}
       >
         <svg viewBox="0 0 300 300" className="wheel-svg">
-          {sectors.map((participant, index) => {
-            const start = index * sectorAngle;
-            const end = start + sectorAngle;
-            return (
-              <path
-                key={participant.id}
-                d={wheelWedgePath(cx, cy, r, start, end)}
-                fill={wheelSectorPalette[index % wheelSectorPalette.length]}
-                className="wheel-sector"
-              />
-            );
-          })}
+          {sectors.map((participant, index) => (
+            <path
+              key={participant.id}
+              d={wheelWedgePath(cx, cy, r, ranges[index].start, ranges[index].end)}
+              fill={wheelSectorPalette[index % wheelSectorPalette.length]}
+              className="wheel-sector"
+            />
+          ))}
           <circle cx={cx} cy={cy} r={r} className="wheel-circle-outline" />
         </svg>
         {sectors.map((participant, index) => {
-          const mid = index * sectorAngle + sectorAngle / 2;
-          const cssAngle = mid - 90;
+          // Сектора мельче ~20° не могут вместить подпись без наложения на соседей — просто
+          // не подписываем их на круге, полная информация всё равно есть в списке справа.
+          if (ranges[index].end - ranges[index].start < 20) return null;
+          const cssAngle = ranges[index].mid - 90;
           const fullTitle = `${participant.artist ? participant.artist + ' — ' : ''}${participant.title} · ${participant.amount.toLocaleString('ru-RU')} ₽`;
           return (
             <div key={participant.id} className="wheel-sector-label" style={{ transform: `rotate(${cssAngle}deg) translateX(112px)` }}>
@@ -3955,10 +4007,22 @@ function WheelCircle({ sectors, rotation, spinning }: { sectors: WheelParticipan
 function AdminWheelPage() {
   const { auctions, user } = useStore();
   const [searchParams] = useSearchParams();
-  const rawCategory = searchParams.get('category');
-  const category: AuctionCategory = (auctionCategoryOrder as string[]).includes(rawCategory ?? '')
-    ? (rawCategory as AuctionCategory)
-    : 'album';
+  const sortCategories = (cats: AuctionCategory[]) =>
+    [...cats].sort((a, b) => auctionCategoryOrder.indexOf(a) - auctionCategoryOrder.indexOf(b));
+  const rawCategories = searchParams.getAll('category').filter((c) => (auctionCategoryOrder as string[]).includes(c)) as AuctionCategory[];
+  const initialCategories = sortCategories(rawCategories.length > 0 ? Array.from(new Set(rawCategories)) : ['album']);
+
+  const [categories, setCategories] = useState<AuctionCategory[]>(initialCategories);
+  const toggleCategory = (cat: AuctionCategory) => {
+    setCategories((prev) => {
+      if (prev.includes(cat)) {
+        if (prev.length === 1) return prev;
+        return prev.filter((c) => c !== cat);
+      }
+      return sortCategories([...prev, cat]);
+    });
+  };
+  const [centerEmoji, setCenterEmoji] = useState(wheelCenterEmojiOptions[0]);
 
   const [session, setSession] = useState<WheelSession | null>(null);
   const [participants, setParticipants] = useState<WheelParticipant[]>([]);
@@ -3967,6 +4031,7 @@ function AdminWheelPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string>('');
   const sessionIdRef = useRef<string | null>(null);
+  const spinningRef = useRef(false);
 
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string>('');
@@ -3989,13 +4054,13 @@ function AdminWheelPage() {
     setSectorOrder(
       loadedParticipants
         .filter((p) => p.status === 'active')
-        .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0))
+        .sort((a, b) => b.amount - a.amount)
     );
   };
 
-  const refreshState = async (mode: 'restore' | 'refetch') => {
+  const refreshState = async (mode: 'restore' | 'refetch', opts: { silent?: boolean } = {}) => {
     if (!supabase) return;
-    setLoading(true);
+    if (!opts.silent) setLoading(true);
     setLoadError('');
     try {
       let sessionRow: any = null;
@@ -4007,12 +4072,16 @@ function AdminWheelPage() {
         const { data, error } = await supabase
           .from('wheel_sessions')
           .select('*')
-          .eq('category', category)
           .in('status', ['draft', 'locked'])
-          .order('created_at', { ascending: false })
-          .limit(1);
+          .order('created_at', { ascending: false });
         if (error) throw error;
-        sessionRow = data?.[0] ?? null;
+        const wanted = sortCategories(categories);
+        sessionRow = (data ?? []).find((row: any) => {
+          const rowCategories = sortCategories(
+            Array.isArray(row.categories) && row.categories.length > 0 ? row.categories : [row.category]
+          );
+          return rowCategories.length === wanted.length && rowCategories.every((c, i) => c === wanted[i]);
+        }) ?? null;
       }
 
       if (!sessionRow) {
@@ -4036,7 +4105,7 @@ function AdminWheelPage() {
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'Не удалось загрузить состояние колеса');
     } finally {
-      setLoading(false);
+      if (!opts.silent) setLoading(false);
     }
   };
 
@@ -4047,12 +4116,11 @@ function AdminWheelPage() {
     setCreateError('');
     refreshState('restore');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [category]);
+  }, [categories.join(',')]);
 
-  const activeAuctionItems = auctions.filter((item) => item.category === category && item.amount > 0).sort((a, b) => b.amount - a.amount);
-  const inactiveAuctionItems = auctions.filter((item) => item.category === category && item.amount <= 0);
+  const activeAuctionItems = auctions.filter((item) => categories.includes(item.category) && item.amount > 0).sort((a, b) => b.amount - a.amount);
+  const inactiveAuctionItems = auctions.filter((item) => categories.includes(item.category) && item.amount <= 0);
   const totalActiveAmount = activeAuctionItems.reduce((sum, item) => sum + item.amount, 0);
-  const totalParticipantsAmount = participants.reduce((sum, p) => sum + p.amount, 0);
 
   const handleLockParticipants = async () => {
     if (!supabase || !user || activeAuctionItems.length < 2) return;
@@ -4061,7 +4129,7 @@ function AdminWheelPage() {
     try {
       const { data: sessionRow, error: sessionError } = await supabase
         .from('wheel_sessions')
-        .insert(toDbWheelSession({ category, status: 'draft', createdBy: user.id }))
+        .insert(toDbWheelSession({ categories, status: 'draft', createdBy: user.id, settings: { centerEmoji } }))
         .select()
         .single();
       if (sessionError) throw sessionError;
@@ -4126,94 +4194,51 @@ function AdminWheelPage() {
     }
   };
 
-  const finalizeSpin = async (round: WheelRound, participant: WheelParticipant, allRounds: WheelRound[], allSectors: WheelParticipant[]) => {
-    if (!supabase || !session) { setSpinning(false); return; }
-    try {
-      const newRoundNumber = session.currentRound + 1;
-      const remainingUnrevealed = allRounds.filter((r) => !r.revealed && r.id !== round.id).length;
-      const remainingActiveAfter = allSectors.length - 1;
-
-      const { error: roundError } = await supabase
-        .from('wheel_rounds')
-        .update({ revealed: true, revealed_at: new Date().toISOString() })
-        .eq('id', round.id);
-      if (roundError) throw roundError;
-
-      const { error: participantError } = await supabase
-        .from('wheel_participants')
-        .update({ status: 'eliminated', eliminated_at_round: newRoundNumber })
-        .eq('id', participant.id);
-      if (participantError) throw participantError;
-
-      let winner: WheelParticipant | undefined;
-      if (remainingUnrevealed === 0 && remainingActiveAfter === 1) {
-        winner = allSectors.find((p) => p.id !== participant.id);
-        if (winner) {
-          const { error: winnerError } = await supabase.from('wheel_participants').update({ status: 'winner' }).eq('id', winner.id);
-          if (winnerError) throw winnerError;
-        }
-      }
-
-      const sessionUpdate: Record<string, unknown> = { current_round: newRoundNumber };
-      if (winner) {
-        sessionUpdate.status = 'finished';
-        sessionUpdate.winner_participant_id = winner.id;
-        sessionUpdate.finished_at = new Date().toISOString();
-      }
-      const { data: sessionData, error: sessionUpdateError } = await supabase
-        .from('wheel_sessions')
-        .update(sessionUpdate)
-        .eq('id', session.id)
-        .select()
-        .maybeSingle();
-      if (sessionUpdateError) throw sessionUpdateError;
-
-      setRounds((prev) => prev.map((r) => (r.id === round.id ? { ...r, revealed: true, revealedAt: new Date().toISOString() } : r)));
-      setParticipants((prev) => prev.map((p) => {
-        if (p.id === participant.id) return { ...p, status: 'eliminated' as WheelParticipantStatus, eliminatedAtRound: newRoundNumber };
-        if (winner && p.id === winner.id) return { ...p, status: 'winner' as WheelParticipantStatus };
-        return p;
-      }));
-      setSectorOrder((prev) => prev.filter((p) => p.id !== participant.id));
-      if (sessionData) setSession(fromDbWheelSession(sessionData));
-      setSpinError('');
-    } catch (err) {
-      setSpinError(err instanceof Error ? err.message : 'Не удалось завершить раунд');
-    } finally {
-      setSpinning(false);
-    }
-  };
-
-  const handleSpin = () => {
-    if (!session || session.status !== 'locked' || spinning || sectorOrder.length < 2) return;
-    const nextRound = [...rounds].filter((r) => !r.revealed).sort((a, b) => a.revealOrder - b.revealOrder)[0];
-    if (!nextRound) return;
-    const idx = sectorOrder.findIndex((p) => p.id === nextRound.participantId);
-    if (idx === -1) {
-      setSpinError('Не удалось определить участника для розыгрыша — нажмите «Обновить».');
-      return;
-    }
-
-    const sectorAngle = 360 / sectorOrder.length;
-    const sectorCenter = (idx + 0.5) * sectorAngle;
-    const currentMod = ((wheelRotation % 360) + 360) % 360;
-    const targetMod = ((-sectorCenter % 360) + 360) % 360;
-    let delta = targetMod - currentMod;
-    if (delta <= 0) delta += 360;
-    delta += 360 * (4 + Math.floor(Math.random() * 2));
-    const newRotation = wheelRotation + delta;
-
-    const roundsSnapshot = rounds;
-    const sectorsSnapshot = sectorOrder;
-    const participantSnapshot = sectorOrder[idx];
-
+  // Честный live-спин: сервер выбирает выбывшего ИМЕННО в момент нажатия «Крутить» —
+  // никакой заранее просчитанной очереди нет. Анимация просто крутит колесо к уже
+  // случившемуся (и уже сохранённому в базе) результату, вес = 1/сумма — тот же расчёт,
+  // что рисует размер сектора, так что куда колесо визуально укажет, тот и выбывает по-настоящему.
+  const handleSpin = async () => {
+    // spinningRef — синхронная защита от двойного клика/двойного тапа: React-state «spinning»
+    // обновляется асинхронно и не успевает выставить disabled на кнопку между двумя быстрыми
+    // кликами, а два honest-спина подряд за один клик выглядели бы на экране как рассинхрон.
+    if (!supabase || !session || session.status !== 'locked' || spinningRef.current || sectorOrder.length < 2) return;
+    spinningRef.current = true;
     setSpinError('');
     setSpinning(true);
-    setWheelRotation(newRotation);
+    try {
+      const { data, error } = await supabase.rpc('spin_wheel_round', { p_session_id: session.id });
+      if (error) throw error;
+      const result = Array.isArray(data) ? data[0] : data;
+      if (!result?.eliminated_participant_id) throw new Error('Пустой ответ от сервера');
 
-    window.setTimeout(() => {
-      finalizeSpin(nextRound, participantSnapshot, roundsSnapshot, sectorsSnapshot);
-    }, 4700);
+      const idx = sectorOrder.findIndex((p) => p.id === result.eliminated_participant_id);
+      if (idx === -1) {
+        setSpinError('Сервер выбрал участника, которого нет на экране — нажмите «Обновить».');
+        spinningRef.current = false;
+        setSpinning(false);
+        await refreshState('refetch');
+        return;
+      }
+
+      const sectorCenter = wheelSectorRanges(sectorOrder)[idx].mid;
+      const currentMod = ((wheelRotation % 360) + 360) % 360;
+      const targetMod = ((-sectorCenter % 360) + 360) % 360;
+      let delta = targetMod - currentMod;
+      if (delta <= 0) delta += 360;
+      delta += 360 * (4 + Math.floor(Math.random() * 2));
+      setWheelRotation(wheelRotation + delta);
+
+      window.setTimeout(async () => {
+        await refreshState('refetch', { silent: true });
+        spinningRef.current = false;
+        setSpinning(false);
+      }, 4700);
+    } catch (err) {
+      setSpinError(err instanceof Error ? err.message : 'Не удалось прокрутить колесо');
+      spinningRef.current = false;
+      setSpinning(false);
+    }
   };
 
   const handleNewSession = () => {
@@ -4241,7 +4266,18 @@ function AdminWheelPage() {
   const participantById = new Map(participants.map((p) => [p.id, p]));
   const chanceOf = (amount: number, total: number) => (total > 0 ? ((amount / total) * 100).toFixed(1) : '0.0');
 
-  const rankedParticipants = [...participants].sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
+  // Шанс вылететь именно в предстоящем раунде — вес = 1/сумма, та же формула что рисует сектор.
+  // Пересчитывается заново после каждого спина по тем, кто ещё остался — это и есть честный текущий расклад,
+  // а не статичная цифра, посчитанная один раз в начале.
+  const totalEliminationWeight = sectorOrder.reduce((sum, p) => sum + 1 / Math.max(p.amount, 1), 0);
+  const eliminationChanceOf = (amount: number) =>
+    totalEliminationWeight > 0 ? (((1 / Math.max(amount, 1)) / totalEliminationWeight) * 100).toFixed(1) : '0.0';
+
+  const rankedParticipants = [...participants].sort((a, b) => {
+    if (a.status !== b.status) return a.status === 'active' ? -1 : 1;
+    if (a.status === 'active') return b.amount - a.amount;
+    return (b.eliminatedAtRound ?? 0) - (a.eliminatedAtRound ?? 0);
+  });
   const finishedResults = [...participants].sort((a, b) => {
     if (a.status === 'winner') return -1;
     if (b.status === 'winner') return 1;
@@ -4254,7 +4290,14 @@ function AdminWheelPage() {
       <section className="admin-head">
         <div>
           <Link to="/admin/auctions" className="wheel-back-link"><ArrowLeft size={16} /> Назад к аукциону</Link>
-          <h1>Колесо — {auctionCategoryLabel[category]}</h1>
+          <h1 className="wheel-title">
+            Колесо
+            <span className="wheel-title-categories">
+              {(session ? session.categories : categories).map((c) => (
+                <span className="wheel-title-category" key={c}><AuctionCategoryIcon category={c} size={16} /> {auctionCategoryLabel[c]}</span>
+              ))}
+            </span>
+          </h1>
         </div>
         <div className="admin-head-actions">
           <button className="ghost" onClick={() => refreshState('refetch')} disabled={loading}><RefreshCw size={16} /> Обновить</button>
@@ -4272,23 +4315,69 @@ function AdminWheelPage() {
       {!loading && !loadError && !session && (
         <section className="panel wheel-prep">
           <h2>Подготовка розыгрыша</h2>
+
+          <div className="wheel-category-picker">
+            <p className="muted">Категории розыгрыша:</p>
+            <div className="filter-options">
+              {auctionCategoryOrder.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  className={`filter-pill${categories.includes(cat) ? ' on' : ''}`}
+                  onClick={() => toggleCategory(cat)}
+                >
+                  <AuctionCategoryIcon category={cat} /> {auctionCategoryLabel[cat]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="wheel-category-picker">
+            <p className="muted">Значок в центре колеса:</p>
+            <div className="filter-options">
+              {wheelCenterEmojiOptions.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  className={`filter-pill wheel-emoji-pill${centerEmoji === emoji ? ' on' : ''}`}
+                  onClick={() => setCenterEmoji(emoji)}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {activeAuctionItems.length < 2 ? (
-            <p className="muted">Нужно минимум 2 позиции с ненулевой суммой в категории «{auctionCategoryLabel[category].toLowerCase()}», чтобы запустить колесо.</p>
+            <p className="muted">Нужно минимум 2 позиции с ненулевой суммой в выбранных категориях, чтобы запустить колесо.</p>
           ) : (
-            <p className="muted">Участвуют позиции с донатами выше нуля. Шанс на победу пропорционален доле собранной суммы.</p>
+            <p className="muted">Участвуют позиции с донатами выше нуля. Чем больше собрано — тем меньше сектор на колесе и тем меньше шанс вылететь в конкретном раунде. Каждая прокрутка честная и случайная — исход не предрешён заранее.</p>
           )}
 
           {activeAuctionItems.length > 0 && (
-            <div className="wheel-prep-list">
-              {activeAuctionItems.map((item) => (
-                <div className="wheel-prep-row" key={item.id}>
-                  <div className="wheel-prep-title">
-                    {auctionCategoryHasArtist[item.category] && item.artist ? <><b>{item.artist}</b> — {item.title}</> : <b>{item.title}</b>}
+            <div className="wheel-prep-groups">
+              {categories.map((cat) => {
+                const items = activeAuctionItems.filter((item) => item.category === cat);
+                if (items.length === 0) return null;
+                return (
+                  <div className="wheel-prep-group" key={cat}>
+                    {categories.length > 1 && (
+                      <h3 className="wheel-prep-group-title"><AuctionCategoryIcon category={cat} size={13} /> {auctionCategoryLabel[cat]}</h3>
+                    )}
+                    <div className="wheel-prep-list">
+                      {items.map((item) => (
+                        <div className="wheel-prep-row" key={item.id}>
+                          <div className="wheel-prep-title">
+                            {auctionCategoryHasArtist[item.category] && item.artist ? <><b>{item.artist}</b> — {item.title}</> : <b>{item.title}</b>}
+                          </div>
+                          <div className="wheel-chance">{chanceOf(item.amount, totalActiveAmount)}%</div>
+                          <div className="admin-auction-amount">{item.amount.toLocaleString('ru-RU')} ₽</div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="wheel-chance">{chanceOf(item.amount, totalActiveAmount)}%</div>
-                  <div className="admin-auction-amount">{item.amount.toLocaleString('ru-RU')} ₽</div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -4320,17 +4409,22 @@ function AdminWheelPage() {
       {!loading && !loadError && session?.status === 'locked' && (
         <section className="wheel-layout">
           <div className="wheel-circle-col">
-            <WheelCircle sectors={sectorOrder} rotation={wheelRotation} spinning={spinning} />
+            <WheelCircle
+              sectors={sectorOrder}
+              rotation={wheelRotation}
+              spinning={spinning}
+              centerEmoji={(session?.settings?.centerEmoji as string) || wheelCenterEmojiOptions[0]}
+            />
             <button
               className="wheel-spin-btn"
               onClick={handleSpin}
-              disabled={spinning || rounds.every((r) => r.revealed) || sectorOrder.length < 2}
+              disabled={spinning || sectorOrder.length < 2}
             >
               {spinning ? 'Крутится…' : <><RotateCw size={18} /> Крутить</>}
             </button>
             {spinError && <p className="form-error">{spinError}</p>}
-            {rounds.length > 0 && rounds.every((r) => r.revealed) && (
-              <p className="muted">Все раунды раскрыты — нажмите «Обновить», если победитель ещё не появился.</p>
+            {!spinning && sectorOrder.length === 1 && (
+              <p className="muted">Победитель определён — нажмите «Обновить», если экран не обновился сам.</p>
             )}
           </div>
           <div className="wheel-participant-col">
@@ -4339,14 +4433,14 @@ function AdminWheelPage() {
               {rankedParticipants.map((p) => (
                 <div className={`wheel-participant-row${p.status === 'winner' ? ' winner' : ''}${p.status === 'eliminated' ? ' eliminated' : ''}`} key={p.id}>
                   <div className="wheel-participant-main">
-                    <strong>{p.artist ? `${p.artist} — ${p.title}` : p.title}</strong>
+                    <strong>{(session?.categories.length ?? 0) > 1 && p.category && <AuctionCategoryIcon category={p.category} size={13} />} {p.artist ? `${p.artist} — ${p.title}` : p.title}</strong>
                     <span className="wheel-participant-status">
                       {p.status === 'winner' && <><Trophy size={14} /> Победитель</>}
                       {p.status === 'eliminated' && `Выбыл на раунде ${p.eliminatedAtRound}`}
                       {p.status === 'active' && 'В игре'}
                     </span>
                   </div>
-                  <div className="wheel-chance">{chanceOf(p.amount, totalParticipantsAmount)}%</div>
+                  <div className="wheel-chance">{p.status === 'active' ? `${eliminationChanceOf(p.amount)}% вылет` : '—'}</div>
                   <div className="admin-auction-amount">{p.amount.toLocaleString('ru-RU')} ₽</div>
                 </div>
               ))}
@@ -4387,7 +4481,7 @@ function AdminWheelPage() {
                 <div className={`wheel-participant-row${p.status === 'winner' ? ' winner' : ''}${p.status === 'eliminated' ? ' eliminated' : ''}`} key={p.id}>
                   <div className="wheel-rank">{index + 1}</div>
                   <div className="wheel-participant-main">
-                    <strong>{p.artist ? `${p.artist} — ${p.title}` : p.title}</strong>
+                    <strong>{(session?.categories.length ?? 0) > 1 && p.category && <AuctionCategoryIcon category={p.category} size={13} />} {p.artist ? `${p.artist} — ${p.title}` : p.title}</strong>
                     <span className="wheel-participant-status">
                       {p.status === 'winner' ? <><Trophy size={14} /> Победитель</> : `Выбыл на раунде ${p.eliminatedAtRound}`}
                     </span>
