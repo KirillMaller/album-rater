@@ -2071,6 +2071,17 @@ html[data-design="new"] .vote-side-label { font-family: var(--font-mono); }
   background: #0d111c;
 }
 .admin-auction-row:hover { border-color: rgba(0, 229, 255, .28); background: #111728; }
+/* Bone: холодный тёмно-синий #0d111c/#111728 не подходит тёплой палитре — единый набор
+   тёмных строк-контейнеров переводим на --panel/--panel-2 разом. */
+html[data-design="new"] .filters label,
+html[data-design="new"] .home-search,
+html[data-design="new"] .admin-row,
+html[data-design="new"] .admin-auction-row,
+html[data-design="new"] .wheel-prep-row,
+html[data-design="new"] .wheel-participant-row {
+  background: var(--panel);
+}
+html[data-design="new"] .admin-auction-row:hover { border-color: var(--bone); background: var(--panel-2); }
 .admin-auction-main { min-width: 0; display: grid; gap: 3px; }
 .admin-auction-main strong { font-weight: 700; }
 .admin-auction-main small { color: var(--muted); font-size: 12px; }
@@ -2630,6 +2641,25 @@ html[data-design="new"] .wheel-history-order {
   color: var(--bone);
   font-family: var(--font-mono);
 }
+
+/* Опасная зона (README §4.1 P2) — визуально отделена пунктирной линией сверху, всегда
+   контуром (никогда сплошной заливкой), требует явного второго клика «Да, …». */
+.wheel-danger-zone {
+  margin-top: 28px;
+  padding-top: 18px;
+  border-top: 1px dashed rgba(229, 72, 77, .35);
+  display: flex;
+  justify-content: flex-end;
+}
+.wheel-danger-confirm {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.wheel-danger-confirm span { font-size: 13px; color: var(--muted); }
+.wheel-danger-confirm-actions { display: flex; gap: 8px; }
 
 .wheel-finished { display: grid; gap: 16px; margin-top: 18px; }
 .wheel-winner-panel {

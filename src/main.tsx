@@ -4088,7 +4088,7 @@ function AdminAuctionsPage() {
             <button onClick={() => setWheelOpen((v) => !v)}>
               <Aperture size={16} /> {wheelOpen ? 'Свернуть' : 'Запустить аукцион'}
             </button>
-            <button onClick={() => startNew(activeCategory)}><Plus size={16} /> Добавить</button>
+            <button className="ghost" onClick={() => startNew(activeCategory)}><Plus size={16} /> Добавить</button>
           </div>
         </div>
         {activeList.length === 0 ? (
@@ -4877,6 +4877,7 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
   const [spinDurationSec, setSpinDurationSec] = useState(5);
 
   const [resetBusy, setResetBusy] = useState(false);
+  const [confirmingReset, setConfirmingReset] = useState(false);
 
   const applyLoadedSession = (
     loadedSession: WheelSession | null,
@@ -4890,6 +4891,7 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
     setSectorOrder(stableWheelOrder(loadedParticipants.filter((p) => p.status === 'active')));
     setLastEliminated(null);
     setPendingResume(null);
+    setConfirmingReset(false);
   };
 
   const refreshState = async (mode: 'restore' | 'refetch', opts: { silent?: boolean } = {}) => {
@@ -5025,15 +5027,12 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
     }
   };
 
+  // Подтверждение — двухшаговый UI в самой панели (кнопка «Сбросить» → «Точно?» →
+  // «Да, сбросить»), см. confirmingReset ниже. Отдельного window.confirm() поверх не нужно —
+  // это было бы уже третьим слоем проверки.
   const handleResetSession = async () => {
     if (!supabase || !session) return;
     const isDraft = session.status === 'draft';
-    const confirmed = window.confirm(
-      isDraft
-        ? 'Удалить черновик сессии колеса? Придётся зафиксировать участников заново.'
-        : 'Отменить текущую сессию колеса? Прогресс розыгрыша будет потерян — начать можно будет заново.'
-    );
-    if (!confirmed) return;
     setResetBusy(true);
     try {
       if (isDraft) {
@@ -5226,11 +5225,6 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
         </div>
         <div className="admin-head-actions">
           <button className="ghost" onClick={() => refreshState('refetch')} disabled={loading}><RefreshCw size={16} /> Обновить</button>
-          {session && session.status !== 'finished' && (
-            <button className="danger" onClick={handleResetSession} disabled={resetBusy}>
-              <Trash2 size={16} /> {session.status === 'draft' ? 'Удалить черновик' : 'Отменить сессию'}
-            </button>
-          )}
           <button className="ghost icon-btn" title="Свернуть колесо" onClick={onClose}><X size={16} /></button>
         </div>
       </div>
@@ -5258,7 +5252,7 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
         <section className="panel wheel-prep">
           <div className="admin-auction-head">
             <h2>Подготовка розыгрыша</h2>
-            <button onClick={startNewItem}><Plus size={16} /> Добавить позицию</button>
+            <button className="ghost" onClick={startNewItem}><Plus size={16} /> Добавить позицию</button>
           </div>
 
           <div className="wheel-category-picker">
@@ -5417,7 +5411,7 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
           <div className="wheel-participant-col">
             <div className="admin-auction-head">
               <h2>Участники</h2>
-              {noSpinsYet && <button onClick={startNewItem}><Plus size={16} /> Добавить лот</button>}
+              {noSpinsYet && <button className="ghost" onClick={startNewItem}><Plus size={16} /> Добавить лот</button>}
             </div>
             {noSpinsYet && (
               <p className="muted wheel-preround-hint">До первого «Крутить» можно докинуть сумму участнику (нажмите «+») или добавить новый лот — например, прилетел донат.</p>
@@ -5525,6 +5519,26 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
               ))}
             </div>
           </div>
+        </section>
+      )}
+
+      {session && session.status !== 'finished' && (
+        <section className="wheel-danger-zone">
+          {!confirmingReset ? (
+            <button className="btn-danger" onClick={() => setConfirmingReset(true)}>
+              <Trash2 size={16} /> {session.status === 'draft' ? 'Удалить черновик' : 'Отменить сессию'}
+            </button>
+          ) : (
+            <div className="wheel-danger-confirm">
+              <span>{session.status === 'draft' ? 'Точно удалить черновик?' : 'Точно отменить сессию? Прогресс розыгрыша потеряется.'}</span>
+              <div className="wheel-danger-confirm-actions">
+                <button className="btn-ghost" onClick={() => setConfirmingReset(false)} disabled={resetBusy}>Отмена</button>
+                <button className="btn-danger" onClick={handleResetSession} disabled={resetBusy}>
+                  {resetBusy ? 'Сбрасываю…' : <><Trash2 size={16} /> Да, {session.status === 'draft' ? 'удалить' : 'сбросить'}</>}
+                </button>
+              </div>
+            </div>
+          )}
         </section>
       )}
 
