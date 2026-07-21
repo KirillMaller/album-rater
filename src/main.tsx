@@ -3522,7 +3522,7 @@ function AdminPage() {
           <h1>Админка</h1>
         </div>
         <div className="admin-head-actions">
-          <Link className="button" to="/admin/auctions"><Gavel size={16} /> Аукционные правила</Link>
+          <Link className="button" to="/admin/auctions"><Gavel size={16} /> Аукционы</Link>
           <Link className="button" to="/admin/new"><Plus size={16} /> Начать оценку</Link>
         </div>
       </section>
@@ -3771,16 +3771,48 @@ function AuctionEditorModal({ item, isNew, onChange, onClose, onSave }: {
 }
 
 function AuctionRulesPage() {
-  const { auctionRules, auctionsLoading, admin } = useStore();
+  const { auctionRules, auctionsLoading, admin, saveAuctionRules } = useStore();
+  const [editing, setEditing] = useState(false);
+  const [rulesDraft, setRulesDraft] = useState('');
+  const [rulesSaving, setRulesSaving] = useState(false);
+  const [rulesSavedAt, setRulesSavedAt] = useState('');
+
+  useEffect(() => {
+    if (auctionRules) setRulesDraft(auctionRules.content);
+  }, [auctionRules?.scope]);
+
+  const handleRulesSave = async () => {
+    setRulesSaving(true);
+    try {
+      await saveAuctionRules(rulesDraft);
+      setRulesSavedAt(formatMSKTime(new Date()) + ' МСК');
+    } finally {
+      setRulesSaving(false);
+    }
+  };
+
   return (
     <main>
       <section className="rules-head">
         <p className="eyebrow">Аукционы</p>
         <h1>Правила</h1>
-        {admin && <Link to="/admin/auctions" className="auctions-rules-link">Редактировать →</Link>}
+        {admin && (
+          <button type="button" className="ghost auctions-rules-link" onClick={() => setEditing((v) => !v)}>
+            {editing ? 'Смотреть' : 'Редактировать'}
+          </button>
+        )}
       </section>
       <section className="panel">
-        {auctionsLoading && !auctionRules ? (
+        {editing ? (
+          <>
+            <p className="muted">Markdown поддерживается.</p>
+            <textarea value={rulesDraft} onChange={(event) => setRulesDraft(event.target.value)} className="rules-textarea" />
+            <div className="rules-save">
+              <button onClick={handleRulesSave} disabled={rulesSaving}><Save size={16} /> Сохранить правила</button>
+              {rulesSavedAt && <span className="muted">сохранено в {rulesSavedAt}</span>}
+            </div>
+          </>
+        ) : auctionsLoading && !auctionRules ? (
           <p className="muted">Загружаем правила...</p>
         ) : auctionRules?.content ? (
           <div className="markdown"><ReactMarkdown remarkPlugins={[remarkGfm]} urlTransform={safeMarkdownUrl}>{auctionRules.content}</ReactMarkdown></div>
@@ -3995,7 +4027,7 @@ function TermsPage() {
 }
 
 function AdminAuctionsPage() {
-  const { auctions, auctionRules, saveAuction, deleteAuction, saveAuctionRules, addAuctionAmount } = useStore();
+  const { auctions, saveAuction, deleteAuction, addAuctionAmount } = useStore();
   const location = useLocation();
   const [editing, setEditing] = useState<AuctionItem | null>(null);
   const [addingAmountFor, setAddingAmountFor] = useState<AuctionItem | null>(null);
@@ -4006,19 +4038,12 @@ function AdminAuctionsPage() {
   useEffect(() => {
     if (new URLSearchParams(location.search).get('wheel') === '1') setWheelOpen(true);
   }, [location.search]);
-  const [rulesDraft, setRulesDraft] = useState<string>('');
-  const [rulesSaving, setRulesSaving] = useState(false);
-  const [rulesSavedAt, setRulesSavedAt] = useState<string>('');
 
   const counts = auctionCategoryOrder.reduce((acc, category) => {
     acc[category] = auctions.filter((item) => item.category === category).length;
     return acc;
   }, {} as Record<AuctionCategory, number>);
   const activeList = auctions.filter((item) => item.category === activeCategory).sort((a, b) => b.amount - a.amount);
-
-  useEffect(() => {
-    if (auctionRules) setRulesDraft(auctionRules.content);
-  }, [auctionRules?.scope]);
 
   const startNew = (category: AuctionCategory) => {
     setEditing({
@@ -4044,16 +4069,6 @@ function AdminAuctionsPage() {
     await deleteAuction(item.id);
   };
 
-  const handleRulesSave = async () => {
-    setRulesSaving(true);
-    try {
-      await saveAuctionRules(rulesDraft);
-      setRulesSavedAt(formatMSKTime(new Date()) + ' МСК');
-    } finally {
-      setRulesSaving(false);
-    }
-  };
-
   return (
     <main>
       <section className="admin-head">
@@ -4063,18 +4078,6 @@ function AdminAuctionsPage() {
         </div>
         <Link to="/auctions" className="ghost">Публичная страница</Link>
       </section>
-
-      {!wheelOpen && (
-        <section className="panel">
-          <h2>Правила</h2>
-          <p className="muted">Markdown поддерживается. Появится на странице «Правила».</p>
-          <textarea value={rulesDraft} onChange={(event) => setRulesDraft(event.target.value)} className="rules-textarea" />
-          <div className="rules-save">
-            <button onClick={handleRulesSave} disabled={rulesSaving}><Save size={16} /> Сохранить правила</button>
-            {rulesSavedAt && <span className="muted">сохранено в {rulesSavedAt}</span>}
-          </div>
-        </section>
-      )}
 
       {!wheelOpen && (
         <section className="type-tabs" aria-label="Категории аукционов">
