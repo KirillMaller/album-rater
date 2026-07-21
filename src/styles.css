@@ -123,8 +123,14 @@ button:disabled {
   opacity: .45;
 }
 /* Bone: сплошная заливка — редкость (одна главная кнопка на экран). Дефолтная
-   <button> перестаёт светиться и получает костяной текст поверх bone. */
-html[data-design="new"] button:not(.btn-ghost):not(.btn-danger):not(.ghost):not(.danger):not(.link-button):not(.design-switch button),
+   <button> перестаёт светиться и получает костяной текст поверх bone.
+   ВАЖНО: селектор нарочно ловит только button БЕЗ атрибута class (т.е. без
+   собственного класса стилизации) — раньше был длинный список :not(.ghost):not(.danger)…,
+   и любая кнопка со своим классом (например .auth-menu-item с прозрачным фоном)
+   всё равно проигрывала спецификацию и получала тёмный bone-ink текст поверх
+   прозрачного фона — то есть невидимый текст. Правило «только совсем голая
+   кнопка» не может случайно зацепить такие кнопки. */
+html[data-design="new"] button:not([class]),
 html[data-design="new"] .button {
   color: var(--bone-ink);
   font-weight: 700;
@@ -973,6 +979,15 @@ html[data-design="new"] .cover-wrap .score-pair .score-pair-badge.score-pair-bad
   font-size: 12px;
   min-width: 36px;
   height: 24px;
+}
+/* Прозрачно-контурный вариант читаем на панели, но не поверх обложки — фон карточки
+   (фото) непредсказуемый, контур на глаз почти пропадал. Поверх картинки (score-pos) —
+   тёмная непрозрачная подложка вместо прозрачной. Нашёл на живом скриншоте от Кирилла. */
+html[data-design="new"] .score-pos .score-pair-badge.score-pair-badge-viewers {
+  background: rgba(23, 19, 15, .88);
+  backdrop-filter: blur(4px);
+  border-color: rgba(255, 255, 255, .18);
+  color: var(--text);
 }
 html[data-design="new"] .score-pair-labeled .score-pair-row:nth-child(1) .score-pair-label { color: var(--bone); }
 html[data-design="new"] .score-pair-labeled .score-pair-row:nth-child(2) .score-pair-label { color: var(--muted); }
