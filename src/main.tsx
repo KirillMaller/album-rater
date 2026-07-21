@@ -4366,10 +4366,6 @@ function WheelCircle({
   );
 }
 
-// Короткое пояснение механики выбывания — колесо не «выбирает победителя стрелкой», а выбивает
-// по одному. Без этой подписи обычный зритель путается: стрелка указывает на ВЫЛЕТЕВШЕГО.
-const WHEEL_MECHANIC_HINT =
-  'Колесо выбивает по одному. Чем больше собрано донатов — тем меньше сектор и тем безопаснее позиция. Кто останется последним — тот и победитель.';
 
 // Сколько результат завершённого розыгрыша висит у зрителей после окончания, прежде чем сам
 // пропасть (страница снова покажет «розыгрыша нет»). Админ может убрать раньше крестиком.
@@ -4707,7 +4703,6 @@ function PublicWheelPage() {
       {!loading && !loadError && showWheel && (
         <section className="wheel-layout">
           <div className="wheel-circle-col">
-            <div className="wheel-explainer"><Info size={15} /><span>{WHEEL_MECHANIC_HINT}</span></div>
             <WheelCircle
               sectors={sectorOrder}
               rotation={wheelRotation}
