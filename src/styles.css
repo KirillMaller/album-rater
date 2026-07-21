@@ -997,6 +997,19 @@ html[data-design="new"] .score-pair-labeled .score-pair-row:nth-child(2) .score-
 html[data-design="new"] .type-chip {
   font-family: var(--font-mono);
   letter-spacing: .1em;
+  background: var(--panel-2);
+  color: var(--text-2);
+}
+/* Bone: ещё несколько мест с тем же холодным rgba(13,17,28,…) фоном мимо палитры —
+   найдены визуально по скриншотам (страница /auctions, каталог), не по чтению кода. */
+html[data-design="new"] .pillbar,
+html[data-design="new"] .catalog-tabs button,
+html[data-design="new"] .type-tabs button {
+  background: var(--panel-2);
+}
+html[data-design="new"] .catalog-tabs button,
+html[data-design="new"] .type-tabs button {
+  color: var(--text-2);
 }
 html[data-design="new"] .type-chip.type-album,
 html[data-design="new"] .type-chip.type-battle,
@@ -1416,6 +1429,11 @@ html[data-design="new"] .type-tabs span { font-family: var(--font-mono); }
   transition: border-color .2s var(--ease), background .2s var(--ease), box-shadow .2s var(--ease);
 }
 .panel:hover { border-color: rgba(255, 255, 255, .16); }
+/* Bone: .panel — самый частый класс-контейнер в проекте (модалки, секции колеса, админка) —
+   был на холодном rgba(18,22,35,.78) мимо всей палитры. Единственное место, которое я не
+   перекрасил на этапах 1-6 (обнаружил уже по скриншотам, не по чтению кода). */
+html[data-design="new"] .panel { background: var(--panel); }
+html[data-design="new"] .panel:hover { border-color: var(--muted); }
 .tracklist-head { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 14px; margin-bottom: 6px; border-bottom: 2px solid var(--line); }
 .tracklist-head h2 { margin: 0; font-size: 22px; font-weight: 800; }
 .tracklist-legend { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 800; color: var(--text); text-transform: uppercase; letter-spacing: 0.08em; padding-right: 40px; }
@@ -1435,6 +1453,22 @@ html[data-design="new"] .type-tabs span { font-family: var(--font-mono); }
 .track-scores { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
 .track-badge { min-width: 48px; height: 32px; font-size: 15px; padding: 0 8px; display: inline-grid; place-items: center; border-radius: 7px; font-family: "JetBrains Mono", ui-monospace, monospace; font-weight: 800; }
 .track-badge-empty { background: rgba(255,255,255,0.05); color: var(--muted); }
+/* Bone: то же разведение «R1F/зрители», что и на карточках — найдено визуально по
+   скриншоту треклиста (яркие цветные бейджи по баллу рядом с новой bone-плашкой в hero). */
+html[data-design="new"] .track-badge {
+  font-family: var(--font-mono);
+}
+html[data-design="new"] .track-badge.track-badge-mine {
+  background: var(--bone);
+  color: var(--bone-ink);
+  border: 1px solid var(--bone);
+}
+html[data-design="new"] .track-badge.track-badge-viewers {
+  background: transparent;
+  color: var(--text-2);
+  border: 1px solid var(--line);
+}
+html[data-design="new"] .track-badge-empty { background: var(--panel-2); }
 .track-divider { display: inline-block; width: 1px; height: 24px; background: rgba(255,255,255,0.18); }
 .track-locked { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: rgba(255,255,255,0.04); border: 1px solid var(--line); border-radius: 7px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
 .track-locked-wide { min-width: 130px; justify-content: center; margin-right: 22px; }
@@ -2015,6 +2049,8 @@ html[data-design="new"] .vote-side-label { font-family: var(--font-mono); }
   letter-spacing: .1em;
   font-weight: 700;
 }
+html[data-design="new"] .auction-table thead th { background: var(--panel-2); }
+html[data-design="new"] .auction-table { border-color: var(--line); }
 .auction-table tbody td {
   padding: 12px 14px;
   border-top: 1px solid rgba(255, 255, 255, .06);

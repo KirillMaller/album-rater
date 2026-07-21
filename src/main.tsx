@@ -3302,9 +3302,9 @@ function ItemPage() {
                           {!admin && (
                             <>
                               {streamerScoreIsNumber ? (
-                                <span className={`${scoreClass(track.score as number)} track-badge`}>{Number(track.score).toFixed(1)}</span>
+                                <span className={`${scoreClass(track.score as number)} track-badge track-badge-mine`}>{Number(track.score).toFixed(1)}</span>
                               ) : (
-                                <span className="track-badge track-badge-empty">—</span>
+                                <span className="track-badge track-badge-mine track-badge-empty">—</span>
                               )}
                               <span className="track-divider" aria-hidden="true" />
                             </>
@@ -3325,9 +3325,9 @@ function ItemPage() {
                           <span className="track-divider" aria-hidden="true" />
                           {(() => {
                             const agg = aggregateTrack(votes.state.allVotes, track.position);
-                            if (!agg) return <span className="track-badge track-badge-empty" title="Голосов ещё нет">—</span>;
+                            if (!agg) return <span className="track-badge track-badge-viewers track-badge-empty" title="Голосов ещё нет">—</span>;
                             return (
-                              <span className={`${scoreClass(agg.avg)} track-badge`} title={`${agg.count} ${agg.count === 1 ? 'голос' : agg.count < 5 ? 'голоса' : 'голосов'}`}>
+                              <span className={`${scoreClass(agg.avg)} track-badge track-badge-viewers`} title={`${agg.count} ${agg.count === 1 ? 'голос' : agg.count < 5 ? 'голоса' : 'голосов'}`}>
                                 {agg.avg.toFixed(1)}
                               </span>
                             );
