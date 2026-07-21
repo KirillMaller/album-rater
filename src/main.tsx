@@ -3948,7 +3948,7 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
               <input type="file" accept="image/*" onChange={handleFileChange} hidden />
             </label>
             {(avatarPreview || profileAvatarUrl) && (
-              <button type="button" className="ghost" onClick={handleResetAvatar} disabled={saving}>Сбросить на аватар Google</button>
+              <button type="button" className="ghost" onClick={handleResetAvatar} disabled={saving}>Вернуть аватар Google</button>
             )}
           </div>
         </div>
@@ -4089,7 +4089,7 @@ function AdminAuctionsPage() {
             <button onClick={() => setWheelOpen((v) => !v)}>
               <Aperture size={16} /> {wheelOpen ? 'Свернуть' : 'Запустить аукцион'}
             </button>
-            <button className="ghost" onClick={() => startNew(activeCategory)}><Plus size={16} /> Добавить</button>
+            <button className="ghost" onClick={() => startNew(activeCategory)}>+ Лот</button>
           </div>
         </div>
         {activeList.length === 0 ? (
@@ -4744,7 +4744,7 @@ function PublicWheelPage() {
                                 {p.status === 'active' && 'В игре'}
                               </span>
                             </div>
-                            <div className="wheel-chance">{p.status === 'active' ? `${eliminationChanceOf(p.amount)}% вылет` : '—'}</div>
+                            <div className="wheel-chance">{p.status === 'active' ? `шанс вылета ${eliminationChanceOf(p.amount)}%` : '—'}</div>
                             <div className="admin-auction-amount">{p.amount.toLocaleString('ru-RU')} ₽</div>
                           </div>
                         ))}
@@ -4766,7 +4766,7 @@ function PublicWheelPage() {
                         {p.status === 'active' && 'В игре'}
                       </span>
                     </div>
-                    <div className="wheel-chance">{p.status === 'active' ? `${eliminationChanceOf(p.amount)}% вылет` : '—'}</div>
+                    <div className="wheel-chance">{p.status === 'active' ? `шанс вылета ${eliminationChanceOf(p.amount)}%` : '—'}</div>
                     <div className="admin-auction-amount">{p.amount.toLocaleString('ru-RU')} ₽</div>
                   </div>
                 ))}
@@ -5261,9 +5261,9 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
           </p>
           <div className="modal-actions">
             <button className="ghost" onClick={handleStartFresh} disabled={resumeBusy}>
-              {resumeBusy ? 'Начинаю…' : 'Начать заново'}
+              {resumeBusy ? 'Начинаю…' : 'Начать новый'}
             </button>
-            <button onClick={handleResumeExisting} disabled={resumeBusy}><RotateCw size={16} /> Продолжить</button>
+            <button onClick={handleResumeExisting} disabled={resumeBusy}><RotateCw size={16} /> Вернуться к розыгрышу</button>
           </div>
         </section>
       )}
@@ -5275,7 +5275,7 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
         <section className="panel wheel-prep">
           <div className="admin-auction-head">
             <h2>Подготовка розыгрыша</h2>
-            <button className="ghost" onClick={startNewItem}><Plus size={16} /> Добавить позицию</button>
+            <button className="ghost" onClick={startNewItem}>+ Лот</button>
           </div>
 
           <div className="wheel-category-picker">
@@ -5335,7 +5335,7 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
                             <button type="button" className="ghost icon-btn" title="Удалить" onClick={() => handleDeleteItem(item)}><Trash2 size={14} /></button>
                             <span className="wheel-prep-name">{auctionCategoryHasArtist[item.category] && item.artist ? <><b>{item.artist}</b> — {item.title}</> : <b>{item.title}</b>}</span>
                           </div>
-                          <div className="wheel-chance">{chanceOf(item.amount, totalActiveAmount)}% банка</div>
+                          <div className="wheel-chance">доля банка {chanceOf(item.amount, totalActiveAmount)}%</div>
                           <div className="admin-auction-amount">{item.amount.toLocaleString('ru-RU')} ₽</div>
                         </div>
                       ))}
@@ -5368,7 +5368,7 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
           {createError && <p className="form-error">{createError}</p>}
 
           <button onClick={handleLockParticipants} disabled={creating || activeAuctionItems.length < 2}>
-            {creating ? 'Сохраняю…' : <><Aperture size={16} /> Сохранить, начать аукцион</>}
+            {creating ? 'Запускаю…' : <><Aperture size={16} /> Запустить розыгрыш</>}
           </button>
         </section>
       )}
@@ -5396,7 +5396,7 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
               onClick={handleSpin}
               disabled={spinning || sectorOrder.length < 2}
             >
-              {spinning ? 'Крутится…' : <><RotateCw size={18} /> Крутить</>}
+              {spinning ? 'Крутим…' : <><RotateCw size={18} /> Крутить</>}
             </button>
             <div className="wheel-duration-control">
               <span className="muted">Длительность вращения</span>
@@ -5439,7 +5439,7 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
           <div className="wheel-participant-col">
             <div className="admin-auction-head">
               <h2>Участники</h2>
-              {noSpinsYet && <button className="ghost" onClick={startNewItem}><Plus size={16} /> Добавить лот</button>}
+              {noSpinsYet && <button className="ghost" onClick={startNewItem}>+ Лот</button>}
             </div>
             {noSpinsYet && (
               <p className="muted wheel-preround-hint">До первого «Крутить» можно докинуть сумму участнику (нажмите «+») или добавить новый лот — например, прилетел донат.</p>
@@ -5468,7 +5468,7 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
                                 {p.status === 'active' && 'В игре'}
                               </span>
                             </div>
-                            <div className="wheel-chance">{p.status === 'active' ? `${eliminationChanceOf(p.amount)}% вылет` : '—'}</div>
+                            <div className="wheel-chance">{p.status === 'active' ? `шанс вылета ${eliminationChanceOf(p.amount)}%` : '—'}</div>
                             <div className="admin-auction-amount">{p.amount.toLocaleString('ru-RU')} ₽</div>
                           </div>
                         ))}
@@ -5494,7 +5494,7 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
                         {p.status === 'active' && 'В игре'}
                       </span>
                     </div>
-                    <div className="wheel-chance">{p.status === 'active' ? `${eliminationChanceOf(p.amount)}% вылет` : '—'}</div>
+                    <div className="wheel-chance">{p.status === 'active' ? `шанс вылета ${eliminationChanceOf(p.amount)}%` : '—'}</div>
                     <div className="admin-auction-amount">{p.amount.toLocaleString('ru-RU')} ₽</div>
                   </div>
                 ))}
@@ -5554,11 +5554,11 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
         <section className="wheel-danger-zone">
           {!confirmingReset ? (
             <button className="btn-danger" onClick={() => setConfirmingReset(true)}>
-              <Trash2 size={16} /> {session.status === 'draft' ? 'Удалить черновик' : 'Отменить сессию'}
+              <Trash2 size={16} /> {session.status === 'draft' ? 'Удалить черновик' : 'Сбросить аукцион'}
             </button>
           ) : (
             <div className="wheel-danger-confirm">
-              <span>{session.status === 'draft' ? 'Точно удалить черновик?' : 'Точно отменить сессию? Прогресс розыгрыша потеряется.'}</span>
+              <span>{session.status === 'draft' ? 'Точно удалить черновик?' : 'Точно сбросить аукцион? Прогресс розыгрыша потеряется.'}</span>
               <div className="wheel-danger-confirm-actions">
                 <button className="btn-ghost" onClick={() => setConfirmingReset(false)} disabled={resetBusy}>Отмена</button>
                 <button className="btn-danger" onClick={handleResetSession} disabled={resetBusy}>

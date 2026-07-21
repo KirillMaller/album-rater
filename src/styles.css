@@ -125,6 +125,13 @@ html[data-design="new"] .button:hover {
   box-shadow: none;
   filter: brightness(.94);
 }
+/* Тач-таргеты ≥44px (README чек-лист приёмки) — базовые кнопки/поля были 42px. */
+html[data-design="new"] button:not(.icon-btn),
+html[data-design="new"] .button:not(.icon-btn),
+html[data-design="new"] input,
+html[data-design="new"] select {
+  min-height: 44px;
+}
 .btn, .btn-ghost, .btn-danger {
   display: inline-flex;
   align-items: center;
@@ -283,6 +290,7 @@ html[data-design="new"] .stamp {
   backdrop-filter: blur(6px);
   padding: 20px;
 }
+html[data-design="new"] .consent-overlay { background: rgba(23, 19, 15, .72); }
 .consent-modal {
   position: relative;
   max-width: 460px;
@@ -293,6 +301,10 @@ html[data-design="new"] .stamp {
   padding: 28px 26px 22px;
   color: var(--text);
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+}
+html[data-design="new"] .consent-modal {
+  background: var(--panel);
+  border-color: var(--line);
 }
 .consent-modal h2 { margin: 0 0 10px; font-size: 22px; }
 .consent-modal p { margin: 0 0 16px; color: var(--muted); font-size: 14px; line-height: 1.5; }
@@ -2104,6 +2116,7 @@ html[data-design="new"] .admin-auction-row:hover { border-color: var(--bone); ba
   padding: 24px;
   animation: fade-slide-up .18s var(--ease);
 }
+html[data-design="new"] .modal-backdrop { background: rgba(23, 19, 15, .7); }
 .modal {
   width: min(560px, 100%);
   padding: 22px;
