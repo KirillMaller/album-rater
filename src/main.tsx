@@ -52,6 +52,7 @@ import {
   Trash2,
   Trophy,
   Tv,
+  Undo2,
   Video,
   X,
 } from 'lucide-react';
@@ -4873,6 +4874,7 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
 
   const [spinning, setSpinning] = useState(false);
   const [spinError, setSpinError] = useState<string>('');
+  const [undoingSpin, setUndoingSpin] = useState(false);
   const [wheelRotation, setWheelRotation] = useState(0);
   const [spinDurationSec, setSpinDurationSec] = useState(5);
 
@@ -5130,6 +5132,27 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
   const handleNewSession = () => {
     applyLoadedSession(null, [], []);
     setWheelRotation(0);
+  };
+
+  // Страховка от промаха на живом эфире (README §4.1, P4): возвращает последнего выбывшего
+  // обратно в игру. Требует RPC undo_last_wheel_round — миграция db/migrations/018_wheel_undo_last_round.sql
+  // подготовлена, но НЕ применена к базе без явного «да» Кирилла (см. docs/DATA_SAFETY.md). До
+  // применения кнопка будет честно показывать ошибку от Supabase, а не падать молча.
+  const handleUndoLastSpin = async () => {
+    if (!supabase || !session || undoingSpin) return;
+    setUndoingSpin(true);
+    setSpinError('');
+    try {
+      const { error } = await supabase.rpc('undo_last_wheel_round', { p_session_id: session.id });
+      if (error) throw error;
+      setLastEliminated(null);
+      setWheelRotation(0);
+      await refreshState('refetch');
+    } catch (err) {
+      setSpinError(err instanceof Error ? err.message : 'Не удалось отменить спин');
+    } finally {
+      setUndoingSpin(false);
+    }
   };
 
   if (!supabase) {
@@ -5393,6 +5416,11 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
                 ><Plus size={14} /></button>
               </div>
             </div>
+            {!spinning && revealedRounds.length > 0 && (
+              <button className="ghost wheel-undo-btn" onClick={handleUndoLastSpin} disabled={undoingSpin}>
+                <Undo2 size={14} /> {undoingSpin ? 'Отменяю…' : 'Отменить спин'}
+              </button>
+            )}
             {spinError && <p className="form-error">{spinError}</p>}
             {!spinning && sectorOrder.length === 1 && (
               <p className="muted">Победитель определён — нажмите «Обновить», если экран не обновился сам.</p>
