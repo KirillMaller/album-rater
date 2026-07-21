@@ -2333,6 +2333,8 @@ function RailItem({ item, rank }: { item: RatedItem; rank?: number }) {
 }
 
 function scoreColor(score: number) {
+  // Bone: без цветовой шкалы по баллу — единый акцент, как и остальные «номера/лидеры».
+  if (document.documentElement.dataset.design === 'new') return 'var(--bone)';
   if (score >= 9) return '#ffe600';
   if (score >= 7.5) return '#4ade80';
   if (score >= 6) return '#00e5ff';
@@ -2461,19 +2463,19 @@ function ScorePair({ item, className, withLabels }: { item: RatedItem; className
   const agg = aggregateForItem(viewerVotesByItem.get(item.id), item);
   return (
     <span className={`score-pair ${className || ''} ${withLabels ? 'score-pair-labeled' : ''}`}>
-      <span className="score-pair-row">
+      <span className="score-pair-row score-pair-row-mine">
         {withLabels && <span className="score-pair-label">R1F</span>}
-        <span className={`${scoreClass(item.finalScore)} score-pair-badge`} title="Оценка R1Fmabes">{item.finalScore.toFixed(1)}</span>
+        <span className={`${scoreClass(item.finalScore)} score-pair-badge score-pair-badge-mine`} title="Оценка R1Fmabes">{item.finalScore.toFixed(1)}</span>
       </span>
       {agg ? (
-        <span className="score-pair-row">
+        <span className="score-pair-row score-pair-row-viewers">
           {withLabels && <span className="score-pair-label">Зрители · {agg.count}</span>}
-          <span className={`${scoreClass(agg.avg)} score-pair-badge`} title={`Средняя зрителей · ${agg.count} ${agg.count === 1 ? 'голос' : agg.count < 5 ? 'голоса' : 'голосов'}`}>{agg.avg.toFixed(1)}</span>
+          <span className={`${scoreClass(agg.avg)} score-pair-badge score-pair-badge-viewers`} title={`Средняя зрителей · ${agg.count} ${agg.count === 1 ? 'голос' : agg.count < 5 ? 'голоса' : 'голосов'}`}>{agg.avg.toFixed(1)}</span>
         </span>
       ) : withLabels && (
-        <span className="score-pair-row">
+        <span className="score-pair-row score-pair-row-viewers">
           <span className="score-pair-label">Зрители</span>
-          <span className="score-pair-badge track-badge-empty">—</span>
+          <span className="score-pair-badge score-pair-badge-viewers track-badge-empty">—</span>
         </span>
       )}
     </span>

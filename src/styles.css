@@ -838,6 +838,12 @@ html[data-design="new"] .score { font-family: var(--font-mono); }
   border-color: rgba(0, 229, 255, .38);
   box-shadow: 0 20px 42px rgba(0, 0, 0, .28);
 }
+html[data-design="new"] .featured-card:hover,
+html[data-design="new"] .catalog-card:hover,
+html[data-design="new"] .rail-item:hover {
+  border-color: rgba(236, 227, 212, .35);
+  box-shadow: 0 20px 42px rgba(0, 0, 0, .35);
+}
 .featured-card > img,
 .featured-card > .cover-placeholder {
   width: 100%;
@@ -863,6 +869,12 @@ html[data-design="new"] .score { font-family: var(--font-mono); }
 .featured-card.featured-track .featured-veil {
   background:
     linear-gradient(180deg, rgba(0, 229, 255, .35) 0%, rgba(74, 222, 128, .22) 35%, rgba(9, 11, 18, .94) 100%);
+}
+/* Bone: без цветных подсветок по типу — один нейтральный вуаль-градиент для читаемости текста. */
+html[data-design="new"] .featured-card.featured-album .featured-veil,
+html[data-design="new"] .featured-card.featured-battle .featured-veil,
+html[data-design="new"] .featured-card.featured-track .featured-veil {
+  background: linear-gradient(180deg, rgba(23, 19, 15, .05) 0%, rgba(23, 19, 15, .35) 38%, rgba(23, 19, 15, .94) 100%);
 }
 .score-pair { display: inline-flex; flex-direction: column; gap: 4px; align-items: flex-end; }
 .score-pair-row { display: inline-flex; align-items: center; gap: 8px; }
@@ -891,6 +903,35 @@ html[data-design="new"] .featured-card .score-pair .score-pair-badge,
 html[data-design="new"] .cover-wrap .score-pair .score-pair-badge {
   font-family: var(--font-mono);
 }
+/* Bone: две оценки разведены однозначно — R1F всегда bone-акцент (не зависит
+   от цветовой шкалы score-top/high/…), зрители — вторичная приглушённая мета.
+   Компаунд-селектор .score-pair-badge.score-pair-badge-mine нужен, чтобы
+   специфичность (3 класса + html[data-design]) перебила контекстные варианты
+   выше (.featured-card .score-pair .score-pair-badge и т.п., тоже 3 класса). */
+html[data-design="new"] .score-pair-badge.score-pair-badge-mine,
+html[data-design="new"] .catalog-thumb .score-pair .score-pair-badge.score-pair-badge-mine,
+html[data-design="new"] .featured-card .score-pair .score-pair-badge.score-pair-badge-mine,
+html[data-design="new"] .cover-wrap .score-pair .score-pair-badge.score-pair-badge-mine {
+  background: var(--bone);
+  color: var(--bone-ink);
+  border: 1px solid var(--bone);
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 400;
+}
+html[data-design="new"] .score-pair-badge.score-pair-badge-viewers,
+html[data-design="new"] .catalog-thumb .score-pair .score-pair-badge.score-pair-badge-viewers,
+html[data-design="new"] .featured-card .score-pair .score-pair-badge.score-pair-badge-viewers,
+html[data-design="new"] .cover-wrap .score-pair .score-pair-badge.score-pair-badge-viewers {
+  background: transparent;
+  color: var(--text-2);
+  border: 1px solid var(--line);
+  font-size: 12px;
+  min-width: 36px;
+  height: 24px;
+}
+html[data-design="new"] .score-pair-labeled .score-pair-row:nth-child(1) .score-pair-label { color: var(--bone); }
+html[data-design="new"] .score-pair-labeled .score-pair-row:nth-child(2) .score-pair-label { color: var(--muted); }
 .score-pair.score-pos { position: absolute; right: 14px; top: 14px; z-index: 2; }
 
 .score-pos {
@@ -1009,6 +1050,11 @@ html[data-design="new"] .type-chip.type-track {
   background: rgba(0, 229, 255, .1);
   color: var(--text);
 }
+html[data-design="new"] .pillbar button.on {
+  border-color: var(--bone);
+  background: rgba(236, 227, 212, .1);
+  color: var(--text);
+}
 .view-toggle button {
   width: 38px;
   padding: 0;
@@ -1052,6 +1098,13 @@ html[data-design="new"] .type-chip.type-track {
   color: #c7cde0;
 }
 .type-tabs button.on span { background: rgba(255, 255, 255, .14); color: #fff; }
+html[data-design="new"] .type-tabs button.on {
+  border-color: var(--bone);
+  background: rgba(236, 227, 212, .1);
+  color: var(--text);
+}
+html[data-design="new"] .type-tabs button.on span { background: rgba(236, 227, 212, .18); color: var(--text); }
+html[data-design="new"] .type-tabs span { font-family: var(--font-mono); }
 .catalog-split {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 330px;
@@ -1520,6 +1573,24 @@ html[data-design="new"] .type-chip.type-track {
 .vote-side-badge { box-sizing: border-box; width: 72px; min-width: 72px; height: 42px; font-size: 18px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; font-family: "JetBrains Mono", ui-monospace, monospace; font-weight: 800; text-align: center; line-height: 1; }
 input.vote-side-badge { padding: 0; text-align: center; display: inline-flex; line-height: 42px; }
 .vote-side-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+/* Bone: в hero записи (README §4.4) — оценка R1F первым vote-side всегда крупный
+   bone-акцент, зрительская вторым — приглушённая контурная. Не трогаем input.vote-side-badge
+   (редактируемое поле голосования баттла) — оно вне .detail-hero-scores. */
+html[data-design="new"] .detail-hero-scores .vote-side:first-child .vote-side-badge {
+  background: var(--bone);
+  color: var(--bone-ink);
+  border: 1px solid var(--bone);
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 22px;
+}
+html[data-design="new"] .detail-hero-scores .vote-side:nth-child(2) .vote-side-badge {
+  background: transparent;
+  color: var(--text-2);
+  border: 1px solid var(--line);
+  font-family: var(--font-mono);
+}
+html[data-design="new"] .vote-side-label { font-family: var(--font-mono); }
 .vote-vs { color: var(--muted); font-size: 18px; padding: 0 4px; align-self: center; }
 .vote-divider { display: inline-block; width: 1px; height: 44px; background: rgba(255,255,255,0.18); align-self: center; }
 .track-vote-cta {
