@@ -3179,7 +3179,7 @@ function ItemPage() {
                     ) : (
                       <span className="vote-side-badge track-badge-empty">—</span>
                     )}
-                    <span className="vote-side-label">Зрители{heroAgg ? ` · ${heroAgg.count}` : ''}</span>
+                    <span className="vote-side-label">Зрители{heroAgg ? <> · <span className="vote-side-count">{heroAgg.count}</span></> : ''}</span>
                   </div>
                 )}
               </div>
@@ -3643,7 +3643,12 @@ function AuctionsPage() {
 
       <section className="type-tabs" aria-label="Категории аукционов">
         {auctionCategoryOrder.map((category) => (
-          <button key={category} className={activeCategory === category ? 'on' : ''} onClick={() => setActiveCategory(category)}>
+          <button
+            key={category}
+            className={activeCategory === category ? 'on' : counts[category] === 0 ? 'empty' : ''}
+            onClick={() => setActiveCategory(category)}
+            disabled={counts[category] === 0}
+          >
             {auctionCategoryLabel[category]} <span>{counts[category]}</span>
           </button>
         ))}
@@ -4687,6 +4692,7 @@ function PublicWheelPage() {
 
       {!loading && !loadError && !session && (
         <section className="panel wheel-public-empty">
+          <Disc3 size={56} className="wheel-public-empty-icon" aria-hidden="true" />
           <p className="muted">Сейчас розыгрыша нет — загляните, когда R1Fmabes запустит колесо на стриме.</p>
         </section>
       )}

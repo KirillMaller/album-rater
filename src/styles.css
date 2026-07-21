@@ -75,6 +75,15 @@ body {
 html[data-design="new"] body {
   background: var(--bg);
   position: relative;
+  /* FIX-1 (ревью дизайн-Клода): жирный Anton на тёмном фоне без этого даёт
+     цветной RGB-фрингинг по краям букв — классика для bold-шрифтов на dark bg,
+     не text-shadow и не глитч-слой (их в коде и не было), а сглаживание шрифта. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+html[data-design="new"] h1, html[data-design="new"] h2 {
+  text-shadow: none;
 }
 html[data-design="new"] body::before {
   content: "";
@@ -246,6 +255,12 @@ html[data-design="new"] input, html[data-design="new"] textarea, html[data-desig
 html[data-design="new"] input:focus, html[data-design="new"] textarea:focus, html[data-design="new"] select:focus {
   border-color: var(--bone);
   box-shadow: 0 0 0 3px rgba(236, 227, 212, .14);
+}
+/* FIX-6 (ревью дизайн-Клода): плейсхолдеры (email/пароль и т.п.) были почти чёрными —
+   без явного цвета браузер решает сам, и на --panel фоне получалось нечитаемо. */
+html[data-design="new"] input::placeholder, html[data-design="new"] textarea::placeholder {
+  color: var(--text-2);
+  opacity: .75;
 }
 textarea { min-height: 120px; resize: vertical; }
 main { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 24px 0 44px; animation: fade-slide-up .28s var(--ease); }
@@ -434,6 +449,7 @@ html[data-design="new"] .consent-modal {
   color: var(--text);
   padding: 8px 10px;
 }
+html[data-design="new"] .filter-group select option { background: var(--panel); }
 .filter-options { display: flex; flex-wrap: wrap; gap: 6px; }
 .filter-pill {
   display: inline-flex;
@@ -633,6 +649,15 @@ html[data-design="new"] .danger:hover { background: rgba(229,72,77,.08); border-
 }
 
 .hero p, .detail-hero p, .muted { color: var(--muted); }
+/* FIX-6 (ревью дизайн-Клода): --muted (#9B948A на #17130F) ≈3.5:1 — ниже AA для мелкого
+   текста. .muted — это класс для читаемого вторичного текста (описания, подписи, даты),
+   а не для по-настоящему третьестепенного (штампы/иконки-декор остаются на --muted
+   напрямую через var(--muted), их этот класс не касается). */
+html[data-design="new"] .hero p,
+html[data-design="new"] .detail-hero p,
+html[data-design="new"] .muted {
+  color: var(--text-2);
+}
 .eyebrow { color: var(--cyan) !important; text-transform: uppercase; letter-spacing: .12em; font-size: 12px; font-weight: 800; }
 .lead { max-width: 640px; margin-top: 18px; font-size: 18px; color: #c7cde0 !important; }
 .hero-actions {
@@ -740,6 +765,13 @@ html[data-design="new"] .catalog-tabs button.active {
 .cover-wrap img, .detail-cover img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .28s var(--ease); }
 .item-card:hover .cover-wrap img { transform: scale(1.035); }
 .cover-placeholder, .detail-cover { display: grid; place-items: center; background: linear-gradient(135deg, #22283d, #101522); color: var(--muted); }
+/* FIX-4 (ревью дизайн-Клода): плейсхолдер обложки (нет картинки у записи) был на холодном
+   тёмно-синем градиенте мимо тёплой bone-палитры — вот и «старая тёмно-синеватая сетка» в каталоге. */
+html[data-design="new"] .cover-placeholder,
+html[data-design="new"] .detail-cover {
+  background: linear-gradient(135deg, var(--panel-2), var(--bg));
+  color: var(--text-2);
+}
 .cover-placeholder { width: 100%; height: 100%; }
 .item-card p { margin: 12px 0 4px; color: var(--muted); }
 .item-card h2 { margin: 0 0 4px; font-size: 19px; line-height: 1.1; }
@@ -1130,6 +1162,23 @@ html[data-design="new"] .type-tabs button.on {
 }
 html[data-design="new"] .type-tabs button.on span { background: rgba(236, 227, 212, .18); color: var(--text); }
 html[data-design="new"] .type-tabs span { font-family: var(--font-mono); }
+/* FIX-5 (ревью дизайн-Клода): категории с нулевым счётчиком («Фильмы 0», «Игры 0») почти
+   сливались с фоном — читаемо приглушённые, а не невидимые. */
+html[data-design="new"] .type-tabs button.empty {
+  opacity: .5;
+  cursor: default;
+  color: var(--text-2);
+}
+html[data-design="new"] .type-tabs button.empty:hover {
+  border-color: var(--line);
+  background: var(--panel-2);
+  color: var(--text-2);
+}
+html[data-design="new"] .type-tabs button.empty span {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-2);
+}
 .catalog-split {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 330px;
@@ -1151,6 +1200,16 @@ html[data-design="new"] .type-tabs span { font-family: var(--font-mono); }
   background: rgba(18, 22, 35, .62);
   transition: transform .22s var(--ease), border-color .22s var(--ease), box-shadow .22s var(--ease);
 }
+/* FIX-4 (ревью дизайн-Клода): сама карточка каталога (главный контейнер сетки) была на
+   холодном rgba(18,22,35,.62) — то есть весь каталог реально «не в новом дизайне», именно
+   этот фон и торчал как «старая тёмно-синеватая сетка». */
+html[data-design="new"] .catalog-card,
+html[data-design="new"] .catalog-list-row,
+html[data-design="new"] .skeleton-card,
+html[data-design="new"] .type-card {
+  background: var(--panel);
+  border-color: var(--line);
+}
 .card-edit-button {
   position: absolute;
   left: 10px;
@@ -1170,6 +1229,12 @@ html[data-design="new"] .type-tabs span { font-family: var(--font-mono); }
   box-shadow: none;
   backdrop-filter: blur(8px);
 }
+html[data-design="new"] .card-edit-button {
+  border-color: var(--line);
+  background: rgba(23, 19, 15, .84);
+  color: var(--text);
+}
+html[data-design="new"] .card-edit-button:hover { border-color: var(--bone); }
 .card-edit-button:hover {
   border-color: rgba(0, 229, 255, .72);
   background: rgba(0, 229, 255, .14);
@@ -1332,6 +1397,12 @@ html[data-design="new"] .type-tabs span { font-family: var(--font-mono); }
   font-size: 12px;
   font-weight: 800;
 }
+html[data-design="new"] .list-edit-button {
+  border-color: var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+}
+html[data-design="new"] .list-edit-button:hover { border-color: var(--bone); background: rgba(236, 227, 212, .1); }
 .list-edit-button:hover {
   border-color: rgba(0, 229, 255, .72);
   background: rgba(0, 229, 255, .14);
@@ -1441,6 +1512,19 @@ html[data-design="new"] .panel:hover { border-color: var(--muted); }
 .tracklist-legend > span:nth-child(3) { width: 48px; text-align: center; color: #ffe600; }
 .tracklist-legend > span:nth-child(5) { width: 48px; text-align: center; color: #ff9f45; }
 .tracklist-legend .track-divider { height: 18px; background: rgba(255,255,255,0.25); }
+/* FIX-2 (ревью дизайн-Клода): «R1F/Ты/Все» были разноцветные (циан/жёлтый/оранжевый) —
+   жёлтый в Bone зарезервирован под суммы ₽, оранжевого в палитре вообще нет. Единый
+   нейтральный mono-стиль для всех трёх колонок. */
+html[data-design="new"] .tracklist-legend {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: .12em;
+}
+html[data-design="new"] .tracklist-legend > span:nth-child(1),
+html[data-design="new"] .tracklist-legend > span:nth-child(3),
+html[data-design="new"] .tracklist-legend > span:nth-child(5) {
+  color: var(--text-2);
+}
 .track { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); min-height: 50px; }
 .track-star-cell { width: 18px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
 .track-star-btn { width: 30px; height: 30px; padding: 0; min-height: auto; border-radius: 7px; background: transparent; border: 1px solid transparent; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
@@ -1636,7 +1720,13 @@ html[data-design="new"] .detail-hero-scores .vote-side:nth-child(2) .vote-side-b
   border: 1px solid var(--line);
   font-family: var(--font-mono);
 }
-html[data-design="new"] .vote-side-label { font-family: var(--font-mono); }
+html[data-design="new"] .vote-side-label {
+  font-family: var(--font-mono);
+  /* FIX-2 (ревью дизайн-Клода): подпись на --muted читалась как «выключено» — поднял на --text-2. */
+  color: var(--text-2);
+  font-size: 11px;
+}
+html[data-design="new"] .vote-side-count { color: var(--bone); font-weight: 700; }
 .vote-vs { color: var(--muted); font-size: 18px; padding: 0 4px; align-self: center; }
 .vote-divider { display: inline-block; width: 1px; height: 44px; background: rgba(255,255,255,0.18); align-self: center; }
 .track-vote-cta {
@@ -1650,6 +1740,16 @@ html[data-design="new"] .vote-side-label { font-family: var(--font-mono); }
   min-height: auto;
 }
 .track-vote-cta:hover { color: var(--text); border-color: var(--cyan); }
+/* FIX-2 (ревью дизайн-Клода): пунктир + --muted почти сливались с фоном треклиста. */
+html[data-design="new"] .track-vote-cta {
+  border: 1px solid var(--line);
+  color: var(--text-2);
+  background: transparent;
+}
+html[data-design="new"] .track-vote-cta:hover {
+  border-color: var(--bone);
+  color: var(--text);
+}
 .track-vote-error { color: #ffd3dc; font-size: 12px; flex-basis: 100%; }
 .viewer-vote-subtitle { margin: 4px 0 0; font-size: 12px; }
 .track-batch-save {
@@ -1666,9 +1766,46 @@ html[data-design="new"] .vote-side-label { font-family: var(--font-mono); }
 .link-group h3, .link-group a { display: flex; align-items: center; gap: 8px; }
 .link-group a { width: fit-content; margin: 8px 0; color: var(--cyan); }
 .markdown { line-height: 1.65; color: #d7dcee; }
+/* FIX-3 (ревью дизайн-Клода): «Политика»/«Условия» — мелкий серый текст на всю ширину
+   панели было тяжело читать. Узкая колонка + читаемый body + воздух между разделами.
+   Номер раздела CSS-счётчиком не добавляю — в текстах PRIVACY.md/USER_AGREEMENT.md
+   разделы и так пронумерованы вручную («## 1. Термины…») — дублировать номер криво. */
+html[data-design="new"] .legal-panel .markdown {
+  max-width: 70ch;
+  margin: 0 auto;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--text-2);
+}
+html[data-design="new"] .legal-panel .markdown h1 {
+  color: var(--text);
+}
+html[data-design="new"] .legal-panel .markdown h2,
+html[data-design="new"] .legal-panel .markdown h3 {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  color: var(--text);
+  margin-top: 2em;
+  padding-top: 1.1em;
+  border-top: 1px solid var(--line);
+  text-transform: none;
+  letter-spacing: normal;
+}
+html[data-design="new"] .legal-panel .markdown h1:first-child,
+html[data-design="new"] .legal-panel .markdown h2:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+html[data-design="new"] .legal-panel .markdown li { margin-bottom: .4em; }
+html[data-design="new"] .legal-panel .markdown strong { color: var(--text); }
+html[data-design="new"] .legal-panel .markdown a { color: var(--bone); text-decoration: underline; text-underline-offset: 2px; }
 
 .auth { min-height: calc(100vh - 70px); display: grid; place-items: center; }
 .auth .panel { width: min(420px, 100%); display: grid; gap: 12px; }
+/* FIX-7 (ревью дизайн-Клода): «ВХОД В АДМИНКУ» в узкой карточке почти касалось краёв
+   на десктопе — своя, меньшая шкала кегля вместо общего clamp(34px,6vw,76px). */
+html[data-design="new"] .auth .panel h1 { font-size: clamp(28px, 8vw, 40px); }
 .form-error {
   margin: 0;
   padding: 10px 12px;
@@ -1900,6 +2037,12 @@ html[data-design="new"] .vote-side-label { font-family: var(--font-mono); }
 }
 
 @media (max-width: 560px) {
+  /* FIX-7 (ревью дизайн-Клода): на моб. плотный отрицательный трекинг Anton на названии
+     альбома мешал читать — на маленькой ширине отпускаем чуть свободнее и балансируем строки. */
+  html[data-design="new"] .detail-hero-body h1 {
+    letter-spacing: .005em;
+    text-wrap: balance;
+  }
   main, .home { width: min(100% - 20px, 1180px); padding-top: 16px; }
   .topbar { padding: 10px 14px; gap: 8px; flex-wrap: wrap; row-gap: 8px; }
   .brand { font-size: 0; gap: 0; }
@@ -2187,6 +2330,11 @@ html[data-design="new"] .modal-backdrop { background: rgba(23, 19, 15, .7); }
   color: rgba(255, 255, 255, 0.18);
   letter-spacing: 0.02em;
 }
+/* FIX-6 (ревью дизайн-Клода): «футер-ссылки» — легал-ссылки (политика/условия) специально
+   были почти невидимы («сливается с фоном» — задумано для старого дизайна), но это ссылки
+   на юридически значимые документы, в новом дизайне поднимаю до читаемого --text-2. */
+html[data-design="new"] .site-footer { color: var(--text-2); }
+html[data-design="new"] .footer-link:hover { color: var(--text); }
 .footer-link {
   color: inherit;
   text-decoration: none;
@@ -2342,6 +2490,9 @@ html[data-design="new"] .modal-backdrop { background: rgba(23, 19, 15, .7); }
 .wheel-page .admin-head { align-items: flex-start; }
 .wheel-public { display: grid; gap: 18px; }
 .wheel-public-empty { text-align: center; padding: 40px 20px; }
+/* FIX-7 (ревью дизайн-Клода): пустое колесо без визуального намёка читалось как ошибка —
+   тусклая декоративная иконка вместо голого текста. */
+.wheel-public-empty-icon { display: block; margin: 0 auto 14px; color: var(--muted); opacity: .4; }
 .wheel-embed { margin-top: 18px; }
 .wheel-embed .admin-head { padding: 0 0 16px; align-items: center; }
 .wheel-embed-head .admin-head-actions { align-items: center; }
