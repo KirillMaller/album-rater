@@ -5,6 +5,7 @@
   --panel-2: #191d2d;
   --line: #2a3147;
   --text: #f7f7fb;
+  --text-2: #c7cde0;
   --muted: #9aa4bc;
   --purple: #9146ff;
   --magenta: #ff2d9c;
@@ -13,7 +14,40 @@
   --yellow: #ffe600;
   --orange: #ff9f45;
   --red: #ff4d6d;
+  --bone: #00e5ff;
+  --bone-ink: #0a0f1c;
   --ease: cubic-bezier(.2, .8, .2, 1);
+  --font-ui: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: var(--font-ui);
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* Дизайн-система «Bone» (редизайн, направление C). Активируется атрибутом
+   data-design="new" на <html> — см. DesignContext/useDesign в main.tsx.
+   Старая палитра выше остаётся дефолтом (design_handoff_r1f_redesign/README.md §2/§3):
+   ничего не удаляем, только переопределяем переменные и точечные правила,
+   которые нельзя выразить одними переменными (градиенты, тени, шрифты). */
+:root[data-design="new"] {
+  --bg: #17130F;
+  --panel: #221C16;
+  --panel-2: #29221B;
+  --line: #39322A;
+  --text: #F3EFE9;
+  --text-2: #C8C2B8;
+  --muted: #9B948A;
+  --yellow: #FFD23D;
+  --red: #E5484D;
+  --bone: #ECE3D4;
+  --bone-ink: #17130F;
+  /* ретаргет старых акцентов в bone — существующие компоненты не ломаются */
+  --purple: #ECE3D4;
+  --magenta: #ECE3D4;
+  --cyan: #ECE3D4;
+  --green: #ECE3D4;
+  --orange: #FFD23D;
+  --font-display: "Anton", var(--font-ui);
+  --font-ui: "Archivo", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "Space Mono", ui-monospace, monospace;
 }
 
 * { box-sizing: border-box; }
@@ -35,8 +69,24 @@ body {
     linear-gradient(210deg, rgba(0, 229, 255, 0.12), transparent 35%),
     var(--bg);
   color: var(--text);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--font-ui);
 }
+/* Bone: плоский фон, без неоновых подсветок по углам — только лёгкая зернистость. */
+html[data-design="new"] body {
+  background: var(--bg);
+  position: relative;
+}
+html[data-design="new"] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: .05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+html[data-design="new"] #root { position: relative; z-index: 1; }
 
 a { color: inherit; text-decoration: none; }
 button, input, textarea, select { font: inherit; }
@@ -63,6 +113,109 @@ button:disabled {
   cursor: not-allowed;
   opacity: .45;
 }
+/* Bone: сплошная заливка — редкость (одна главная кнопка на экран). Дефолтная
+   <button> перестаёт светиться и получает костяной текст поверх bone. */
+html[data-design="new"] button:not(.btn-ghost):not(.btn-danger):not(.ghost):not(.danger):not(.link-button):not(.design-switch button),
+html[data-design="new"] .button {
+  color: var(--bone-ink);
+  font-weight: 700;
+}
+html[data-design="new"] button:not(:disabled):hover,
+html[data-design="new"] .button:hover {
+  box-shadow: none;
+  filter: brightness(.94);
+}
+.btn, .btn-ghost, .btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  border-radius: 8px;
+  padding: 10px 16px;
+  cursor: pointer;
+  font-weight: 700;
+  transition: transform .18s var(--ease), border-color .18s var(--ease), background .18s var(--ease), color .18s var(--ease), opacity .18s var(--ease);
+}
+.btn { border: 0; background: var(--bone); color: var(--bone-ink); }
+.btn:not(:disabled):hover { filter: brightness(.94); }
+.btn-ghost { background: transparent; border: 1px solid var(--line); color: var(--text); }
+.btn-ghost:not(:disabled):hover { border-color: var(--muted); background: rgba(255,255,255,.04); }
+.btn-danger { background: transparent; border: 1px solid rgba(229,72,77,.45); color: var(--red); }
+.btn-danger:not(:disabled):hover { border-color: var(--red); background: rgba(229,72,77,.08); }
+.btn:disabled, .btn-ghost:disabled, .btn-danger:disabled { cursor: not-allowed; opacity: .45; }
+
+/* Переключатель «Новый / Старый» дизайн — работает одинаково в обоих темах,
+   т.к. использует var(--text)/var(--bg), которые определены в обеих палитрах. */
+.design-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255,255,255,.03);
+}
+.design-switch button {
+  min-height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: none !important;
+  transform: none !important;
+}
+.design-switch button:hover { color: var(--text); box-shadow: none; }
+.design-switch button.active { background: var(--text); color: var(--bg); }
+.design-switch button.active:hover { color: var(--bg); }
+@media (max-width: 860px) {
+  .design-switch { order: 99; }
+}
+
+/* Шторка перехода между дизайнами — см. useDesign()/setDesign() в main.tsx.
+   Палитра шторки хардкодится в bone-тонах намеренно: это визуальный «слепок»
+   нового дизайна, а не элемент текущей темы. */
+.design-curtain {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  background: #17130F;
+  opacity: 0;
+  transition: opacity .28s var(--ease);
+  pointer-events: none;
+}
+.design-curtain.show { opacity: 1; }
+.design-curtain-inner { display: grid; justify-items: center; gap: 14px; }
+.design-curtain-mark {
+  font-family: "Anton", var(--font-display, sans-serif);
+  font-size: clamp(48px, 10vw, 96px);
+  line-height: .9;
+  color: #ECE3D4;
+  letter-spacing: -.01em;
+}
+.design-curtain-label {
+  font-family: "Space Mono", var(--font-mono, monospace);
+  font-size: 12px;
+  letter-spacing: .25em;
+  text-transform: uppercase;
+  color: #9B948A;
+}
+.design-curtain-bars { display: grid; gap: 8px; width: min(260px, 60vw); margin-top: 6px; }
+.design-curtain-bars span {
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, rgba(236,227,212,.06) 0%, rgba(236,227,212,.18) 45%, rgba(236,227,212,.06) 90%);
+  background-size: 220% 100%;
+  animation: skeleton-shimmer 1.1s linear infinite;
+}
+.design-curtain-bars span:nth-child(2) { width: 80%; }
+.design-curtain-bars span:nth-child(3) { width: 55%; }
 
 input, textarea, select {
   width: 100%;
@@ -79,11 +232,46 @@ input:focus, textarea:focus, select:focus {
   border-color: rgba(0, 229, 255, .55);
   box-shadow: 0 0 0 3px rgba(0, 229, 255, .12);
 }
+html[data-design="new"] input, html[data-design="new"] textarea, html[data-design="new"] select {
+  background: var(--panel);
+  border-color: var(--line);
+}
+html[data-design="new"] input:focus, html[data-design="new"] textarea:focus, html[data-design="new"] select:focus {
+  border-color: var(--bone);
+  box-shadow: 0 0 0 3px rgba(236, 227, 212, .14);
+}
 textarea { min-height: 120px; resize: vertical; }
 main { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 24px 0 44px; animation: fade-slide-up .28s var(--ease); }
 h1, h2, h3, p { margin-top: 0; }
 h1 { font-size: clamp(34px, 6vw, 76px); line-height: .95; letter-spacing: 0; }
 h2 { font-size: 24px; }
+/* Bone-типографика: Anton — заголовки/крупные числа, Archivo — тело, Space Mono — метки/штампы. */
+html[data-design="new"] h1, html[data-design="new"] h2 {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: -.01em;
+  line-height: .9;
+}
+html[data-design="new"] .mono, html[data-design="new"] .eyebrow,
+html[data-design="new"] .live-label, html[data-design="new"] .footer-age,
+html[data-design="new"] .stamp {
+  font-family: var(--font-mono);
+}
+.stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border: 2px solid var(--bone, var(--text));
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  transform: rotate(-4deg);
+  color: var(--bone, var(--text));
+}
 
 .consent-overlay {
   position: fixed;
@@ -252,6 +440,7 @@ h2 { font-size: 24px; }
 }
 .filter-pill:hover { color: var(--text); border-color: rgba(0,229,255,0.45); }
 .filter-pill.on { color: #0a0f1c; background: linear-gradient(135deg, #00e5ff, #9146ff); border-color: transparent; }
+html[data-design="new"] .filter-pill.on { color: var(--bone-ink); background: var(--bone); }
 .filter-pill-count {
   display: inline-grid;
   place-items: center;
@@ -299,6 +488,7 @@ h2 { font-size: 24px; }
   font-size: 11px;
   font-weight: 800;
 }
+html[data-design="new"] .filter-badge { background: var(--bone); color: var(--bone-ink); }
 
 .viewer-vote-bar {
   margin: 0 0 24px;
@@ -311,6 +501,7 @@ h2 { font-size: 24px; }
   gap: 20px;
   flex-wrap: wrap;
 }
+html[data-design="new"] .viewer-vote-bar { background: var(--panel); }
 .viewer-vote-title { flex: 0 0 auto; }
 .viewer-vote-title h2 { margin: 0 0 4px; font-size: 18px; }
 .viewer-vote-title p { margin: 0; font-size: 13px; }
@@ -343,6 +534,10 @@ h2 { font-size: 24px; }
   border-bottom: 1px solid rgba(255,255,255,.08);
   background: rgba(9, 11, 18, .88);
   backdrop-filter: blur(14px);
+}
+html[data-design="new"] .topbar {
+  border-bottom: 1px solid var(--line);
+  background: rgba(23, 19, 15, .88);
 }
 
 .brand, nav, nav a, nav .nav-link { display: flex; align-items: center; gap: 10px; transition: color .18s var(--ease); }
@@ -399,6 +594,10 @@ nav .nav-wheel.live:hover { color: #ff7a92; }
 .ghost:active { transform: translateY(0); }
 .danger { min-height: 36px; background: rgba(255, 77, 109, .14); border: 1px solid rgba(255, 77, 109, .4); color: #ffd3dc; }
 .danger:hover { border-color: rgba(255, 77, 109, .72); background: rgba(255, 77, 109, .2); box-shadow: none; }
+html[data-design="new"] .ghost { background: transparent; border-color: var(--line); color: var(--text); }
+html[data-design="new"] .ghost:hover { background: rgba(255,255,255,.04); border-color: var(--muted); color: var(--text); box-shadow: none; }
+html[data-design="new"] .danger { background: transparent; border-color: rgba(229,72,77,.45); color: var(--red); }
+html[data-design="new"] .danger:hover { background: rgba(229,72,77,.08); border-color: var(--red); }
 
 .hero, .detail-hero {
   display: grid;
@@ -433,6 +632,7 @@ nav .nav-wheel.live:hover { color: #ff7a92; }
 .stat { display: grid; gap: 2px; justify-items: end; }
 .stat strong { font-size: 78px; line-height: .9; color: var(--cyan); }
 .stat span { color: var(--muted); }
+html[data-design="new"] .stat strong { font-family: var(--font-display); text-transform: uppercase; }
 
 .filters {
   display: grid;
@@ -481,6 +681,11 @@ nav .nav-wheel.live:hover { color: #ff7a92; }
   border-color: rgba(255, 45, 156, .5);
   background: linear-gradient(135deg, rgba(145, 70, 255, .25), rgba(255, 45, 156, .25));
   color: #fff;
+}
+html[data-design="new"] .catalog-tabs button.active {
+  border-color: var(--bone);
+  background: rgba(236, 227, 212, .1);
+  color: var(--text);
 }
 .catalog-tabs span {
   background: rgba(255, 255, 255, .08);
@@ -545,6 +750,7 @@ nav .nav-wheel.live:hover { color: #ff7a92; }
   color: #0a0f1c;
   background: #fff;
 }
+html[data-design="new"] .score { font-family: var(--font-mono); }
 .cover-wrap .score { position: absolute; right: 10px; bottom: 10px; }
 .score-top  { background: linear-gradient(135deg, #ffe600, #ff9f45); color: #0a0f1c; box-shadow: 0 0 18px rgba(255, 159, 69, .35); }
 .score-high { background: linear-gradient(135deg, #4ade80, #00e5ff); color: #0a0f1c; }
@@ -679,6 +885,12 @@ nav .nav-wheel.live:hover { color: #ff7a92; }
   font-size: 14px;
   box-shadow: none;
 }
+html[data-design="new"] .score-pair-badge,
+html[data-design="new"] .catalog-thumb .score-pair .score-pair-badge,
+html[data-design="new"] .featured-card .score-pair .score-pair-badge,
+html[data-design="new"] .cover-wrap .score-pair .score-pair-badge {
+  font-family: var(--font-mono);
+}
 .score-pair.score-pos { position: absolute; right: 14px; top: 14px; z-index: 2; }
 
 .score-pos {
@@ -729,6 +941,16 @@ nav .nav-wheel.live:hover { color: #ff7a92; }
 .type-chip.type-album { color: #d7c9ff; border-color: rgba(145, 70, 255, .55); }
 .type-chip.type-battle { color: #ffb8dd; border-color: rgba(255, 45, 156, .55); }
 .type-chip.type-track { color: #b9f6ff; border-color: rgba(0, 229, 255, .55); }
+html[data-design="new"] .type-chip {
+  font-family: var(--font-mono);
+  letter-spacing: .1em;
+}
+html[data-design="new"] .type-chip.type-album,
+html[data-design="new"] .type-chip.type-battle,
+html[data-design="new"] .type-chip.type-track {
+  color: var(--text-2);
+  border-color: var(--line);
+}
 .card-type-chip {
   position: absolute;
   z-index: 3;

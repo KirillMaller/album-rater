@@ -1,4 +1,4 @@
-import React, { createContext, forwardRef, useContext, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import React, { createContext, forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import ReactMarkdown from 'react-markdown';
 
@@ -1706,13 +1706,97 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 
+// Редизайн «Bone» (design_handoff_r1f_redesign/README.md) сосуществует со старым дизайном
+// через атрибут data-design на <html>. Источник истины для DesignProvider — сам атрибут
+// (его выставляет инлайн-скрипт в index.html ДО первого рендера, читая localStorage —
+// поэтому при перезагрузке не мигает старый дизайн на долю секунды).
+type DesignMode = 'new' | 'legacy';
+const DESIGN_STORAGE_KEY = 'r1f-design';
+
+const DesignContext = createContext<{ design: DesignMode; setDesign: (next: DesignMode) => void }>({
+  design: 'new',
+  setDesign: () => {},
+});
+
+function useDesign() {
+  return useContext(DesignContext);
+}
+
+function applyDesignAttr(next: DesignMode) {
+  document.documentElement.dataset.design = next;
+  try {
+    localStorage.setItem(DESIGN_STORAGE_KEY, next);
+  } catch {
+    /* localStorage может быть недоступен (приватный режим) — переключатель всё равно отработает в рамках сессии */
+  }
+}
+
+function DesignProvider({ children }: { children: React.ReactNode }) {
+  const [design, setDesignState] = useState<DesignMode>(
+    () => (document.documentElement.dataset.design === 'legacy' ? 'legacy' : 'new')
+  );
+
+  const setDesign = useCallback((next: DesignMode) => {
+    setDesignState((current) => {
+      if (current === next) return current;
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduceMotion) {
+        applyDesignAttr(next);
+        return next;
+      }
+      const curtain = document.createElement('div');
+      curtain.className = 'design-curtain';
+      curtain.innerHTML =
+        '<div class="design-curtain-inner">' +
+        '<span class="design-curtain-mark">R1F</span>' +
+        '<span class="design-curtain-label">Меняем дизайн…</span>' +
+        '<div class="design-curtain-bars"><span></span><span></span><span></span></div>' +
+        '</div>';
+      document.body.appendChild(curtain);
+      // Форсируем layout вместо requestAnimationFrame: rAF не гарантированно тикает
+      // в фоновой/неактивной вкладке, и тогда класс «show» никогда не добавится —
+      // шторка навсегда останется невидимым висящим div в DOM.
+      void curtain.offsetHeight;
+      curtain.classList.add('show');
+      window.setTimeout(() => {
+        applyDesignAttr(next);
+        window.setTimeout(() => {
+          curtain.classList.remove('show');
+          // Уборка по таймауту, а не только по transitionend — так шторка гарантированно
+          // исчезнет, даже если событие перехода не долетит (свёрнутая вкладка и т.п.).
+          window.setTimeout(() => curtain.remove(), 320);
+        }, 350);
+      }, 260);
+      return next;
+    });
+  }, []);
+
+  return <DesignContext.Provider value={{ design, setDesign }}>{children}</DesignContext.Provider>;
+}
+
+function DesignSwitch() {
+  const { design, setDesign } = useDesign();
+  return (
+    <div className="design-switch" role="group" aria-label="Дизайн сайта">
+      <button type="button" className={design === 'new' ? 'active' : ''} onClick={() => setDesign('new')}>
+        Новый
+      </button>
+      <button type="button" className={design === 'legacy' ? 'active' : ''} onClick={() => setDesign('legacy')}>
+        Старый
+      </button>
+    </div>
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
-      <StoreProvider>
-        <ScrollMemory />
-        <Shell />
-      </StoreProvider>
+      <DesignProvider>
+        <StoreProvider>
+          <ScrollMemory />
+          <Shell />
+        </StoreProvider>
+      </DesignProvider>
     </BrowserRouter>
   );
 }
@@ -1856,6 +1940,7 @@ function Shell() {
           </Link>
           <Link to="/auctions/rules" className="nav-link">Правила</Link>
           {admin && <Link to="/admin" className="nav-link">Админка</Link>}
+          <DesignSwitch />
           <AuthBadge />
         </nav>
       </header>
