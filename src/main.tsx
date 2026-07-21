@@ -4619,6 +4619,9 @@ function PublicWheelPage() {
   const multiCategory = (session?.categories.length ?? 0) > 1;
   const activeCount = participants.filter((p) => p.status === 'active').length;
   const totalCount = participants.length;
+  // Банк не «тает» при выбывании — деньги были собраны за все позиции розыгрыша заранее,
+  // выбывание лишь решает очередность разбора. Крупная цифра нужна для читаемости в OBS (§4.2).
+  const totalBank = participants.reduce((sum, p) => sum + p.amount, 0);
   // На последнем (решающем) спине сервер сразу помечает сессию finished. Но у зрителя в этот момент
   // ещё доигрывается анимация вращения — нельзя показывать экран победителя раньше, чем колесо
   // докрутится, иначе зритель видит итог до того, как крутящий (Рифмабес) его увидит. Поэтому пока
@@ -4687,6 +4690,13 @@ function PublicWheelPage() {
         </section>
       )}
 
+      {!loading && !loadError && showWheel && totalBank > 0 && (
+        <div className="wheel-bank">
+          <span className="wheel-bank-label">Банк аукциона</span>
+          <strong className="wheel-bank-amount">{totalBank.toLocaleString('ru-RU')} ₽</strong>
+        </div>
+      )}
+
       {!loading && !loadError && showWheel && (
         <section className="wheel-layout">
           <div className="wheel-circle-col">
@@ -4722,8 +4732,9 @@ function PublicWheelPage() {
                     <div className="wheel-prep-group" key={cat}>
                       <h3 className="wheel-prep-group-title"><AuctionCategoryIcon category={cat} size={13} /> {auctionCategoryLabel[cat]}</h3>
                       <div className="wheel-participant-list">
-                        {group.map((p) => (
-                          <div className={`wheel-participant-row${p.status === 'winner' ? ' winner' : ''}${p.status === 'eliminated' ? ' eliminated' : ''}`} key={p.id}>
+                        {group.map((p, index) => (
+                          <div className={`wheel-participant-row wheel-participant-row-live-ranked${p.status === 'winner' ? ' winner' : ''}${p.status === 'eliminated' ? ' eliminated' : ''}`} key={p.id}>
+                            <div className="wheel-rank">{index + 1}</div>
                             <div className="wheel-participant-main">
                               <strong>{p.artist ? `${p.artist} — ${p.title}` : p.title}</strong>
                               <span className="wheel-participant-status">
@@ -4743,8 +4754,9 @@ function PublicWheelPage() {
               </div>
             ) : (
               <div className="wheel-participant-list">
-                {rankedParticipants.map((p) => (
-                  <div className={`wheel-participant-row${p.status === 'winner' ? ' winner' : ''}${p.status === 'eliminated' ? ' eliminated' : ''}`} key={p.id}>
+                {rankedParticipants.map((p, index) => (
+                  <div className={`wheel-participant-row wheel-participant-row-live-ranked${p.status === 'winner' ? ' winner' : ''}${p.status === 'eliminated' ? ' eliminated' : ''}`} key={p.id}>
+                    <div className="wheel-rank">{index + 1}</div>
                     <div className="wheel-participant-main">
                       <strong>{p.artist ? `${p.artist} — ${p.title}` : p.title}</strong>
                       <span className="wheel-participant-status">
@@ -4801,7 +4813,7 @@ function PublicWheelPage() {
             <h3>Итоги</h3>
             <div className="wheel-participant-list">
               {finishedResults.map((p, index) => (
-                <div className={`wheel-participant-row${p.status === 'winner' ? ' winner' : ''}${p.status === 'eliminated' ? ' eliminated' : ''}`} key={p.id}>
+                <div className={`wheel-participant-row wheel-participant-row-ranked${p.status === 'winner' ? ' winner' : ''}${p.status === 'eliminated' ? ' eliminated' : ''}`} key={p.id}>
                   <div className="wheel-rank">{index + 1}</div>
                   <div className="wheel-participant-main">
                     <strong>{multiCategory && p.category && <AuctionCategoryIcon category={p.category} size={13} />} {p.artist ? `${p.artist} — ${p.title}` : p.title}</strong>
@@ -5500,7 +5512,7 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
             <h3>Итоги</h3>
             <div className="wheel-participant-list">
               {finishedResults.map((p, index) => (
-                <div className={`wheel-participant-row${p.status === 'winner' ? ' winner' : ''}${p.status === 'eliminated' ? ' eliminated' : ''}`} key={p.id}>
+                <div className={`wheel-participant-row wheel-participant-row-ranked${p.status === 'winner' ? ' winner' : ''}${p.status === 'eliminated' ? ' eliminated' : ''}`} key={p.id}>
                   <div className="wheel-rank">{index + 1}</div>
                   <div className="wheel-participant-main">
                     <strong>{(session?.categories.length ?? 0) > 1 && p.category && <AuctionCategoryIcon category={p.category} size={13} />} {p.artist ? `${p.artist} — ${p.title}` : p.title}</strong>
