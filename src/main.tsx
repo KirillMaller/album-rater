@@ -4064,15 +4064,17 @@ function AdminAuctionsPage() {
         <Link to="/auctions" className="ghost">Публичная страница</Link>
       </section>
 
-      <section className="panel">
-        <h2>Правила</h2>
-        <p className="muted">Markdown поддерживается. Появится на странице «Правила».</p>
-        <textarea value={rulesDraft} onChange={(event) => setRulesDraft(event.target.value)} className="rules-textarea" />
-        <div className="rules-save">
-          <button onClick={handleRulesSave} disabled={rulesSaving}><Save size={16} /> Сохранить правила</button>
-          {rulesSavedAt && <span className="muted">сохранено в {rulesSavedAt}</span>}
-        </div>
-      </section>
+      {!wheelOpen && (
+        <section className="panel">
+          <h2>Правила</h2>
+          <p className="muted">Markdown поддерживается. Появится на странице «Правила».</p>
+          <textarea value={rulesDraft} onChange={(event) => setRulesDraft(event.target.value)} className="rules-textarea" />
+          <div className="rules-save">
+            <button onClick={handleRulesSave} disabled={rulesSaving}><Save size={16} /> Сохранить правила</button>
+            {rulesSavedAt && <span className="muted">сохранено в {rulesSavedAt}</span>}
+          </div>
+        </section>
+      )}
 
       {!wheelOpen && (
         <section className="type-tabs" aria-label="Категории аукционов">
