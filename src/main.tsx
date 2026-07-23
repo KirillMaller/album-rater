@@ -39,7 +39,6 @@ import {
   List,
   Lock,
   LogOut,
-  Minus,
   Music,
   Plus,
   RefreshCw,
@@ -3647,7 +3646,6 @@ function AuctionsPage() {
             key={category}
             className={activeCategory === category ? 'on' : counts[category] === 0 ? 'empty' : ''}
             onClick={() => setActiveCategory(category)}
-            disabled={counts[category] === 0}
           >
             {auctionCategoryLabel[category]} <span>{counts[category]}</span>
           </button>
@@ -3731,7 +3729,7 @@ function AuctionEditorModal({ item, isNew, onChange, onClose, onSave }: {
 }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(event) => event.stopPropagation()}>
+      <div className="modal auction-editor-modal" onClick={(event) => event.stopPropagation()}>
         <h2>{isNew ? 'Добавить' : 'Изменить'} — {auctionCategoryLabel[item.category].toLowerCase()}</h2>
         <div className="modal-grid">
           <label>
@@ -3754,7 +3752,14 @@ function AuctionEditorModal({ item, isNew, onChange, onClose, onSave }: {
           </label>
           <label>
             Сумма донатов, ₽
-            <input type="number" min={0} step={50} value={item.amount} onChange={(event) => onChange({ ...item, amount: Number(event.target.value) || 0 })} />
+            <input
+              type="number"
+              min={0}
+              step={50}
+              value={item.amount || ''}
+              onFocus={(event) => event.currentTarget.select()}
+              onChange={(event) => onChange({ ...item, amount: Number(event.target.value) || 0 })}
+            />
           </label>
           <label className="modal-full">
             Комментарий (опционально)
@@ -4136,7 +4141,7 @@ function AdminAuctionsPage() {
 
       {editing && (
         <div className="modal-backdrop" onClick={() => setEditing(null)}>
-          <div className="modal" onClick={(event) => event.stopPropagation()}>
+          <div className="modal auction-editor-modal" onClick={(event) => event.stopPropagation()}>
             <h2>{auctions.some((a) => a.id === editing.id) ? 'Редактировать' : 'Добавить'} — {auctionCategoryLabel[editing.category].toLowerCase().replace(/ы$/, '')}</h2>
             <div className="modal-grid">
               <label>
@@ -4159,7 +4164,14 @@ function AdminAuctionsPage() {
               </label>
               <label>
                 Сумма донатов, ₽
-                <input type="number" min={0} step={50} value={editing.amount} onChange={(event) => setEditing({ ...editing, amount: Number(event.target.value) || 0 })} />
+                <input
+                  type="number"
+                  min={0}
+                  step={50}
+                  value={editing.amount || ''}
+                  onFocus={(event) => event.currentTarget.select()}
+                  onChange={(event) => setEditing({ ...editing, amount: Number(event.target.value) || 0 })}
+                />
               </label>
               <label className="modal-full">
                 Комментарий (опционально)
@@ -4894,6 +4906,18 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
   const [undoingSpin, setUndoingSpin] = useState(false);
   const [wheelRotation, setWheelRotation] = useState(0);
   const [spinDurationSec, setSpinDurationSec] = useState(5);
+  const [spinDurationDraft, setSpinDurationDraft] = useState('5');
+  const parsedSpinDurationDraft = Number(spinDurationDraft);
+  const canSaveSpinDuration =
+    spinDurationDraft.trim() !== ''
+    && Number.isInteger(parsedSpinDurationDraft)
+    && parsedSpinDurationDraft >= 2
+    && parsedSpinDurationDraft <= 60
+    && parsedSpinDurationDraft !== spinDurationSec;
+  const handleSaveSpinDuration = () => {
+    if (!canSaveSpinDuration) return;
+    setSpinDurationSec(parsedSpinDurationDraft);
+  };
 
   const [resetBusy, setResetBusy] = useState(false);
   const [confirmingReset, setConfirmingReset] = useState(false);
@@ -5416,22 +5440,37 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
               {spinning ? 'Крутим…' : <><RotateCw size={18} /> Крутить</>}
             </button>
             <div className="wheel-duration-control">
-              <span className="muted">Длительность вращения</span>
-              <div className="wheel-duration-buttons">
-                <button
-                  type="button"
-                  className="ghost icon-btn"
-                  onClick={() => setSpinDurationSec((s) => Math.max(2, s - 1))}
-                  disabled={spinDurationSec <= 2}
-                ><Minus size={14} /></button>
-                <span className="wheel-duration-value">{spinDurationSec} сек</span>
-                <button
-                  type="button"
-                  className="ghost icon-btn"
-                  onClick={() => setSpinDurationSec((s) => Math.min(30, s + 1))}
-                  disabled={spinDurationSec >= 30}
-                ><Plus size={14} /></button>
-              </div>
+              <label htmlFor="wheel-spin-duration" className="muted">Длительность вращения, 2–60 сек</label>
+              <form
+                className="wheel-duration-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  handleSaveSpinDuration();
+                }}
+              >
+                <input
+                  id="wheel-spin-duration"
+                  className="wheel-duration-input"
+                  type="number"
+                  min={2}
+                  max={60}
+                  step={1}
+                  inputMode="numeric"
+                  value={spinDurationDraft}
+                  onFocus={(event) => event.currentTarget.select()}
+                  onChange={(event) => setSpinDurationDraft(event.target.value)}
+                  disabled={spinning}
+                  aria-invalid={spinDurationDraft.trim() !== '' && !(
+                    Number.isInteger(parsedSpinDurationDraft)
+                    && parsedSpinDurationDraft >= 2
+                    && parsedSpinDurationDraft <= 60
+                  )}
+                />
+                <span className="wheel-duration-unit">сек</span>
+                <button type="submit" className="ghost wheel-duration-save" disabled={!canSaveSpinDuration || spinning}>
+                  Сохранить
+                </button>
+              </form>
             </div>
             {!spinning && revealedRounds.length > 0 && (
               <button className="ghost wheel-undo-btn" onClick={handleUndoLastSpin} disabled={undoingSpin}>

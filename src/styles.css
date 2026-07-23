@@ -1177,17 +1177,18 @@ html[data-design="new"] .type-tabs button.on {
 }
 html[data-design="new"] .type-tabs button.on span { background: rgba(236, 227, 212, .18); color: var(--text); }
 html[data-design="new"] .type-tabs span { font-family: var(--font-mono); }
-/* FIX-5 (ревью дизайн-Клода): категории с нулевым счётчиком («Фильмы 0», «Игры 0») почти
-   сливались с фоном — читаемо приглушённые, а не невидимые. */
+/* Пустые категории приглушены, но остаются доступными: админ может открыть такую вкладку
+   и добавить в неё первый лот, а зритель — увидеть честное пустое состояние. */
 html[data-design="new"] .type-tabs button.empty {
-  opacity: .5;
-  cursor: default;
+  opacity: .65;
+  cursor: pointer;
   color: var(--text-2);
 }
 html[data-design="new"] .type-tabs button.empty:hover {
-  border-color: var(--line);
-  background: var(--panel-2);
-  color: var(--text-2);
+  opacity: 1;
+  border-color: var(--bone);
+  background: rgba(236, 227, 212, .1);
+  color: var(--text);
 }
 html[data-design="new"] .type-tabs button.empty span {
   background: transparent;
@@ -2319,6 +2320,12 @@ html[data-design="new"] .modal-backdrop { background: rgba(23, 19, 15, .7); }
   background: var(--panel);
   box-shadow: 0 24px 60px rgba(0, 0, 0, .5);
 }
+.modal.auction-editor-modal {
+  width: min(760px, 100%);
+  padding: 30px;
+}
+.auction-editor-modal .modal-grid { gap: 16px; }
+.auction-editor-modal .modal-actions { margin-top: 22px; }
 .modal h2 { margin: 0 0 14px; font-size: 20px; }
 .modal-grid {
   display: grid;
@@ -2733,9 +2740,21 @@ html[data-design="new"] .wheel-sector-label-amount { font-family: var(--font-mon
 .wheel-spin-btn:disabled { animation: none; opacity: .5; box-shadow: none; }
 
 .wheel-duration-control { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 12px; }
-.wheel-duration-buttons { display: flex; align-items: center; gap: 10px; }
-.wheel-duration-buttons .icon-btn { min-height: 28px; width: 28px; min-width: 28px; padding: 0; }
-.wheel-duration-value { min-width: 52px; text-align: center; font-family: ui-monospace, monospace; font-weight: 700; }
+.wheel-duration-form { display: flex; align-items: center; gap: 8px; }
+.wheel-duration-input {
+  width: 72px;
+  min-height: 34px;
+  padding: 6px 10px;
+  text-align: center;
+  font-family: ui-monospace, monospace;
+  font-weight: 800;
+  appearance: textfield;
+}
+.wheel-duration-input::-webkit-inner-spin-button,
+.wheel-duration-input::-webkit-outer-spin-button { margin: 0; appearance: none; }
+.wheel-duration-input[aria-invalid="true"] { border-color: var(--red); }
+.wheel-duration-unit { color: var(--muted); }
+.wheel-duration-save { min-height: 34px; padding: 6px 12px; font-size: 12px; }
 
 .wheel-last-eliminated {
   display: flex;
@@ -2967,7 +2986,7 @@ html[data-design="new"] .wheel-spin-status {
 .wheel-progress b { color: var(--text); font-family: ui-monospace, monospace; }
 html[data-design="new"] .wheel-progress b,
 html[data-design="new"] .wheel-chance,
-html[data-design="new"] .wheel-duration-value,
+html[data-design="new"] .wheel-duration-input,
 html[data-design="new"] .wheel-history-order,
 html[data-design="new"] .admin-auction-amount {
   font-family: var(--font-mono);
