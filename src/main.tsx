@@ -4272,13 +4272,24 @@ function AddAmountModal({ item, onClose, onSubmit }: {
   );
 }
 
-// Порядок участников на самом колесе: вразнобой (не сгруппирован по категории, не отсортирован
-// по сумме), но ДЕТЕРМИНИРОВАННО — сортировка по id (uuid) выглядит случайной на глаз, но даёт
-// одинаковое расположение секторов у всех, кто сейчас смотрит на это же колесо (админ +
-// зрительская страница), без лишней синхронизации. Список участников справа сортируется и
-// группируется отдельно, эта функция его не трогает.
-function stableWheelOrder<T extends { id: string }>(items: T[]): T[] {
-  return [...items].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+// Настоящее перемешивание секторов для каждой новой сессии, но детерминированное (одинаковое)
+// у админа и зрителей: хеш пары sessionId + participantId задаёт участнику случайное место.
+// Сумма и категория в расчёте не участвуют, поэтому дорогие и дешёвые лоты идут вперемешку.
+// При выбывании участника относительный порядок остальных не меняется.
+function stableWheelOrder<T extends { id: string }>(items: T[], sessionId: string): T[] {
+  const hash = (value: string) => {
+    let result = 2166136261;
+    for (let i = 0; i < value.length; i += 1) {
+      result ^= value.charCodeAt(i);
+      result = Math.imul(result, 16777619);
+    }
+    return result >>> 0;
+  };
+
+  return [...items].sort((a, b) => {
+    const hashDiff = hash(`${sessionId}:${a.id}`) - hash(`${sessionId}:${b.id}`);
+    return hashDiff || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  });
 }
 
 // Колесо аукциона — геометрия секторов. Угол 0° = верх (12 часов), растёт по часовой стрелке.
@@ -4523,13 +4534,13 @@ function PublicWheelPage() {
           // первого спина, видел мгновенный итог (баг, найденный на тесте с 5-сек прокруткой).
           firstLoadRef.current = false;
           seenRoundIdRef.current = null;
-          setSectorOrder(stableWheelOrder(loadedParticipants.filter((p) => p.status === 'active')));
+          setSectorOrder(stableWheelOrder(loadedParticipants.filter((p) => p.status === 'active'), loadedSession.id));
           return;
         }
 
         if (seenRoundIdRef.current === latestRound.id) {
           if (!animTimeoutRef.current) {
-            setSectorOrder(stableWheelOrder(loadedParticipants.filter((p) => p.status === 'active')));
+            setSectorOrder(stableWheelOrder(loadedParticipants.filter((p) => p.status === 'active'), loadedSession.id));
           }
           return;
         }
@@ -4546,13 +4557,13 @@ function PublicWheelPage() {
         const preRoundActive = loadedParticipants.filter(
           (p) => p.status === 'active' || p.status === 'winner' || p.id === latestRound.participantId
         );
-        const order = stableWheelOrder(preRoundActive);
+        const order = stableWheelOrder(preRoundActive, loadedSession.id);
         const idx = order.findIndex((p) => p.id === latestRound.participantId);
 
         if (isFirstLoad || idx === -1 || !eliminatedP) {
           // первая загрузка страницы (зашли уже во время/после вращения) или не нашли сектор —
           // показываем текущий итог без прокрутки, а не гоняем анимацию задним числом
-          setSectorOrder(stableWheelOrder(loadedParticipants.filter((p) => p.status === 'active')));
+          setSectorOrder(stableWheelOrder(loadedParticipants.filter((p) => p.status === 'active'), loadedSession.id));
           setLastEliminated(eliminatedP);
           return;
         }
@@ -4584,7 +4595,7 @@ function PublicWheelPage() {
         animTimeoutRef.current = window.setTimeout(() => {
           animTimeoutRef.current = null;
           setSpinningAnim(false);
-          setSectorOrder(stableWheelOrder(participantsRef.current.filter((p) => p.status === 'active')));
+          setSectorOrder(stableWheelOrder(participantsRef.current.filter((p) => p.status === 'active'), loadedSession.id));
           setLastEliminated(eliminatedP);
         }, Math.max(remaining, 300));
       } catch (err) {
@@ -4896,7 +4907,7 @@ function WheelPanel({ initialCategory, onClose }: { initialCategory: AuctionCate
     sessionIdRef.current = loadedSession?.id ?? null;
     setParticipants(loadedParticipants);
     setRounds(loadedRounds);
-    setSectorOrder(stableWheelOrder(loadedParticipants.filter((p) => p.status === 'active')));
+    setSectorOrder(stableWheelOrder(loadedParticipants.filter((p) => p.status === 'active'), loadedSession?.id ?? ''));
     setLastEliminated(null);
     setPendingResume(null);
     setConfirmingReset(false);
