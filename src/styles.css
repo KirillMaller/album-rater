@@ -2612,7 +2612,8 @@ html[data-design="new"] .wheel-bank-amount { font-family: var(--font-display); t
   font-weight: 700;
   color: var(--muted);
   font-family: ui-monospace, monospace;
-  font-size: 13px;
+  font-size: 11px;
+  white-space: nowrap;
 }
 .wheel-prep-row-inactive { grid-template-columns: minmax(0, 1fr) 120px; }
 .wheel-prep-inactive { color: var(--muted); font-size: 13px; }
@@ -2630,6 +2631,49 @@ html[data-design="new"] .wheel-bank-amount { font-family: var(--font-display); t
   position: relative;
   width: min(460px, 88vw);
   aspect-ratio: 1;
+  isolation: isolate;
+  perspective: 900px;
+}
+.wheel-circle-wrap::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 10px 6px -12px;
+  border-radius: 50%;
+  background:
+    linear-gradient(180deg, #847c70 0%, #3d3832 10%, #191511 58%, #080706 100%);
+  border: 2px solid rgba(236, 227, 212, .3);
+  box-shadow:
+    0 22px 28px rgba(0, 0, 0, .62),
+    inset 0 -8px 12px rgba(0, 0, 0, .72),
+    inset 0 4px 5px rgba(255, 255, 255, .2);
+}
+.wheel-circle-wrap::after {
+  content: "";
+  position: absolute;
+  z-index: 4;
+  inset: 3px;
+  border-radius: 50%;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 28% 17%, rgba(255, 255, 255, .24), transparent 22%),
+    conic-gradient(
+      from 205deg,
+      transparent 0deg 28deg,
+      rgba(0, 229, 255, .16) 42deg,
+      rgba(145, 70, 255, .2) 58deg,
+      rgba(255, 45, 156, .14) 76deg,
+      transparent 96deg 205deg,
+      rgba(255, 230, 0, .1) 225deg,
+      rgba(0, 229, 255, .13) 245deg,
+      transparent 270deg 360deg
+    ),
+    linear-gradient(135deg, rgba(255, 255, 255, .1), transparent 34%, rgba(0, 0, 0, .16) 68%, rgba(0, 0, 0, .34));
+  box-shadow:
+    inset 10px 12px 20px rgba(255, 255, 255, .05),
+    inset -14px -18px 24px rgba(0, 0, 0, .34),
+    inset 0 0 0 3px rgba(236, 227, 212, .2),
+    inset 0 0 0 11px rgba(8, 7, 6, .28);
 }
 .wheel-pointer {
   position: absolute;
@@ -2650,17 +2694,44 @@ html[data-design="new"] .wheel-pointer {
 }
 .wheel-circle {
   position: relative;
+  z-index: 1;
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, .5), inset 0 0 0 6px rgba(9, 11, 18, .6), 0 0 0 2px rgba(145, 70, 255, .25);
+  transform-style: preserve-3d;
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, .5),
+    inset 0 0 0 8px rgba(9, 11, 18, .68),
+    inset 0 0 22px rgba(0, 0, 0, .24),
+    0 0 0 3px rgba(145, 70, 255, .25);
 }
 html[data-design="new"] .wheel-circle {
-  box-shadow: 0 20px 50px rgba(0, 0, 0, .5), inset 0 0 0 6px rgba(23, 19, 15, .6), 0 0 0 2px rgba(236, 227, 212, .18);
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, .5),
+    inset 0 0 0 8px rgba(23, 19, 15, .68),
+    inset 0 0 22px rgba(0, 0, 0, .28),
+    0 0 0 3px rgba(236, 227, 212, .22);
 }
-.wheel-svg { width: 100%; height: 100%; display: block; border-radius: 50%; }
+.wheel-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: 50%;
+  filter: saturate(1.12) brightness(1.06);
+}
 .wheel-sector { stroke: rgba(9, 11, 18, .85); stroke-width: 2; }
-.wheel-circle-outline { fill: none; stroke: var(--line); stroke-width: 3; }
+.wheel-disc-tracks {
+  fill: none;
+  stroke: rgba(236, 227, 212, .12);
+  stroke-width: .7;
+  pointer-events: none;
+}
+.wheel-disc-tracks circle:nth-child(even) { stroke: rgba(0, 0, 0, .2); }
+.wheel-disc-tracks .wheel-disc-clamp-ring {
+  stroke: rgba(236, 227, 212, .34);
+  stroke-width: 2;
+}
+.wheel-circle-outline { fill: none; stroke: rgba(236, 227, 212, .32); stroke-width: 4; }
 .wheel-hub {
   position: absolute;
   top: 50%;
@@ -2677,6 +2748,18 @@ html[data-design="new"] .wheel-circle {
   z-index: 5;
 }
 .wheel-hub-emoji { font-size: 30px; line-height: 1; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .5)); }
+.wheel-hub::before {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border-radius: 50%;
+  border: 1px solid rgba(236, 227, 212, .22);
+  box-shadow:
+    inset 0 2px 3px rgba(255, 255, 255, .12),
+    inset 0 -3px 5px rgba(0, 0, 0, .45);
+  pointer-events: none;
+}
+.wheel-hub-emoji { position: relative; z-index: 1; }
 .wheel-hub.spinning { animation: wheel-hub-pulse 1s ease-in-out infinite; }
 @keyframes wheel-hub-pulse {
   0%, 100% { box-shadow: 0 0 0 6px rgba(9, 11, 18, .55), 0 8px 22px rgba(0, 0, 0, .55), 0 0 26px rgba(145, 70, 255, .35); }
@@ -2684,9 +2767,15 @@ html[data-design="new"] .wheel-circle {
 }
 /* Bone: без фиолетово-циановой пульсации свечения на спине — ступица просто статично тёмная. */
 html[data-design="new"] .wheel-hub {
-  background: radial-gradient(circle at 35% 30%, #29221B, #17130F);
+  background:
+    radial-gradient(circle at 32% 26%, rgba(255, 255, 255, .18), transparent 18%),
+    radial-gradient(circle at 40% 34%, #39312a, #17130f 68%);
   border-color: rgba(236, 227, 212, .18);
-  box-shadow: 0 0 0 6px rgba(23, 19, 15, .55), 0 8px 22px rgba(0, 0, 0, .55);
+  box-shadow:
+    0 0 0 6px rgba(23, 19, 15, .72),
+    0 10px 20px rgba(0, 0, 0, .68),
+    inset 0 3px 5px rgba(255, 255, 255, .1),
+    inset 0 -5px 8px rgba(0, 0, 0, .45);
 }
 html[data-design="new"] .wheel-hub.spinning { animation: none; }
 .wheel-sector-label {
@@ -2797,24 +2886,25 @@ html[data-design="new"] .wheel-sector-label-amount { font-family: var(--font-mon
   50% { box-shadow: 0 10px 34px rgba(0, 229, 255, .5); }
 }
 
-.wheel-participant-col { display: grid; gap: 12px; align-content: start; }
+.wheel-participant-col { min-width: 0; display: grid; gap: 10px; align-content: start; }
 .wheel-participant-col h2 { margin: 0; font-size: 18px; }
-.wheel-participant-list { display: grid; gap: 8px; }
+.wheel-participant-list { display: grid; gap: 5px; }
 .wheel-participant-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 60px 110px;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) 84px 96px;
+  gap: 8px;
   align-items: center;
-  padding: 10px 12px;
+  min-height: 48px;
+  padding: 6px 10px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 8px;
   background: #0d111c;
 }
 /* Варианты с колонкой номера — их 3 набора полей, а не 4, отсюда отдельные шаблоны:
    -live-ranked (номер+имя+шанс+сумма, публичная страница во время розыгрыша) и
    -ranked (номер+имя+сумма, экраны «Итоги», без колонки шанса). */
-.wheel-participant-row-live-ranked { grid-template-columns: 22px minmax(0, 1fr) 60px 110px; }
-.wheel-participant-row-ranked { grid-template-columns: 22px minmax(0, 1fr) 110px; }
+.wheel-participant-row-live-ranked { grid-template-columns: 22px minmax(0, 1fr) 84px 96px; }
+.wheel-participant-row-ranked { grid-template-columns: 22px minmax(0, 1fr) 96px; }
 .wheel-participant-row.eliminated { opacity: .55; }
 .wheel-participant-row.winner {
   border-color: rgba(255, 230, 0, .55);
@@ -2836,7 +2926,7 @@ html[data-design="new"] .wheel-sector-label-amount { font-family: var(--font-mon
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--muted);
 }
 .wheel-participant-row.winner .wheel-participant-status { color: var(--yellow); font-weight: 700; }
@@ -3022,4 +3112,17 @@ html[data-design="new"] .admin-auction-amount {
   .wheel-layout { grid-template-columns: 1fr; }
   .wheel-prep-row { grid-template-columns: minmax(0, 1fr) 90px; }
   .wheel-prep-row .admin-auction-amount { grid-column: 2; text-align: right; }
+}
+
+@media (min-width: 861px) {
+  .wheel-participant-col > .wheel-participant-list,
+  .wheel-participant-col > .wheel-prep-groups {
+    max-height: clamp(400px, calc(100vh - 290px), 680px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(236, 227, 212, .28) transparent;
+    padding-right: 6px;
+  }
 }

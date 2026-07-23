@@ -4372,6 +4372,16 @@ function WheelCircle({
               className="wheel-sector"
             />
           ))}
+          <g className="wheel-disc-tracks" aria-hidden="true">
+            <circle cx={cx} cy={cy} r="136" />
+            <circle cx={cx} cy={cy} r="124" />
+            <circle cx={cx} cy={cy} r="112" />
+            <circle cx={cx} cy={cy} r="100" />
+            <circle cx={cx} cy={cy} r="88" />
+            <circle cx={cx} cy={cy} r="76" />
+            <circle cx={cx} cy={cy} r="64" />
+            <circle cx={cx} cy={cy} r="49" className="wheel-disc-clamp-ring" />
+          </g>
           <circle cx={cx} cy={cy} r={r} className="wheel-circle-outline" />
         </svg>
         {sectors.map((participant, index) => {
