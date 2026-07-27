@@ -73,7 +73,11 @@ body {
 }
 /* Bone: плоский фон, без неоновых подсветок по углам — только лёгкая зернистость. */
 html[data-design="new"] body {
-  background: var(--bg);
+  /* Граффити — атмосферный слой: затемнение оставляет текст и обложки контрастными. */
+  background:
+    linear-gradient(90deg, rgba(23, 19, 15, .76) 0%, rgba(23, 19, 15, .38) 48%, rgba(23, 19, 15, .7) 100%),
+    url('/images/r1f-graffiti-bg.png') center 18% / cover fixed,
+    var(--bg);
   position: relative;
   /* FIX-1 (ревью дизайн-Клода): жирный Anton на тёмном фоне без этого даёт
      цветной RGB-фрингинг по краям букв — классика для bold-шрифтов на dark bg,
@@ -91,7 +95,7 @@ html[data-design="new"] body::before {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  opacity: .05;
+  opacity: .035;
   mix-blend-mode: overlay;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
@@ -1004,6 +1008,21 @@ html[data-design="new"] .score-pair-labeled .score-pair-row:nth-child(2) .score-
   font-size: 16px;
   border-radius: 8px;
 }
+
+/* Квадратные карточки: оценки закреплены в верхней кромке, поэтому цепь
+   начинается за рамкой карточки, а медальоны свисают внутрь обложки. */
+html[data-design="new"] .catalog-card { position: relative; aspect-ratio: 1; overflow: hidden; background: var(--panel-2); }
+html[data-design="new"] .featured-card { min-height: 0; aspect-ratio: 1; }
+html[data-design="new"] .catalog-card .catalog-thumb { position: absolute; inset: 0; aspect-ratio: auto; }
+html[data-design="new"] .catalog-card .catalog-thumb::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(23,19,15,.04) 28%, rgba(23,19,15,.15) 48%, rgba(23,19,15,.9) 100%); }
+html[data-design="new"] .catalog-card .catalog-card-body, html[data-design="new"] .catalog-card .catalog-card-foot { position: absolute; z-index: 2; left: 0; right: 0; }
+html[data-design="new"] .catalog-card .catalog-card-body { bottom: 29px; padding: 16px 14px 6px; }
+html[data-design="new"] .catalog-card .catalog-card-foot { bottom: 0; padding: 0 14px 12px; font-size: 11px; }
+html[data-design="new"] .catalog-card .score-pair.score-pos, html[data-design="new"] .featured-card .score-pair.score-pos { top: 0; right: 12px; display: inline-flex; flex-direction: row; align-items: flex-start; gap: 5px; }
+html[data-design="new"] .score-pos .score-pair-row { position: relative; padding-top: 25px; }
+html[data-design="new"] .score-pos .score-pair-row::before { content: ""; position: absolute; top: -7px; left: 50%; width: 19px; height: 35px; transform: translateX(-50%); background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 54'%3E%3Cdefs%3E%3ClinearGradient id='m' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop stop-color='%23fff9ea'/%3E%3Cstop offset='.22' stop-color='%23897b68'/%3E%3Cstop offset='.5' stop-color='%2317120e'/%3E%3Cstop offset='.74' stop-color='%23e5d8c2'/%3E%3Cstop offset='1' stop-color='%23514536'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cellipse cx='15' cy='10' rx='7' ry='9' fill='none' stroke='url(%23m)' stroke-width='4'/%3E%3Cellipse cx='15' cy='27' rx='7' ry='9' fill='none' stroke='url(%23m)' stroke-width='4' transform='rotate(90 15 27)'/%3E%3Cellipse cx='15' cy='44' rx='7' ry='9' fill='none' stroke='url(%23m)' stroke-width='4'/%3E%3C/svg%3E") center / 19px 35px no-repeat; filter: drop-shadow(1px 2px 2px rgba(0,0,0,.75)); }
+html[data-design="new"] .score-pos .score-pair-badge.score-pair-badge-mine { min-width: 46px; height: 42px; padding: 0; border-radius: 13px; font-size: 20px; box-shadow: 0 6px 12px rgba(0,0,0,.42), inset 0 2px 1px rgba(255,255,255,.75); }
+html[data-design="new"] .score-pos .score-pair-badge.score-pair-badge-viewers { min-width: 42px; height: 36px; margin-top: 3px; padding: 0; border-radius: 12px; background: linear-gradient(135deg, #51483d, #211b16 76%); border-color: rgba(236,227,212,.4); color: var(--text); font-size: 15px; box-shadow: 0 6px 12px rgba(0,0,0,.4), inset 0 1px 1px rgba(255,255,255,.12); }
 .featured-body {
   position: absolute;
   left: 18px;
