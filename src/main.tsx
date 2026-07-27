@@ -1129,7 +1129,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!auctions.length) setAuctionsLoading(true);
     setAuctionsError(undefined);
     const [itemsResult, rulesResult] = await Promise.all([
-      supabase.from('auction_items').select('*').order('amount', { ascending: false }),
+      supabase.from('auction_items').select('*').is('archived_at', null).order('amount', { ascending: false }),
       supabase.from('auction_rules').select('*').eq('scope', 'global').maybeSingle(),
     ]);
     if (itemsResult.error) {
@@ -1684,7 +1684,10 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
     },
     async deleteAuction(id) {
       if (!supabase) throw new Error('Аукционы доступны только с Supabase');
-      const { error } = await supabase.from('auction_items').delete().eq('id', id);
+      const { error } = await supabase
+        .from('auction_items')
+        .update({ archived_at: new Date().toISOString() })
+        .eq('id', id);
       if (error) throw error;
       await loadAuctions();
     },
@@ -1928,6 +1931,15 @@ function Shell() {
   return (
     <>
       <ConsentModal />
+      <div className="r1f-easter-eggs" aria-hidden="true">
+        <span className="r1f-stamp stamp-r1f">R1F / НА РАЗБОРЕ</span>
+        <span className="r1f-stamp stamp-bcb">БЧБ · MIC CHECK</span>
+        <span className="r1f-stamp stamp-volume">VOLUME OVERLOAD</span>
+        <span className="r1f-stamp stamp-kaluga">КАЛУГА / #2ТИПА</span>
+        <span className="r1f-stamp stamp-armor">БРОНИК EQUIPPED</span>
+        <span className="r1f-stamp stamp-lore">АББАЛБИЙСКИЙ LORE</span>
+        <span className="r1f-stamp stamp-bpm">BPM MODE · КУБОК МЦ</span>
+      </div>
       <header className="topbar">
         <Link to="/" className="brand"><span className="brand-mark">R1</span> R1Fрейтинг</Link>
         <nav>
