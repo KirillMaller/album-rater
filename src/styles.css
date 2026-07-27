@@ -101,6 +101,46 @@ html[data-design="new"] body::before {
 }
 html[data-design="new"] #root { position: relative; z-index: 1; }
 
+/* Новый дизайн: только текстовые отсылки на уже существующем граффити-фоне. */
+html[data-design="new"] .r1f-easter-eggs {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  font-family: var(--font-mono);
+  font-size: clamp(10px, .72vw, 13px);
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+html[data-design="new"] .r1f-stamp {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 1px 8px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  background: rgba(23, 19, 15, .52);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, .32);
+  opacity: .74;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, .85);
+  white-space: nowrap;
+}
+html[data-design="new"] .stamp-r1f { top: 11%; left: 3.2%; color: #63e7ed; transform: rotate(-7deg); }
+html[data-design="new"] .stamp-bcb { top: 29%; right: 2.8%; color: #f1cf74; transform: rotate(5deg); }
+html[data-design="new"] .stamp-volume { top: 57%; left: 1.8%; color: #ef8d9d; transform: rotate(-90deg); transform-origin: left top; }
+html[data-design="new"] .stamp-kaluga { right: 3.7%; bottom: 18%; color: #bbe0e5; transform: rotate(-4deg); }
+html[data-design="new"] .stamp-armor { top: 72%; left: 5.4%; color: #b9deaf; transform: rotate(6deg); }
+html[data-design="new"] .stamp-lore { right: 2.6%; bottom: 6%; color: #d9a6d4; transform: rotate(4deg); }
+html[data-design="new"] .stamp-bpm { top: 17%; right: 9%; color: #5fdce2; transform: rotate(-3deg); }
+@media (max-width: 780px) {
+  html[data-design="new"] .r1f-stamp { opacity: .5; font-size: 9px; }
+  html[data-design="new"] .stamp-bcb, html[data-design="new"] .stamp-lore { display: none; }
+  html[data-design="new"] .stamp-bpm { right: -11%; }
+}
+
 /* Старый дизайн: стена стикеров и отсылки к баттлам. */
 html[data-design="legacy"] body {
   background:
