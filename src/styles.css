@@ -75,7 +75,7 @@ body {
 html[data-design="new"] body {
   /* Новый Bone: спокойное граффити с именем Рифмабеса, без стикеров и пасхалок. */
   background:
-    linear-gradient(90deg, rgba(23, 19, 15, .76) 0%, rgba(23, 19, 15, .38) 48%, rgba(23, 19, 15, .7) 100%),
+    linear-gradient(90deg, rgba(23, 19, 15, .62) 0%, rgba(23, 19, 15, .18) 48%, rgba(23, 19, 15, .56) 100%),
     url('/images/r1f-graffiti-bg.png') center 18% / cover fixed,
     var(--bg);
   position: relative;

@@ -1937,7 +1937,7 @@ function Shell() {
         <span className="r1f-stamp stamp-volume">VOLUME OVERLOAD</span>
         <span className="r1f-stamp stamp-kaluga">КАЛУГА / #2ТИПА</span>
         <span className="r1f-stamp stamp-armor">БРОНИК EQUIPPED</span>
-        <span className="r1f-stamp stamp-lore">АББАЛБИЙСКИЙ LORE</span>
+        <span className="r1f-stamp stamp-lore">K PRANK LORE</span>
         <span className="r1f-stamp stamp-bpm">BPM MODE · КУБОК МЦ</span>
       </div>
       <header className="topbar">
