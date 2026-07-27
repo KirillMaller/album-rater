@@ -1009,11 +1009,14 @@ html[data-design="new"] .score-pair-labeled .score-pair-row:nth-child(2) .score-
   border-radius: 8px;
 }
 
-/* Квадратные карточки: оценки закреплены в верхней кромке, поэтому цепь
-   начинается за рамкой карточки, а медальоны свисают внутрь обложки. */
-html[data-design="new"] .catalog-card { position: relative; aspect-ratio: 1; overflow: hidden; background: var(--panel-2); }
-html[data-design="new"] .featured-card { min-height: 0; aspect-ratio: 1; }
-html[data-design="new"] .catalog-card .catalog-thumb { position: absolute; inset: 0; aspect-ratio: auto; }
+/* Квадратные карточки: обложка утоплена в жёсткую тёмную рамку, как у кассеты.
+   Оценки закреплены в верхней кромке и свисают внутрь обложки. */
+html[data-design="new"] .catalog-card { position: relative; aspect-ratio: 1; overflow: hidden; padding: 7px; background: #211e1a; border-color: rgba(236,227,212,.34); box-shadow: inset 0 0 0 1px rgba(0,0,0,.7), 0 9px 18px rgba(0,0,0,.28); }
+html[data-design="new"] .featured-card { min-height: 0; aspect-ratio: 1; border-color: rgba(236,227,212,.34); box-shadow: inset 0 0 0 6px #211e1a, inset 0 0 0 7px rgba(0,0,0,.75), 0 9px 18px rgba(0,0,0,.28); }
+html[data-design="new"] .featured-card > img,
+html[data-design="new"] .featured-card > .cover-placeholder,
+html[data-design="new"] .featured-card .featured-veil { inset: 7px; }
+html[data-design="new"] .catalog-card .catalog-thumb { position: absolute; inset: 7px; aspect-ratio: auto; border: 1px solid rgba(0,0,0,.76); }
 html[data-design="new"] .catalog-card .catalog-thumb::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(23,19,15,.04) 28%, rgba(23,19,15,.15) 48%, rgba(23,19,15,.9) 100%); }
 html[data-design="new"] .catalog-card .catalog-card-body, html[data-design="new"] .catalog-card .catalog-card-foot { position: absolute; z-index: 2; left: 0; right: 0; }
 html[data-design="new"] .catalog-card .catalog-card-body { bottom: 29px; padding: 16px 14px 6px; }
