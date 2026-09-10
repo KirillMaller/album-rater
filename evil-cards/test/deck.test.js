@@ -99,6 +99,24 @@ test('parseBaseFile не убирает дубли и не падает на м�
 
 // --------------------------------------------------------------- dealStart
 
+test('dealStart — один и тот же игрок в списке дважды', () => {
+  // Мутация 10.09.2026: снял дедупликацию — ни один тест не покраснел.
+  // Защита стоит вторым поясом (первый — в Game.restore), но раз её никто
+  // не стерёг, она могла тихо пропасть при любой правке.
+  const ids = ['a', 'b', 'a'];        // «a» пришёл дважды
+  const res = dealStart({
+    guestAnswerIds: [],
+    baseAnswerIds: Array.from({ length: 40 }, (_, i) => 'ans' + i),
+    playerIds: ids,
+    handSize: 5,
+  });
+  const руки = Object.keys(res.hands);
+  assert.equal(руки.length, 2, 'на одного игрока должна быть одна рука');
+  assert.equal(res.hands.a.length, 5, 'дубль не должен удваивать руку');
+  const все = Object.values(res.hands).flat();
+  assert.equal(new Set(все).size, все.length, 'одна карта не может лежать в двух руках');
+});
+
 test('dealStart раздаёт ровно handSize каждому, остаток уходит в колоду добора', () => {
   const guestAnswerIds = ids('g', 5);
   const baseAnswerIds = ids('b', 20);
