@@ -50,7 +50,7 @@
       <h2 class="lobby-h2">Игроки <span class="counter" id="players-count">0</span></h2>
       <ul class="player-list" id="player-list"></ul>
       <p class="hint" id="players-hint"></p>
-      <p class="base-counts" id="base-counts">В базе: 0 вопросов, 0 ответов</p>
+      <p class="base-counts" id="base-counts">Готовых карт: 0 вопросов, 0 ответов</p>
     </div>
 
     <div class="lobby-col lobby-col--settings">
@@ -58,8 +58,8 @@
         <h2 class="lobby-h2">Настройки</h2>
 
         <div class="setting">
-          <span class="setting-label">Цель по очкам</span>
-          <div class="seg" id="target-buttons" role="group" aria-label="Цель по очкам">
+          <span class="setting-label">Играем до</span>
+          <div class="seg" id="target-buttons" role="group" aria-label="Играем до скольки очков">
             <button class="btn btn--ghost seg-btn" type="button" data-act="target" data-key="target-5" data-value="5">5</button>
             <button class="btn btn--ghost seg-btn" type="button" data-act="target" data-key="target-7" data-value="7">7</button>
             <button class="btn btn--ghost seg-btn" type="button" data-act="target" data-key="target-10" data-value="10">10</button>
@@ -68,10 +68,10 @@
         <p class="hint duration-hint" id="duration-hint"></p>
 
         <div class="setting">
-          <label class="setting-label" for="hand-size">Размер руки</label>
+          <label class="setting-label" for="hand-size">Карт на руках</label>
           <input class="input input--num" id="hand-size" type="number" min="3" max="15" step="1" inputmode="numeric">
         </div>
-        <p class="hint">Сколько карт-ответов на руках у каждого. По умолчанию 10.</p>
+        <p class="hint">Сколько карт у каждого гостя. Обычно 10.</p>
       </div>
 
       <div class="lobby-block lobby-block--start">
@@ -98,6 +98,9 @@
 
       <p class="counter" id="stage-counter"></p>
       <p class="hint stage-hint" id="stage-hint"></p>
+
+      <!-- Сколько гостей уже нажали «Прочитал». Экран ждёт людей, а не таймер. -->
+      <p class="reading-line" id="reading-line" hidden></p>
 
       <div class="stage-actions" id="stage-actions">
         <button class="btn btn--primary" type="button" data-act="draw" hidden>Вытянуть вопрос</button>
@@ -157,15 +160,15 @@
       <section class="admin-section">
         <h3 class="admin-h3">Настройки</h3>
         <div class="setting">
-          <span class="setting-label">Цель по очкам</span>
-          <div class="seg" id="admin-target-buttons" role="group" aria-label="Цель по очкам">
+          <span class="setting-label">Играем до</span>
+          <div class="seg" id="admin-target-buttons" role="group" aria-label="Играем до скольки очков">
             <button class="btn btn--ghost seg-btn" type="button" data-act="target" data-key="target-5" data-value="5">5</button>
             <button class="btn btn--ghost seg-btn" type="button" data-act="target" data-key="target-7" data-value="7">7</button>
             <button class="btn btn--ghost seg-btn" type="button" data-act="target" data-key="target-10" data-value="10">10</button>
           </div>
         </div>
         <div class="setting">
-          <label class="setting-label" for="admin-hand-size">Размер руки</label>
+          <label class="setting-label" for="admin-hand-size">Карт на руках</label>
           <input class="input input--num" id="admin-hand-size" type="number" min="3" max="15" step="1" inputmode="numeric">
         </div>
         <p class="hint" id="admin-settings-hint"></p>
@@ -181,13 +184,13 @@
 
       <section class="admin-section">
         <h3 class="admin-h3">Адрес для QR</h3>
-        <p class="hint">Если телефоны не открывают адрес — выбери другой.</p>
+        <p class="hint">Телефоны не открывают адрес — выбери другой.</p>
         <ul class="url-list" id="url-list"></ul>
       </section>
 
       <section class="admin-section">
         <h3 class="admin-h3">Боты</h3>
-        <p class="hint">Боты нужны, чтобы погонять игру в одиночку.</p>
+        <p class="hint">Боты играют сами — чтобы попробовать игру без гостей.</p>
         <div class="admin-row">
           <label class="setting-label" for="bots-count">Сколько</label>
           <input class="input input--num" id="bots-count" type="number" min="1" max="6" step="1" value="3" inputmode="numeric">
@@ -197,7 +200,7 @@
       </section>
 
       <section class="admin-section">
-        <h3 class="admin-h3">Загрузить базу</h3>
+        <h3 class="admin-h3">Загрузить карты</h3>
         <p class="hint">
           По одной карте на строку. Пустые строки и строки на «#» пропускаются.
           Сохранение <b>перезапишет</b> файлы <code>data/base-prompts.txt</code> и
@@ -216,7 +219,7 @@
           </label>
         </div>
         <div class="admin-row">
-          <button class="btn btn--primary" type="button" data-act="saveBase">Сохранить базу</button>
+          <button class="btn btn--primary" type="button" data-act="saveBase">Сохранить карты</button>
           <span class="hint" id="base-hint"></span>
         </div>
       </section>

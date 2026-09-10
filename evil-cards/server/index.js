@@ -236,6 +236,8 @@ export function createApp({ port = Number(process.env.PORT) || 3000,
     'prep:ready': 'setReady',
     'answer:submit': 'submitAnswer',
     'answer:retract': 'retractAnswer',
+    // «Прочитал» — гость подтверждает, что успел прочесть экран.
+    'read:ack': 'ackRead',
   };
 
   /** Действия ведущего — их может нажать и ноутбук вместо ведущего (ТЗ 3.2). */

@@ -501,7 +501,7 @@ function renderLobby() {
 
   const base = snap.base || { prompts: 0, answers: 0 };
   $('base-counts').textContent =
-    `В базе: ${base.prompts} ${plural(base.prompts, ['вопрос', 'вопроса', 'вопросов'])}, `
+    `Готовых карт: ${base.prompts} ${plural(base.prompts, ['вопрос', 'вопроса', 'вопросов'])}, `
     + `${base.answers} ${plural(base.answers, ['ответ', 'ответа', 'ответов'])}`;
 
   const settings = snap.settings || {};
@@ -587,6 +587,7 @@ function renderRound() {
   }
 
   $('stage-counter').textContent = stageCounter(round);
+  renderReadingLine(round);
   $('stage-hint').textContent = stageHint(round);
 
   const labels = { reveal: round.step === 'answering' ? 'Открыть ответы' : 'Следующий ответ' };
@@ -681,6 +682,25 @@ function buildAnswerGrid(reveals, opts) {
   });
 
   return list;
+}
+
+/**
+ * «Прочитали 3 из 5» — видно всей комнате, кого ещё ждём.
+ * Экран переключается, когда прочли все, либо когда ведущий нажмёт сам.
+ */
+function renderReadingLine(round) {
+  const el = $('reading-line');
+  if (!el) return;
+  const reading = round?.reading;
+  if (!reading?.active) { el.hidden = true; return; }
+  const left = Array.isArray(reading.waitingFor) ? reading.waitingFor : [];
+  el.hidden = false;
+  if (left.length === 0) {
+    el.textContent = 'Прочитали все';
+    return;
+  }
+  const who = left.length <= 3 ? ` — ждём: ${left.join(', ')}` : '';
+  el.textContent = `Прочитали ${reading.acked} из ${reading.needed}${who}`;
 }
 
 function stageCounter(round) {

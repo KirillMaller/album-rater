@@ -121,7 +121,11 @@ export function createBotDriver({ game, rng = Math.random, log = () => {},
 
     if (r.step === 'revealing' && hostIsBot) {
       const index = r.revealedCount;
-      schedule(`${round}:reveal:${index}`, REVEAL_DELAY, () => {
+      // Люди ещё читают — не листаем. Переключит либо их «Прочитал»
+      // (через Game.ackRead), либо это же терпение, если кто-то отвлёкся:
+      // из-за одного ушедшего игра вставать не должна.
+      const revealWait = game.isWaitingForReaders() ? patienceMs : REVEAL_DELAY;
+      schedule(`${round}:reveal:${index}`, revealWait, () => {
         const cur = game.state.round;
         if (!cur || cur.number !== round || cur.step !== 'revealing') return;
         if (cur.revealedCount !== index) return;
@@ -131,7 +135,9 @@ export function createBotDriver({ game, rng = Math.random, log = () => {},
     }
 
     if (r.step === 'judging' && hostIsBot) {
-      schedule(`${round}:pick`, PICK_DELAY, () => {
+      // Варианты на столе — даём людям прочитать их все, прежде чем выбирать.
+      const pickWait = game.isWaitingForReaders() ? patienceMs : PICK_DELAY;
+      schedule(`${round}:pick`, pickWait, () => {
         const cur = game.state.round;
         if (!cur || cur.number !== round || cur.step !== 'judging') return;
         if (cur.submissions.length === 0) return;
@@ -144,7 +150,9 @@ export function createBotDriver({ game, rng = Math.random, log = () => {},
     }
 
     if (r.step === 'result' && hostIsBot) {
-      schedule(`${round}:next`, NEXT_DELAY, () => {
+      // Итог раунда — самый важный экран: кто победил и с каким ответом.
+      const nextWait = game.isWaitingForReaders() ? patienceMs : NEXT_DELAY;
+      schedule(`${round}:next`, nextWait, () => {
         const cur = game.state.round;
         if (!cur || cur.number !== round || cur.step !== 'result') return;
         game.hostNext({ role: 'player', playerId: cur.hostId }, { round });

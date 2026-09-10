@@ -71,6 +71,7 @@ for (const id of [
   'readyBtn', 'unreadyBtn', 'waitPlayers',
   'answerRoundLine', 'answerPrompt', 'answerStatus', 'answerHandBox', 'hand', 'handEmpty',
   'answerSubmitted', 'submittedCard', 'answerWaiting', 'answerBar', 'retractBtn',
+  'readBar', 'readCount', 'readBtn',
   'hostRoundLine', 'hostStatus', 'hostPrompt', 'hostAnswering', 'hostAnsweredCount',
   'hostWho', 'hostRevealing', 'hostRevealCounter', 'hostRevealCard',
   'hostJudging', 'hostOptions', 'hostResult', 'hostWinnerLine', 'hostWinnerCard',
@@ -393,6 +394,8 @@ function render(snapshot) {
     return;
   }
 
+  renderReadBar(snapshot);
+
   if (snapshot.phase === 'round' && snapshot.round) {
     if (snapshot.you.isHost) {
       renderHost(snapshot);
@@ -408,6 +411,30 @@ function render(snapshot) {
   }
 
   showScreen('screenBoot');
+}
+
+/**
+ * Панель «Прочитал». Экран переключается, когда прочли все живые игроки,
+ * а не по таймеру: раньше ответы пролетали за секунду и их не успевали читать.
+ */
+function renderReadBar(snapshot) {
+  const reading = snapshot.round?.reading;
+  const active = Boolean(reading?.active) && snapshot.phase === 'round' && !snapshot.you?.isHost;
+  setHidden(els.readBar, !active);
+  if (!active) return;
+
+  const left = Array.isArray(reading.waitingFor) ? reading.waitingFor : [];
+  if (reading.youAcked) {
+    els.readCount.textContent = left.length === 0
+      ? 'Все прочитали — сейчас поедем дальше'
+      : (left.length <= 2 ? `Ждём: ${left.join(' и ')}` : `Ждём ещё ${left.length}`);
+  } else {
+    els.readCount.textContent = reading.needed > 1
+      ? `Прочитали ${reading.acked} из ${reading.needed}`
+      : '';
+  }
+  setHidden(els.readBtn, Boolean(reading.youAcked));
+  els.readBtn.disabled = !snapshot.can?.ackRead;
 }
 
 function rememberCards(snapshot) {
@@ -595,11 +622,11 @@ function renderPrep(snapshot) {
 
   setText(
     els.promptCount,
-    `Вопросов: ${you.myPrompts.length} из ${RECOMMENDED_PROMPTS} рекомендуемых`
+    `Вопросов: ${you.myPrompts.length} — лучше хотя бы ${RECOMMENDED_PROMPTS}`
   );
   setText(
     els.answerCount,
-    `Ответов: ${you.myAnswers.length} из ${RECOMMENDED_ANSWERS} рекомендуемых`
+    `Ответов: ${you.myAnswers.length} — лучше хотя бы ${RECOMMENDED_ANSWERS}`
   );
 
   syncCardList(els.promptList, you.myPrompts, 'prompt');
@@ -983,6 +1010,11 @@ els.previewSend.addEventListener('click', () => {
   send('answer:submit', { round: state.round.number, cardId: previewCardId }, (res) => {
     if (res.ok) closePreview();
   });
+});
+
+els.readBtn.addEventListener('click', () => {
+  lockButton(els.readBtn);
+  send('read:ack', { round: state?.round?.number, mark: state?.round?.reading?.mark });
 });
 
 els.retractBtn.addEventListener('click', () => {

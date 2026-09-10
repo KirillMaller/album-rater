@@ -34,6 +34,11 @@ import {
 const STATE_VERSION = 1;
 
 const MIN_PLAYERS = 3;
+// Экраны, которые человек читает и на которых уместна кнопка «Прочитал».
+// На judging кнопка тоже есть: пока гости читают варианты, бот-ведущий ждёт.
+const READABLE_STEPS = ['revealing', 'judging', 'result'];
+const SCREEN_ACTOR = { role: 'screen' };
+
 const MAX_PLAYERS = 12;
 const MAX_NAME_LEN = 20;
 const MAX_BOTS = 6;
@@ -589,7 +594,60 @@ export class Game {
       revealOrder: [],
       revealedCount: 0,
       winnerSubmissionId: null,
+      // Кто из живых игроков нажал «Прочитал» на ТЕКУЩЕМ экране.
+      // Сбрасывается при каждой смене экрана — см. _resetReadAcks().
+      readAcks: [],
     };
+  }
+
+  /**
+   * Ключ текущего экрана. Пока он не сменился, «Прочитал» относится именно
+   * к тому, что человек видит сейчас: иначе тап по старому экрану засчитался
+   * бы новому и тот проскочил бы мимо глаз.
+   */
+  _screenMark() {
+    const r = this.state.round;
+    if (!r) return '';
+    return `${r.number}:${r.step}:${r.revealedCount}`;
+  }
+
+  /**
+   * Кто должен успеть прочитать. Ведущий читает вслух и переключает сам,
+   * поэтому его не ждём. Ботов не ждём никогда — они не читают.
+   */
+  _readers() {
+    const r = this.state.round;
+    if (!r) return [];
+    return this.state.players.filter(
+      (p) => !p.isBot && p.connected && p.id !== r.hostId
+    );
+  }
+
+  /** Смена экрана — прежние «Прочитал» больше не действуют. */
+  _resetReadAcks() {
+    const r = this.state.round;
+    if (r) r.readAcks = [];
+  }
+
+  /** Все ли живые игроки прочли текущий экран. Некому читать — значит да. */
+  _allRead() {
+    const r = this.state.round;
+    if (!r) return true;
+    const readers = this._readers();
+    if (readers.length === 0) return true;
+    const acks = new Set(Array.isArray(r.readAcks) ? r.readAcks : []);
+    return readers.every((p) => acks.has(p.id));
+  }
+
+  /**
+   * Ждём ли, пока живые игроки дочитают текущий экран.
+   * Бот-ведущий обязан это уважать: иначе он листает по таймеру и люди
+   * не успевают прочесть (замер 10.09.2026 — 976 мс на ответ).
+   */
+  isWaitingForReaders() {
+    const r = this.state.round;
+    if (!r || !READABLE_STEPS.includes(r.step)) return false;
+    return this._readers().length > 0 && !this._allRead();
   }
 
   /** Ведущим может нажимать сам ведущий или ноутбук (ТЗ 3.2). */
@@ -768,6 +826,7 @@ export class Game {
       if (!this._canReveal()) return fail('Ещё не все ответили');
       r.revealOrder = shuffle(r.submissions.map((s) => s.id), this.rng);
       r.revealedCount = 1;
+      this._resetReadAcks();
       r.step = r.revealedCount >= r.revealOrder.length ? 'judging' : 'revealing';
       this._changed();
       return ok();
@@ -778,7 +837,46 @@ export class Game {
 
     r.revealedCount += 1;
     if (r.revealedCount >= r.revealOrder.length) r.step = 'judging';
+    this._resetReadAcks();
     this._changed();
+    return ok();
+  }
+
+  /**
+   * «Прочитал» — гость подтверждает, что успел прочесть текущий экран.
+   * Когда подтвердили все живые игроки, экран переключается сам: раньше
+   * ответы листались по таймеру и пролетали мимо глаз (замер 10.09.2026 —
+   * 976 мс на ответ при боте-ведущем).
+   *
+   * mark — ключ экрана, который человек видел в момент нажатия. Не совпал
+   * с текущим — тап опоздал, засчитывать его новому экрану нельзя.
+   */
+  ackRead(actor, { round, mark } = {}) {
+    const stale = this._staleGuard(round);
+    if (stale) return stale;
+    const me = this._actorPlayer(actor);
+    if (!me) return fail('Это делает игрок с телефона');
+    const r = this.state.round;
+    if (!READABLE_STEPS.includes(r.step)) return fail('', { stale: true });
+    if (mark !== undefined && mark !== null && String(mark) !== this._screenMark()) {
+      return fail('', { stale: true });
+    }
+    if (me.id === r.hostId) return fail('', { stale: true });
+    if (me.isBot) return fail('', { stale: true });
+
+    if (!Array.isArray(r.readAcks)) r.readAcks = [];
+    if (!r.readAcks.includes(me.id)) r.readAcks.push(me.id);
+    this._changed();
+
+    // Все прочли — двигаем экран сами, ведущего не ждём.
+    if (this._readers().length > 0 && this._allRead()) {
+      if (r.step === 'revealing') {
+        return this.hostReveal(SCREEN_ACTOR, { round: r.number, index: r.revealedCount });
+      }
+      if (r.step === 'result') {
+        return this.hostNext(SCREEN_ACTOR, { round: r.number });
+      }
+    }
     return ok();
   }
 
@@ -794,6 +892,7 @@ export class Game {
 
     r.winnerSubmissionId = sub.id;
     r.step = 'result';
+    this._resetReadAcks();
 
     const winner = this.getPlayer(sub.playerId);
     if (winner) winner.score += 1;
@@ -1224,6 +1323,20 @@ export class Game {
         revealedCount: r.revealedCount,
         reveals: revealed,
         winner,
+        // Кто успел прочесть текущий экран. Экран ждёт всех живых игроков,
+        // ведущего и ботов не ждёт.
+        reading: (() => {
+          const readers = this._readers();
+          const acks = new Set(Array.isArray(r.readAcks) ? r.readAcks : []);
+          return {
+            mark: this._screenMark(),
+            needed: readers.length,
+            acked: readers.filter((p) => acks.has(p.id)).length,
+            youAcked: Boolean(me && acks.has(me.id)),
+            waitingFor: readers.filter((p) => !acks.has(p.id)).map((p) => p.name),
+            active: READABLE_STEPS.includes(r.step) && readers.length > 0,
+          };
+        })(),
       };
     }
 
@@ -1303,6 +1416,15 @@ export class Game {
         hostActor &&
         ((r.step === 'answering' && this._canReveal()) || r.step === 'revealing'),
       pick: inRound && hostActor && r.step === 'judging',
+      // «Прочитал» — только живому игроку, не ведущему и только на читаемых
+      // экранах. Нажавшему второй раз кнопка больше не показывается.
+      ackRead:
+        inRound &&
+        Boolean(me) &&
+        !me.isBot &&
+        me.id !== r.hostId &&
+        READABLE_STEPS.includes(r.step) &&
+        !(Array.isArray(r.readAcks) ? r.readAcks : []).includes(me.id),
       next:
         inRound &&
         hostActor &&
