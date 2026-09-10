@@ -28,6 +28,9 @@ const TOKEN_KEY = 'ec.token';
 const PLAYER_KEY = 'ec.playerId';
 
 /** Рекомендуемый минимум карт (ТЗ 2.1.3) — подсказка, а не запрет. */
+// Запасные значения на случай старого снимка без настроек: сколько карт
+// просим написать гостя. Настоящие числа приходят с сервера — организатор
+// задаёт их в лобби перед стартом.
 const RECOMMENDED_PROMPTS = 3;
 const RECOMMENDED_ANSWERS = 5;
 
@@ -620,13 +623,24 @@ els.unreadyBtn.addEventListener('click', () => {
 function renderPrep(snapshot) {
   const you = snapshot.you;
 
+  // Сколько просим написать — решает организатор в лобби. Ноль означает
+  // «сколько хочешь», и тогда счётчик не давит на гостя цифрой.
+  const askP = Number.isFinite(snapshot.settings?.askPrompts)
+    ? snapshot.settings.askPrompts : RECOMMENDED_PROMPTS;
+  const askA = Number.isFinite(snapshot.settings?.askAnswers)
+    ? snapshot.settings.askAnswers : RECOMMENDED_ANSWERS;
+
   setText(
     els.promptCount,
-    `Вопросов: ${you.myPrompts.length} — лучше хотя бы ${RECOMMENDED_PROMPTS}`
+    askP > 0
+      ? `Вопросов: ${you.myPrompts.length} — лучше хотя бы ${askP}`
+      : `Вопросов: ${you.myPrompts.length}`
   );
   setText(
     els.answerCount,
-    `Ответов: ${you.myAnswers.length} — лучше хотя бы ${RECOMMENDED_ANSWERS}`
+    askA > 0
+      ? `Ответов: ${you.myAnswers.length} — лучше хотя бы ${askA}`
+      : `Ответов: ${you.myAnswers.length}`
   );
 
   syncCardList(els.promptList, you.myPrompts, 'prompt');

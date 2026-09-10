@@ -47,6 +47,11 @@ const MAX_BOTS = 6;
 const MAX_CARDS_PER_PLAYER = { prompt: 60, answer: 120 };
 
 const ALLOWED_TARGET_SCORES = [5, 7, 10];
+// Сколько карт просим написать каждого гостя перед стартом. Это подсказка,
+// а не запрет: написал меньше — всё равно пустим, просто предупредим.
+const MIN_ASK = 0;
+const MAX_ASK = 20;
+
 const MIN_HAND = 3;
 const MAX_HAND = 15;
 
@@ -92,7 +97,7 @@ export class Game {
     return {
       v: STATE_VERSION,
       phase: 'lobby',
-      settings: { targetScore: 10, handSize: 10 },
+      settings: { targetScore: 10, handSize: 10, askPrompts: 3, askAnswers: 5 },
       players: [],
       hostOrder: [],
       hostCursor: 0,
@@ -123,6 +128,8 @@ export class Game {
       s.settings = {
         targetScore: this._clampTarget(saved.settings?.targetScore),
         handSize: this._clampHand(saved.settings?.handSize),
+        askPrompts: this._clampAsk(saved.settings?.askPrompts, 3),
+        askAnswers: this._clampAsk(saved.settings?.askAnswers, 5),
       };
 
       // Каждое поле проверяем на тип отдельно: если в state.json испортился
@@ -434,17 +441,25 @@ export class Game {
     return ALLOWED_TARGET_SCORES.includes(n) ? n : 10;
   }
 
+  _clampAsk(v, fallback) {
+    const n = Math.round(Number(v));
+    if (!Number.isFinite(n)) return fallback;
+    return Math.min(MAX_ASK, Math.max(MIN_ASK, n));
+  }
+
   _clampHand(v) {
     const n = Math.round(Number(v));
     if (!Number.isFinite(n)) return 10;
     return Math.min(MAX_HAND, Math.max(MIN_HAND, n));
   }
 
-  adminSettings(actor, { targetScore, handSize }) {
+  adminSettings(actor, { targetScore, handSize, askPrompts, askAnswers }) {
     if (!this._isScreen(actor)) return fail('Настройки меняются на ноутбуке');
     if (this.state.phase !== 'lobby') return fail('Настройки меняются до старта игры');
     if (targetScore !== undefined) this.state.settings.targetScore = this._clampTarget(targetScore);
     if (handSize !== undefined) this.state.settings.handSize = this._clampHand(handSize);
+    if (askPrompts !== undefined) this.state.settings.askPrompts = this._clampAsk(askPrompts, 3);
+    if (askAnswers !== undefined) this.state.settings.askAnswers = this._clampAsk(askAnswers, 5);
     this._changed();
     return ok();
   }

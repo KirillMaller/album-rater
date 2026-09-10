@@ -513,6 +513,10 @@ function renderLobby() {
   }
   syncNumberInput($('hand-size'), settings.handSize);
   syncNumberInput($('admin-hand-size'), settings.handSize);
+  syncNumberInput($('ask-prompts'), settings.askPrompts);
+  syncNumberInput($('admin-ask-prompts'), settings.askPrompts);
+  syncNumberInput($('ask-answers'), settings.askAnswers);
+  syncNumberInput($('admin-ask-answers'), settings.askAnswers);
 
   $('duration-hint').textContent = durationHint(target, (snap.players || []).length);
 
@@ -886,6 +890,8 @@ function renderAdmin() {
 
   const settings = snap.settings || {};
   syncNumberInput($('admin-hand-size'), settings.handSize);
+  syncNumberInput($('admin-ask-prompts'), settings.askPrompts);
+  syncNumberInput($('admin-ask-answers'), settings.askAnswers);
   for (const btn of document.querySelectorAll('#admin-target-buttons [data-act="target"]')) {
     const active = Number(btn.dataset.value) === Number(settings.targetScore);
     btn.classList.toggle('seg-btn--active', active);
@@ -1022,6 +1028,22 @@ document.addEventListener('keydown', (event) => {
   if (confirmResolve) closeConfirm(false);
   else if (adminOpen) setAdminOpen(false);
 });
+
+// Сколько карт просим написать гостя. Ноль — «пишите сколько хотите».
+for (const [ids, key] of [
+  [['ask-prompts', 'admin-ask-prompts'], 'askPrompts'],
+  [['ask-answers', 'admin-ask-answers'], 'askAnswers'],
+]) {
+  for (const id of ids) {
+    const input = $(id);
+    if (!input) continue;
+    input.addEventListener('change', () => {
+      const value = Math.min(20, Math.max(0, Math.round(Number(input.value) || 0)));
+      input.value = String(value);
+      emitGuarded('admin:settings', { [key]: value }, key);
+    });
+  }
+}
 
 for (const id of ['hand-size', 'admin-hand-size']) {
   const input = $(id);

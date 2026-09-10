@@ -123,3 +123,39 @@ test('чтение экрана гостями', async (t) => {
     assert.notEqual(game.state.round?.number, r.number, 'прочли все — поехал следующий раунд');
   });
 });
+
+// Сколько карт просим написать гостя — настройка организатора, а не число
+// в коде. Раньше 3 и 5 были зашиты в телефоне и поменять их было нечем.
+test('сколько карт просим написать', async (t) => {
+  await t.test('организатор задаёт, снимок отдаёт', () => {
+    const { game } = makeGame({ players: 3, base: bigBase(20, 200) });
+    assert.equal(game.snapshotFor(SCREEN).settings.askPrompts, 3, 'по умолчанию 3 вопроса');
+    assert.equal(game.snapshotFor(SCREEN).settings.askAnswers, 5, 'по умолчанию 5 ответов');
+
+    assert.equal(game.adminSettings(SCREEN, { askPrompts: 1, askAnswers: 8 }).ok, true);
+    const s = game.snapshotFor(SCREEN).settings;
+    assert.equal(s.askPrompts, 1);
+    assert.equal(s.askAnswers, 8);
+  });
+
+  await t.test('мусор и края не ломают настройку', () => {
+    const { game } = makeGame({ players: 3, base: bigBase(20, 200) });
+    game.adminSettings(SCREEN, { askPrompts: -5, askAnswers: 999 });
+    const s = game.snapshotFor(SCREEN).settings;
+    assert.equal(s.askPrompts, 0, 'минус зажимается в ноль');
+    assert.equal(s.askAnswers, 20, 'слишком много зажимается в 20');
+    game.adminSettings(SCREEN, { askPrompts: 'ерунда' });
+    assert.equal(game.snapshotFor(SCREEN).settings.askPrompts, 3, 'на мусоре берём значение по умолчанию');
+  });
+
+  await t.test('настройка переживает перезапуск сервера', () => {
+    const { game } = makeGame({ players: 3, base: bigBase(20, 200) });
+    game.adminSettings(SCREEN, { askPrompts: 2, askAnswers: 7 });
+    const saved = JSON.parse(JSON.stringify(game.state));
+    const again = makeGame({ players: 0, base: bigBase(20, 200) }).game;
+    again.restore(saved);
+    const s = again.snapshotFor(SCREEN).settings;
+    assert.equal(s.askPrompts, 2);
+    assert.equal(s.askAnswers, 7);
+  });
+});

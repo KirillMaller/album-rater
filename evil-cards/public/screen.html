@@ -72,6 +72,16 @@
           <input class="input input--num" id="hand-size" type="number" min="3" max="15" step="1" inputmode="numeric">
         </div>
         <p class="hint">Сколько карт у каждого гостя. Обычно 10.</p>
+
+        <div class="setting">
+          <label class="setting-label" for="ask-prompts">Вопросов от гостя</label>
+          <input class="input input--num" id="ask-prompts" type="number" min="0" max="20" step="1" inputmode="numeric">
+        </div>
+        <div class="setting">
+          <label class="setting-label" for="ask-answers">Ответов от гостя</label>
+          <input class="input input--num" id="ask-answers" type="number" min="0" max="20" step="1" inputmode="numeric">
+        </div>
+        <p class="hint">Сколько карт просим написать каждого перед стартом. Это просьба, а не запрет: написал меньше — всё равно пустим. Ноль — пусть пишут сколько хотят.</p>
       </div>
 
       <div class="lobby-block lobby-block--start">
@@ -168,6 +178,14 @@
           </div>
         </div>
         <div class="setting">
+          <label class="setting-label" for="admin-ask-prompts">Вопросов от гостя</label>
+          <input class="input input--num" id="admin-ask-prompts" type="number" min="0" max="20" step="1" inputmode="numeric">
+        </div>
+        <div class="admin-row">
+          <label class="setting-label" for="admin-ask-answers">Ответов от гостя</label>
+          <input class="input input--num" id="admin-ask-answers" type="number" min="0" max="20" step="1" inputmode="numeric">
+        </div>
+        <div class="admin-row">
           <label class="setting-label" for="admin-hand-size">Карт на руках</label>
           <input class="input input--num" id="admin-hand-size" type="number" min="3" max="15" step="1" inputmode="numeric">
         </div>
