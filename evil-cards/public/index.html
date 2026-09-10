@@ -34,7 +34,7 @@
     <form class="login" id="loginForm" autocomplete="off">
       <label class="visually-hidden" for="loginName">Твоё имя</label>
       <input class="input" id="loginName" name="name" type="text" maxlength="20"
-             placeholder="Например, Оля"
+             placeholder="Например, Маша"
              autocomplete="off" autocapitalize="words" autocorrect="off" spellcheck="false"
              enterkeyhint="go" autofocus>
       <button class="btn btn--primary btn--block" id="loginBtn" type="submit">Войти</button>
@@ -61,7 +61,7 @@
       <form class="composer" id="promptForm" autocomplete="off">
         <label class="visually-hidden" for="promptInput">Новый вопрос</label>
         <textarea class="input input--area" id="promptInput" rows="2" maxlength="150"
-                  placeholder="Оля не может без этого: ___"
+                  placeholder="Официальный спонсор этого вечера: ___"
                   enterkeyhint="done" autocapitalize="sentences" spellcheck="true"></textarea>
         <div class="composer__row">
           <button class="btn btn--ghost" id="gapBtn" type="button"
@@ -71,7 +71,7 @@
         <!-- Счётчик под кнопками: появляясь, он не должен двигать «Добавить». -->
         <p class="counter" id="promptChars" hidden></p>
       </form>
-      <p class="hint">Пропуск — три подчёркивания ___ или кнопка „Вставить пропуск“. Пиши так, чтобы ответ вставлялся в именительном падеже: не „Оля не может без ___“, а „Оля не может без этого: ___“</p>
+      <p class="hint">Пропуск — три подчёркивания ___ или кнопка „Вставить пропуск“. Пиши так, чтобы ответ вставлялся в именительном падеже: не „Я не могу без ___“, а „Я не могу без этого: ___“</p>
       <p class="counter" id="promptCount">Вопросов: 0 — лучше хотя бы 3</p>
       <ul class="cardlist" id="promptList"></ul>
       <p class="empty" id="promptEmpty">Пока ни одного вопроса</p>
