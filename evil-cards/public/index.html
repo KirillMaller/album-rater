@@ -28,7 +28,9 @@
 
   <!-- 1. Вход: одно поле и кнопка, больше ничего. -->
   <section class="screen" id="screenLogin" hidden>
+    <p class="kicker">Приглашение на день рождения Оли</p>
     <h1 class="screen__title">Твоё имя</h1>
+    <div class="flourish" aria-hidden="true"></div>
     <form class="login" id="loginForm" autocomplete="off">
       <label class="visually-hidden" for="loginName">Твоё имя</label>
       <input class="input" id="loginName" name="name" type="text" maxlength="20"
@@ -47,6 +49,7 @@
 
   <!-- 2. Подготовка: свои вопросы и ответы. -->
   <section class="screen" id="screenPrep" hidden>
+    <p class="kicker kicker--small">Напиши свои карты, дорогая</p>
     <div class="tabs" role="tablist" aria-label="Мои карты">
       <button class="tab tab--active" id="tabPrompts" type="button" role="tab"
               aria-selected="true" aria-controls="panelPrompts">Вопросы</button>
@@ -69,7 +72,7 @@
         <p class="counter" id="promptChars" hidden></p>
       </form>
       <p class="hint">Пропуск — три подчёркивания ___ или кнопка „Вставить пропуск“. Пиши так, чтобы ответ вставлялся в именительном падеже: не „Оля не может без ___“, а „Оля не может без этого: ___“</p>
-      <p class="counter" id="promptCount">Вопросов: 0 из 3 рекомендуемых</p>
+      <p class="counter" id="promptCount">Вопросов: 0 — лучше хотя бы 3</p>
       <ul class="cardlist" id="promptList"></ul>
       <p class="empty" id="promptEmpty">Пока ни одного вопроса</p>
     </div>
@@ -85,8 +88,8 @@
         </div>
         <p class="counter" id="answerChars" hidden></p>
       </form>
-      <p class="hint">С маленькой буквы, без точки, в именительном падеже: „ночной дожор“, „бывший, который снова пишет“</p>
-      <p class="counter" id="answerCount">Ответов: 0 из 5 рекомендуемых</p>
+      <p class="hint">С маленькой буквы и без точки: «ночной дожор», «бывший, который снова пишет»</p>
+      <p class="counter" id="answerCount">Ответов: 0 — лучше хотя бы 5</p>
       <ul class="cardlist" id="answerList"></ul>
       <p class="empty" id="answerEmpty">Пока ни одного ответа</p>
     </div>
@@ -98,7 +101,9 @@
 
   <!-- 3. Ожидание старта. -->
   <section class="screen" id="screenWaiting" hidden>
+    <p class="kicker kicker--small">Гости собираются</p>
     <h1 class="screen__title">Ждём, пока начнут</h1>
+    <div class="flourish" aria-hidden="true"></div>
     <p class="hint">Хочешь дописать карты — нажми «Я не готов».</p>
     <ul class="scoreboard" id="waitPlayers"></ul>
     <div class="actionbar">
@@ -113,7 +118,7 @@
     <p class="status" id="answerStatus" hidden></p>
 
     <div class="handbox" id="answerHandBox" hidden>
-      <p class="hint">Тапни карту — покажу, как получится.</p>
+      <p class="hint">Нажми на карту — покажу, как получится.</p>
       <ul class="hand" id="hand"></ul>
     </div>
 
@@ -125,7 +130,7 @@
     </div>
 
     <!-- id не answerEmpty: такой уже занят на экране подготовки. -->
-    <p class="empty" id="handEmpty" hidden>Карт в руке не осталось — в этом раунде отвечать нечем. В следующем раздадут заново.</p>
+    <p class="empty" id="handEmpty" hidden>Карты кончились. В следующем раунде раздадут новые.</p>
 
     <div class="actionbar" id="answerBar" hidden>
       <button class="btn btn--ghost btn--block" id="retractBtn" type="button">Забрать</button>
@@ -134,6 +139,7 @@
 
   <!-- 5. Раунд, я ведущий. -->
   <section class="screen" id="screenHost" hidden>
+    <p class="kicker kicker--small">В этом раунде</p>
     <p class="host-title">Ты ведущий</p>
     <p class="round-line" id="hostRoundLine"></p>
 
@@ -151,7 +157,7 @@
     </div>
 
     <div class="host-step" id="hostJudging" hidden>
-      <p class="hint">Тапни вариант, потом «Выбрать победителем».</p>
+      <p class="hint">Нажми на вариант, потом «Выбрать победителем».</p>
       <ul class="hand" id="hostOptions"></ul>
     </div>
 
@@ -181,12 +187,21 @@
     <p class="hint">Ждём, пока ведущий запустит следующий раунд.</p>
   </section>
 
+  <!-- Кнопка «Прочитал»: экран ждёт людей, а не таймер.
+       Показывается поверх экранов вскрытия и итога раунда. -->
+  <div class="readbar" id="readBar" hidden>
+    <p class="readbar__count" id="readCount"></p>
+    <button class="btn btn--primary btn--block" id="readBtn" type="button">Прочитал</button>
+  </div>
+
   <!-- 7. Конец игры. -->
   <section class="screen" id="screenGameOver" hidden>
+    <p class="kicker">С днём рождения, Оля</p>
     <p class="host-title">Игра окончена</p>
+    <div class="flourish" aria-hidden="true"></div>
     <p class="status status--ok" id="gameOverWinner"></p>
     <ul class="scoreboard" id="gameOverStandings"></ul>
-    <p class="hint">Новую игру запускают с ноутбука. Телефон можно не закрывать.</p>
+    <p class="hint">Новую игру запустят с ноутбука. Телефон не закрывай.</p>
   </section>
 
   <!-- Ждём первый снимок от сервера. -->
