@@ -161,7 +161,7 @@ export function fillPrompt(promptText, answerText) {
   // Пропусков может быть несколько (при вводе запрещено, но в базу такое попадает) —
   // подставляем только в первый, остальные остаются текстом.
   const before = prompt.slice(0, match.index);
-  const after = prompt.slice(match.index + match[0].length);
+  let after = prompt.slice(match.index + match[0].length);
   let filled = value;
 
   // Пунктуация. Если сразу после пропуска идёт своя пунктуация захода — убираем
@@ -169,6 +169,14 @@ export function fillPrompt(promptText, answerText) {
   // Только одиночную: «!», «?» и многоточие «...» авторские, их не трогаем.
   if (PUNCT_AFTER_RE.test(after) && filled.endsWith('.') && !filled.endsWith('..')) {
     filled = filled.slice(0, -1);
+  }
+
+  // Обратный случай: ответ САМ кончается сильным знаком, а заход ставит после
+  // него точку — выходит «муся, это ты?.». Тогда лишняя уже точка захода.
+  // Замер 10.09.2026: на живой базе так ломались 40 фраз из 4620.
+  // «!» и «?» самого захода не трогаем — они авторские и осмысленные.
+  if (/[.!?…]$/.test(filled) && /^[ 	]*[.,;:]/.test(after)) {
+    after = after.replace(/^([ 	]*)[.,;:]/, '$1');
   }
 
   // Заглавная буква. Пропуск в начале захода, после переноса строки или после конца

@@ -818,7 +818,12 @@ function renderScoreboard(round) {
     const marks = el('span', 'scoreboard-marks');
     if (p.isHost) marks.appendChild(el('span', 'badge badge--host', 'ведёт'));
     if (!p.connected) marks.appendChild(el('span', 'badge badge--offline', 'не в сети'));
-    if (round.step === 'answering' && !p.isHost) {
+    // «Думает» показываем только тем, кто на связи: у выпавшего игрока две
+    // метки разом («не в сети» и «думает») противоречили друг другу и съедали
+    // место — имя обрезалось до «Вя…». Замер 10.09.2026: у имени оставалось
+    // 48 px из нужных 153. А вот «готов» у выпавшего оставляем: его ответ уже
+    // в игре, и ведущему это важно.
+    if (round.step === 'answering' && !p.isHost && (p.connected || p.hasSubmitted)) {
       marks.appendChild(el(
         'span',
         `badge ${p.hasSubmitted ? 'badge--ok' : 'badge--wait'}`,
@@ -834,7 +839,11 @@ function renderScoreboard(round) {
 
 // --- Конец игры -------------------------------------------------------------
 
-const HISTORY_LIMIT = 8;
+// Шесть, а не восемь. Замер 10.09.2026: при восьми карточках высота ряда
+// 132 px, а победная фраза в 106 знаков (самый длинный вопрос базы плюс
+// самый длинный ответ) требует 143 px — хвост просто срезался, и никто
+// этого не замечал. Меньше карточек — выше ряд, текст целиком.
+const HISTORY_LIMIT = 6;
 
 function renderGameOver() {
   const over = snap.gameOver || { winnerName: '—', standings: [] };
