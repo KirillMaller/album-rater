@@ -516,6 +516,7 @@ function renderLobby() {
   syncNumberInput($('ask-prompts'), settings.askPrompts);
   syncNumberInput($('admin-ask-prompts'), settings.askPrompts);
   syncNumberInput($('ask-answers'), settings.askAnswers);
+  renderAskHint(settings);
   syncNumberInput($('admin-ask-answers'), settings.askAnswers);
 
   $('duration-hint').textContent = durationHint(target, (snap.players || []).length);
@@ -552,6 +553,25 @@ function startHint() {
 }
 
 /** Правим поле, только если в нём сейчас не печатают. */
+/**
+ * Объясняем словами, что значат числа в полях. Голый «0» человек читает
+ * как «ничего писать не надо», а на деле это «пиши сколько хочешь».
+ */
+function renderAskHint(settings) {
+  const el = $('ask-hint');
+  if (!el) return;
+  const p = Number(settings?.askPrompts) || 0;
+  const a = Number(settings?.askAnswers) || 0;
+  if (p === 0 && a === 0) {
+    el.textContent = 'Сейчас: каждый пишет сколько хочет и жмёт «Я готов». Поставь число — попросим написать хотя бы столько.';
+    return;
+  }
+  const части = [];
+  if (p > 0) части.push(`${p} ${plural(p, ['вопрос', 'вопроса', 'вопросов'])}`);
+  if (a > 0) части.push(`${a} ${plural(a, ['ответ', 'ответа', 'ответов'])}`);
+  el.textContent = `Просим каждого написать ${части.join(' и ')}. Это просьба, а не запрет: написал меньше — всё равно пустим. Ноль — пусть пишут сколько хотят.`;
+}
+
 function syncNumberInput(input, value) {
   if (!input || document.activeElement === input) return;
   const next = String(value ?? '');
