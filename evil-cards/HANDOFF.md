@@ -62,7 +62,7 @@ cd evil-cards
 | `public/index.html` + `play.js` + `play.css` | Экран телефона |
 | `public/screen.html` + `screen.js` + `screen.css` | Экран ноутбука |
 | `public/theme.css` | Все цвета, шрифты, размеры, фактуры — переменными. Дизайн уже сделан (см. ниже) |
-| `public/art/`, `public/fonts/` | Орнаменты (svg, рисованы руками) и шрифты Playfair Display + Marck Script (лицензия OFL, файлы OFL-*.txt рядом). Грузятся с того же сервера, интернет не нужен |
+| `public/art/`, `public/fonts/` | Орнаменты (svg, рисованы руками) и шрифт Playfair Display (лицензия OFL, файл OFL-*.txt рядом). Грузятся с того же сервера, интернет не нужен |
 | `public/shared/text.js` | Вставка ответа в пропуск. Общий для сервера и браузера |
 | `data/base-prompts.txt`, `data/base-answers.txt` | База карт. **Пишет человек, не нейронка** |
 | `data/state.json` | Автосохранение игры. В `.gitignore`, переживает перезапуск |

@@ -59,12 +59,12 @@
   --c-picked-border: var(--c-pink-deep);
 
   /* --- Шрифты. Внешних загрузок нет: игра живёт в локальной Wi-Fi.
-         Первыми стоят шрифты, которые можно положить в /fonts/ (Playfair
-         Display, Marck Script — свободные, с кириллицей), дальше — системные. --- */
+         Первым стоит Playfair Display из /fonts/ (свободный, с кириллицей),
+         дальше — системные на случай, если файл не загрузился. --- */
   --font-display: "Playfair Display", "Bodoni 72", "Didot", "Bodoni MT",
                   Georgia, "Times New Roman", "Noto Serif", serif;
-  --font-script:  "Marck Script", "Gabriola", "Segoe Script", "Snell Roundhand",
-                  "Savoye LET", "Apple Chancery", "Brush Script MT", cursive;
+  /* «Рукописный» — тот же курсив антиквы: рукописные шрифты плохо читаются. */
+  --font-script:  var(--font-display);   /* оставлено для совместимости */
   --font-type:    "Courier Prime", "Courier New", Courier, "Nimbus Mono", monospace;
   --font-ui:      Georgia, "Times New Roman", "Noto Serif", "Palatino Linotype", serif;
   --font-card:    var(--font-display);
@@ -151,7 +151,7 @@
 }
 
 /* Свои шрифты лежат в /fonts/ (свободная лицензия OFL, файлы OFL-*.txt рядом).
-   Грузятся с того же сервера, интернет не нужен. Playfair Display —
+   Грузится с того же сервера, интернет не нужен. Playfair Display —
    переменный (все начертания в одном файле), с кириллицей. */
 @font-face {
   font-family: "Playfair Display";
@@ -165,13 +165,6 @@
   src: url("/fonts/PlayfairDisplay-Italic.woff2") format("woff2");
   font-style: italic;
   font-weight: 400 900;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Marck Script";
-  src: url("/fonts/MarckScript.woff2") format("woff2");
-  font-style: normal;
-  font-weight: 400;
   font-display: swap;
 }
 

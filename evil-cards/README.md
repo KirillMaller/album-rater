@@ -238,16 +238,16 @@ docker compose up -d
 | `public/index.html`, `play.js`, `play.css` | Телефон |
 | `public/screen.html`, `screen.js`, `screen.css` | Ноутбук |
 | `public/theme.css` | Все цвета, шрифты, размеры, фактуры — переменными |
-| `public/art/`, `public/fonts/` | Орнаменты (svg) и шрифты Playfair Display + Marck Script (OFL) |
+| `public/art/`, `public/fonts/` | Орнаменты (svg) и шрифт Playfair Display (OFL) |
 | `public/shared/text.js` | Вставка ответа в пропуск. Общий для сервера и браузера |
 | `docs/SPEC.md` | Контракты модулей |
 
 Дизайн — винтажное девичье приглашение на день рождения: сканированная
 бумага со складками, кружево, чёрные розы-гравюры, розовый скотч, курсивная
-антиква и рукописные подписи. Все цвета, шрифты, размеры, отступы и фактуры —
+антиква и подписи-«штампы» заглавными. Все цвета, шрифты, размеры, отступы и фактуры —
 переменные в `public/theme.css`; в `play.css` и `screen.css` только они.
 Орнаменты лежат в `public/art/` (svg, свои), шрифты в `public/fonts/`
-(Playfair Display и Marck Script, свободная лицензия OFL) — всё грузится с
+(Playfair Display, свободная лицензия OFL) — всё грузится с
 того же сервера, интернет не нужен. JS от оформления не зависит.
 
 ---

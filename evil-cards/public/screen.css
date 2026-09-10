@@ -111,7 +111,8 @@ body.screen::before {
 }
 
 .topbar-brand {
-  font-family: var(--font-script);
+  font-family: var(--font-display);
+  font-style: italic;
   font-size: var(--fs-screen-title);
   line-height: 1;
   color: var(--c-text);
@@ -438,8 +439,9 @@ button.card-answer:disabled { cursor: default; }
   flex: 0 0 auto;            /* имя автора не выжимается карточкой — ради него весь шаг */
   margin: 0;
   text-align: center;
-  font-family: var(--font-script);
-  font-size: var(--fs-screen-title);
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--fs-screen-counter);
   line-height: 1;
   color: var(--c-pink-deep);
   white-space: nowrap;
@@ -557,16 +559,19 @@ button.card-answer:disabled { cursor: default; }
 }
 
 .lobby-title::before {
-  content: "на день рождения Оли";
+  content: "Вечер роскоши, гламура и сплетен ♡";
   position: absolute;
   left: 0;
   top: 0;
   white-space: nowrap;
-  font-family: var(--font-script);
-  font-size: var(--fs-screen-body);
+  font-family: var(--font-display);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   line-height: 1;
   color: var(--c-pink-deep);
-  transform: rotate(-4deg);
+  transform: rotate(-3deg);
   transform-origin: left bottom;
 }
 
@@ -593,7 +598,8 @@ button.card-answer:disabled { cursor: default; }
 .lobby-h2 {
   margin: 0;
   padding-bottom: var(--sp-2);
-  font-family: var(--font-script);
+  font-family: var(--font-display);
+  font-style: italic;
   font-size: var(--fs-screen-title);
   font-weight: var(--fw-normal);
   line-height: 1;
@@ -801,7 +807,8 @@ button.card-answer:disabled { cursor: default; }
 }
 
 .stage-host {
-  font-family: var(--font-script);
+  font-family: var(--font-display);
+  font-style: italic;
   font-size: var(--fs-screen-counter);
   line-height: 1;
   color: var(--c-pink-deep);
@@ -912,8 +919,9 @@ button.card-answer:disabled { cursor: default; }
 
 .stage-draw-label {
   margin: 0;
-  font-family: var(--font-script);
-  font-size: var(--fs-screen-script);
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--fs-screen-title);
   line-height: 1;
   color: var(--c-pink-deep);
   transform: rotate(-3deg);
@@ -958,8 +966,9 @@ button.card-answer:disabled { cursor: default; }
   flex: 0 0 auto;
   margin: 0;
   text-align: center;
-  font-family: var(--font-script);
-  font-size: var(--fs-screen-script);
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--fs-screen-title);
   line-height: 1;
   color: var(--c-pink-deep);
   white-space: nowrap;
@@ -1106,8 +1115,9 @@ button.card-answer:hover:not(:disabled) { transform: none; }
 
 .gameover-label {
   margin: 0;
-  font-family: var(--font-script);
-  font-size: var(--fs-screen-script);
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--fs-screen-title);
   line-height: 1;
   color: var(--c-pink-deep);
   transform: rotate(-3deg);
@@ -1254,7 +1264,8 @@ button.card-answer:hover:not(:disabled) { transform: none; }
 .history-winner {
   flex: 0 0 auto;           /* кто выиграл — не выжимаем никогда */
   margin: 0;
-  font-family: var(--font-script);
+  font-family: var(--font-display);
+  font-style: italic;
   font-size: var(--fs-screen-small);
   color: var(--c-pink-deep);
   white-space: nowrap;
@@ -1392,8 +1403,9 @@ button.card-answer:hover:not(:disabled) { transform: none; }
 
 .admin-h3 {
   margin: 0;
-  font-family: var(--font-script);
-  font-size: var(--fs-screen-title);
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--fs-screen-counter);
   font-weight: var(--fw-normal);
   line-height: 1;
   color: var(--c-pink-deep);
