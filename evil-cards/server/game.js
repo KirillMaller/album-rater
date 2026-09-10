@@ -155,7 +155,11 @@ export class Game {
           token: typeof p.token === 'string' ? p.token : makeToken(),
           name: p.name,
           score: Number.isFinite(p.score) ? p.score : 0,
-          connected: false, // после перезапуска все офлайн, пока не вернутся
+          // Люди после перезапуска офлайн, пока не вернутся сами. А бот
+          // вернуться не может — у него нет соединения, и он оставался
+          // «не в сети» навсегда. Из-за этого его переставали считать
+          // отвечающим, и раунд ехал мимо живых игроков (случай 10.09.2026).
+          connected: Boolean(p.isBot),
           ready: Boolean(p.ready),
           isBot: Boolean(p.isBot),
           hand: arr(p.hand).filter((id) => s.cards[id]?.kind === 'answer'),
