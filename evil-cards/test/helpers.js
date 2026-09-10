@@ -120,3 +120,64 @@ export function allSnapshots(game) {
   }
   return snaps;
 }
+
+/**
+ * Инвентаризация карт: каждая карта обязана лежать ровно в одном месте.
+ * Возвращает {dup, lost, ghost} — если хоть один список не пуст, колода
+ * порвана: карта либо оказалась в двух руках, либо исчезла из игры.
+ *
+ * Учитывает шаг раунда: на 'result' сданные карты уже в сбросе, а заход —
+ * в usedPrompts; round.submissions/promptId в этот момент нужны только для показа.
+ */
+export function auditCards(game) {
+  const s = game.state;
+  const dup = [];
+  const lost = [];
+  const scored = s.round?.step === 'result';
+
+  const check = (kinds, places) => {
+    const where = new Map();
+    for (const [place, ids] of places) {
+      for (const id of ids) {
+        if (!where.has(id)) where.set(id, []);
+        where.get(id).push(place);
+      }
+    }
+    for (const [id, at] of where) if (at.length > 1) dup.push({ id, at });
+    for (const c of Object.values(s.cards)) {
+      if (kinds.includes(c.kind) && !where.has(c.id)) lost.push(c.id);
+    }
+    return where;
+  };
+
+  const answerPlaces = [
+    ...s.players.map((p) => [`рука:${p.name}`, p.hand]),
+    ['колода', s.decks.answers],
+    ['сброс', s.decks.discard],
+  ];
+  if (s.round && !scored) {
+    answerPlaces.push(['сдано', s.round.submissions.map((x) => x.cardId)]);
+  }
+  const answersAt = check(['answer'], answerPlaces);
+
+  const promptPlaces = [
+    ['гостевые', s.decks.guestPrompts],
+    ['базовые', s.decks.basePrompts],
+    ['сыгранные', s.decks.usedPrompts],
+  ];
+  if (s.round?.promptId && !scored) promptPlaces.push(['на столе', [s.round.promptId]]);
+  const promptsAt = check(['prompt'], promptPlaces);
+
+  const ghost = [...answersAt.keys(), ...promptsAt.keys()].filter((id) => !s.cards[id]);
+  return { dup, lost, ghost };
+}
+
+/** Кидает понятную ошибку, если инвентаризация не сошлась. */
+export function assertCardsIntact(game, where = '') {
+  const { dup, lost, ghost } = auditCards(game);
+  const parts = [];
+  if (dup.length) parts.push(`дубли: ${dup.length} (${JSON.stringify(dup[0].at)})`);
+  if (lost.length) parts.push(`потеряно: ${lost.length}`);
+  if (ghost.length) parts.push(`призраки: ${ghost.length}`);
+  if (parts.length) throw new Error(`колода порвана ${where}: ${parts.join('; ')}`);
+}

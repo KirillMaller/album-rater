@@ -36,7 +36,9 @@
         <img class="qr-img" id="qr-image" alt="QR-код со ссылкой на игру" hidden>
         <p class="hint qr-wait" id="qr-wait">QR-код готовится…</p>
       </div>
-      <p class="lobby-url" id="lobby-url">—</p>
+      <!-- Адрес сервера длинный (https://109-172-94-130.sslip.io): держим его
+           одной строкой, а размер подбирает та же автоподгонка, что и у карт. -->
+      <div class="lobby-url fit"><div class="fit-inner" id="lobby-url">—</div></div>
       <p class="hint">Наведи камеру телефона на код — или набери адрес руками.
         Телефоны и ноутбук должны быть в одной Wi-Fi.</p>
       <button class="btn btn--ghost btn--big lobby-fullscreen" id="btn-fullscreen-lobby" type="button">
@@ -121,7 +123,9 @@
 
     <div class="gameover-main">
       <p class="gameover-label">Победитель вечера</p>
-      <p class="gameover-winner" id="gameover-winner">—</p>
+      <!-- .fit + .fit-inner: имя победителя вечера — самый крупный текст на
+           экране, размер подбирается под длину имени (ТЗ 2.3). -->
+      <div class="gameover-winner fit"><div class="fit-inner" id="gameover-winner">—</div></div>
       <ol class="standings" id="standings"></ol>
       <div class="gameover-actions">
         <button class="btn btn--primary btn--big" type="button" data-act="newGame" data-key="newGame-final">

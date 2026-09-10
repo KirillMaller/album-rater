@@ -209,17 +209,22 @@ export function createApp({ port = Number(process.env.PORT) || 3000,
     }
   }
 
-  async function sendQr(socket) {
-    const { dataUrl, url } = await getQr();
-    socket.emit('qr', { dataUrl, url });
+  // QR — украшение, а не игра: любой сбой здесь не должен долетать до процесса
+  // необработанным отказом промиса.
+  function sendQr(socket) {
+    getQr()
+      .then(({ dataUrl, url }) => socket.emit('qr', { dataUrl, url }))
+      .catch((err) => log('[qr] не отправился:', err?.message));
   }
 
   function broadcastQr() {
-    getQr().then(({ dataUrl, url }) => {
-      for (const socket of io.of('/').sockets.values()) {
-        if (socket.data.role === 'screen') socket.emit('qr', { dataUrl, url });
-      }
-    });
+    getQr()
+      .then(({ dataUrl, url }) => {
+        for (const socket of io.of('/').sockets.values()) {
+          if (socket.data.role === 'screen') socket.emit('qr', { dataUrl, url });
+        }
+      })
+      .catch((err) => log('[qr] рассылка не удалась:', err?.message));
   }
 
   // ------------------------------------------------------------- действия
@@ -341,9 +346,21 @@ export function createApp({ port = Number(process.env.PORT) || 3000,
       socket.on(event, guard((payload, ack) => {
         const before = game.state.selectedUrl;
         const res = game[method](socketActor(socket), payload);
-        // Сменили адрес для QR — перерисовать его на всех ноутбуках.
-        if (res.ok && game.state.selectedUrl !== before) broadcastQr();
-        reply(ack, res);
+        const finish = (out) => {
+          // Сменили адрес для QR — перерисовать его на всех ноутбуках.
+          if (out.ok && game.state.selectedUrl !== before) broadcastQr();
+          reply(ack, out);
+        };
+        // Часть действий (запись базы на диск) отвечает промисом — ответ
+        // организатору должен дождаться реального результата записи.
+        if (res && typeof res.then === 'function') {
+          res.then(finish, (err) => {
+            log('[socket] действие ' + event + ' упало:', err?.stack ?? err);
+            reply(ack, { ok: false, error: 'Что-то пошло не так' });
+          });
+          return;
+        }
+        finish(res);
       }));
     }
 
@@ -376,15 +393,52 @@ export function createApp({ port = Number(process.env.PORT) || 3000,
     return server;
   }
 
-  async function close() {
+  /**
+   * Выключение. Порядок важен: сначала на диск, потом рвём соединения.
+   *
+   * Просто ждать server.close() нельзя: он ждёт закрытия ВСЕХ соединений,
+   * а уснувший телефон легко оставляет полуоткрытый сокет — тогда выключение
+   * висит вечно, docker/systemd досиживают таймаут и бьют SIGKILL.
+   * Поэтому соединения разрываем принудительно, а поверх всего — жёсткий
+   * потолок по времени: сохраниться обязаны, зависнуть не имеем права.
+   */
+  async function close({ timeoutMs = 2000 } = {}) {
     bots.stop();
     try {
       await storage.flush(game.state);
     } catch (err) {
       log('[игра] не удалось сохранить состояние:', err?.message);
     }
-    await new Promise((resolve) => io.close(resolve));
-    await new Promise((resolve) => server.close(resolve));
+
+    const shut = (async () => {
+      try {
+        io.disconnectSockets(true);
+      } catch { /* сокетов уже нет */ }
+      await new Promise((resolve) => {
+        let done = false;
+        const finish = () => { if (!done) { done = true; resolve(); } };
+        try {
+          io.close(finish);
+        } catch {
+          finish();
+        }
+        // keep-alive и полуоткрытые соединения сами не закроются.
+        try {
+          server.closeAllConnections?.();
+        } catch { /* нет метода — переживём, есть общий таймаут */ }
+      });
+    })();
+
+    let timer;
+    const cap = new Promise((resolve) => {
+      timer = setTimeout(() => {
+        log('[игра] соединения не закрылись за отведённое время — выключаюсь принудительно');
+        resolve();
+      }, timeoutMs);
+      if (typeof timer.unref === 'function') timer.unref();
+    });
+    await Promise.race([shut, cap]);
+    clearTimeout(timer);
   }
 
   return { app, server, io, game, storage, bots, listen, close, networkInfo, port };

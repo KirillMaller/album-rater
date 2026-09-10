@@ -132,8 +132,12 @@ export class Game {
         s.cards[id] = { id, kind: c.kind, text: c.text, authorId: c.authorId ?? null };
       }
 
+      // Один id — один игрок. Дубль в битом файле раздвоил бы руку: одна
+      // и та же карта оказалась бы сразу у двоих.
+      const seenIds = new Set();
       s.players = arr(saved.players)
         .filter((p) => p && typeof p.id === 'string' && typeof p.name === 'string')
+        .filter((p) => (seenIds.has(p.id) ? false : (seenIds.add(p.id), true)))
         .map((p) => ({
           id: p.id,
           token: typeof p.token === 'string' ? p.token : makeToken(),
@@ -172,6 +176,12 @@ export class Game {
         const subs = arr(r.submissions).filter(
           (x) => x && ids.has(x.playerId) && s.cards[x.cardId]?.kind === 'answer'
         );
+        const order = arr(r.revealOrder).filter((id) => subs.some((x) => x.id === id));
+        // Счётчик вскрытых зажимаем по факту: отрицательное значение из битого
+        // файла превратило бы slice(0, -N) в «показать лишние ответы».
+        const revealed = Number.isFinite(r.revealedCount)
+          ? Math.min(Math.max(0, Math.floor(r.revealedCount)), order.length)
+          : 0;
         s.round = {
           number: Number.isFinite(r.number) ? r.number : 1,
           hostId: ids.has(r.hostId) ? r.hostId : s.hostOrder[0] ?? null,
@@ -181,9 +191,11 @@ export class Game {
           forceReveal: Boolean(r.forceReveal),
           step: validSteps.includes(r.step) ? r.step : 'draw',
           submissions: subs,
-          revealOrder: arr(r.revealOrder).filter((id) => subs.some((x) => x.id === id)),
-          revealedCount: Number.isFinite(r.revealedCount) ? r.revealedCount : 0,
-          winnerSubmissionId: r.winnerSubmissionId ?? null,
+          revealOrder: order,
+          revealedCount: revealed,
+          winnerSubmissionId: subs.some((x) => x.id === r.winnerSubmissionId)
+            ? r.winnerSubmissionId
+            : null,
         };
         // Если заход потерялся — вернуть раунд на шаг «вытянуть».
         if (!s.round.promptId && s.round.step !== 'draw') {
@@ -539,10 +551,17 @@ export class Game {
 
     const promptIds = [];
     const answerIds = [];
+    // Ключи дублей считаем один раз, а не для каждой строки базы заново:
+    // на базе в тысячу карт проверка «в лоб» — это миллион сравнений и
+    // несколько секунд полной заморозки сервера прямо на «Начать игру».
+    const seen = new Set();
+    for (const c of Object.values(this.state.cards)) seen.add(dedupeKey(c.text));
     const add = (text, kind, bucket) => {
       const check = kind === 'prompt' ? validatePrompt(text) : validateAnswer(text);
       if (!check.ok) return;
-      if (this._isDuplicate(check.text)) return;
+      const key = dedupeKey(check.text);
+      if (seen.has(key)) return;
+      seen.add(key);
       const card = { id: randomUUID(), kind, text: check.text, authorId: null };
       this.state.cards[card.id] = card;
       bucket.push(card.id);
@@ -632,11 +651,7 @@ export class Game {
     returnPrompt(this.state.decks, r.promptId, r.promptIsGuest);
 
     // Заход поменялся — сданные ответы больше не подходят, возвращаем их владельцам.
-    for (const sub of r.submissions) {
-      const p = this.getPlayer(sub.playerId);
-      if (p && !p.hand.includes(sub.cardId)) p.hand.push(sub.cardId);
-    }
-    r.submissions = [];
+    this._returnSubmissions(r);
     r.forceReveal = false;
 
     const previousId = r.promptId;
@@ -653,6 +668,22 @@ export class Game {
       return fail('Других вопросов не осталось, вопрос прежний');
     }
     return ok();
+  }
+
+  /**
+   * Вернуть сданные карты владельцам и очистить submissions.
+   * Автора могли удалить из игры — тогда карта уходит в сброс, иначе она
+   * пропала бы навсегда и колода бы худела каждый кик.
+   */
+  _returnSubmissions(r) {
+    const orphaned = [];
+    for (const sub of r.submissions) {
+      const p = this.getPlayer(sub.playerId);
+      if (!p) orphaned.push(sub.cardId);
+      else if (!p.hand.includes(sub.cardId)) p.hand.push(sub.cardId);
+    }
+    if (orphaned.length > 0) discardAnswers(this.state.decks, orphaned);
+    r.submissions = [];
   }
 
   /** Кто в этом раунде обязан ответить: в сети, не ведущий, есть чем ходить. */
@@ -866,15 +897,16 @@ export class Game {
     if (!player) return fail('Игрок не найден');
 
     const r = this.state.round;
-    if (r) {
+    const wasHost = Boolean(r && r.hostId === player.id);
+
+    if (r && r.step === 'answering') {
       // Ответ снимается, только если вскрытие ещё не началось (ТЗ 6).
-      if (r.step === 'answering') {
+      // Сданная карта уходит в сброс: иначе она не вернётся ни в руку,
+      // ни в колоду и просто исчезнет из игры.
+      const dropped = r.submissions.filter((s) => s.playerId === player.id);
+      if (dropped.length > 0) {
+        discardAnswers(this.state.decks, dropped.map((s) => s.cardId));
         r.submissions = r.submissions.filter((s) => s.playerId !== player.id);
-      }
-      if (r.hostId === player.id) {
-        this._advanceHost();
-        r.hostId = this.state.hostOrder[this.state.hostCursor] ?? null;
-        this._resetRoundToDraw(r);
       }
     }
 
@@ -882,6 +914,9 @@ export class Game {
     discardAnswers(this.state.decks, player.hand);
     player.hand = [];
 
+    // Сначала вычёркиваем игрока из списков и только потом ищем нового
+    // ведущего: иначе «следующий по кругу» мог выбрать того же, кого удаляем,
+    // и раунд оставался бы с ведущим-призраком (кнопки только на ноутбуке).
     const orderIdx = this.state.hostOrder.indexOf(player.id);
     if (orderIdx !== -1) {
       this.state.hostOrder.splice(orderIdx, 1);
@@ -896,8 +931,36 @@ export class Game {
       this.state.hostCursor = 0;
     }
 
+    if (r && wasHost) {
+      // Был ведущим — ход переходит дальше (ТЗ 6). После splice курсор уже
+      // показывает на следующего, поэтому лишний шаг вперёд не делаем.
+      r.hostId = this._hostFromCursor();
+      this._resetRoundToDraw(r);
+    }
+
     this._changed();
     return ok();
+  }
+
+  /**
+   * Ведущий, начиная с текущей позиции курсора: первый в сети (ТЗ 6).
+   * Никого в сети нет — берём того, кто стоит на курсоре, чтобы раунд
+   * не остался без ведущего вовсе.
+   */
+  _hostFromCursor() {
+    const order = this.state.hostOrder;
+    if (order.length === 0) return null;
+    const start = ((this.state.hostCursor % order.length) + order.length) % order.length;
+    for (let i = 0; i < order.length; i += 1) {
+      const idx = (start + i) % order.length;
+      const p = this.getPlayer(order[idx]);
+      if (p && p.connected) {
+        this.state.hostCursor = idx;
+        return p.id;
+      }
+    }
+    this.state.hostCursor = start;
+    return order[start];
   }
 
   /** «Передать ход следующему» — раунд начинается заново с новым ведущим. */
@@ -914,11 +977,14 @@ export class Game {
 
   /** Откатить раунд на «вытянуть вопрос»: карты и заход возвращаются на места. */
   _resetRoundToDraw(r) {
-    for (const sub of r.submissions) {
-      const p = this.getPlayer(sub.playerId);
-      if (p && !p.hand.includes(sub.cardId)) p.hand.push(sub.cardId);
+    // На шаге result раунд уже посчитан: сданные карты лежат в сбросе, руки
+    // добраны, заход помечен сыгранным. Возвращать их второй раз нельзя —
+    // карта оказалась бы разом и в руке, и в сбросе, а заход — в двух очередях.
+    const scored = r.step === 'result';
+    if (!scored) {
+      this._returnSubmissions(r);
+      if (r.promptId) returnPrompt(this.state.decks, r.promptId, r.promptIsGuest);
     }
-    if (r.promptId) returnPrompt(this.state.decks, r.promptId, r.promptIsGuest);
     r.submissions = [];
     r.revealOrder = [];
     r.revealedCount = 0;
@@ -1021,14 +1087,31 @@ export class Game {
     return ok({ removed: bots.length });
   }
 
-  /** «Загрузить базу» — записать присланный текст в те же txt-файлы. */
+  /**
+   * «Загрузить базу» — записать присланный текст в те же txt-файлы.
+   * Storage пишет асинхронно, поэтому при отказе диска возвращаем промис с
+   * ошибкой: организатор обязан увидеть тост, а не «сохранено» на пустой файл
+   * (права на data/ — типичная беда при запуске в контейнере).
+   */
   adminSaveBase(actor, { prompts, answers }) {
     if (!this._isScreen(actor)) return fail('База загружается с ноутбука');
     if (!this.storage?.saveBase) return fail('Сохранение базы недоступно');
+    const failed = (err) =>
+      fail('Не удалось записать базу: ' + (err?.message ?? 'ошибка'));
+    let pending;
     try {
-      this.storage.saveBase({ prompts, answers });
+      pending = this.storage.saveBase({ prompts, answers });
     } catch (err) {
-      return fail('Не удалось записать базу: ' + (err?.message ?? 'ошибка'));
+      return failed(err);
+    }
+    if (pending && typeof pending.then === 'function') {
+      return pending.then(
+        () => {
+          this._changed();
+          return ok();
+        },
+        (err) => failed(err)
+      );
     }
     this._changed();
     return ok();
@@ -1059,6 +1142,12 @@ export class Game {
     const r = s.round;
     const resultShown = Boolean(r && r.step === 'result');
 
+    // Счётчики карт — одним проходом по колоде на весь снимок. Раньше на
+    // каждого игрока делался свой проход, и с базой в тысячу карт рассылка
+    // снимков всем телефонам заметно тормозила на слабой машине.
+    const counts = this._cardCounts();
+    const countOf = (id) => counts.get(id) ?? { prompt: 0, answer: 0 };
+
     const players = s.players.map((p) => ({
       id: p.id,
       name: p.name,
@@ -1067,8 +1156,8 @@ export class Game {
       ready: p.ready,
       isBot: p.isBot,
       isHost: Boolean(r && r.hostId === p.id),
-      promptCount: this._cardsOf(p.id, 'prompt').length,
-      answerCount: this._cardsOf(p.id, 'answer').length,
+      promptCount: countOf(p.id).prompt,
+      answerCount: countOf(p.id).answer,
       hasSubmitted: Boolean(r && r.submissions.some((x) => x.playerId === p.id)),
     }));
 
@@ -1172,6 +1261,21 @@ export class Game {
   _cardView(id) {
     const c = this.state.cards[id];
     return c ? { id: c.id, text: c.text } : null;
+  }
+
+  /** Сколько кто написал вопросов и ответов — за один проход по всем картам. */
+  _cardCounts() {
+    const counts = new Map();
+    for (const c of Object.values(this.state.cards)) {
+      if (c.authorId === null || c.authorId === undefined) continue;
+      let row = counts.get(c.authorId);
+      if (!row) {
+        row = { prompt: 0, answer: 0 };
+        counts.set(c.authorId, row);
+      }
+      row[c.kind] += 1;
+    }
+    return counts;
   }
 
   _canFor(actor, me, isScreen) {

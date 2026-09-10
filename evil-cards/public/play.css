@@ -68,12 +68,14 @@
 
 /* --- Плашка «нет связи» ------------------------------------------------- */
 
+/* z-index выше предпросмотра: иначе связь падает при открытом предпросмотре,
+   плашку не видно, и человек тыкает в мёртвую кнопку «Отправить». */
 .offline-banner {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  z-index: 30;
+  z-index: 60;
   padding: var(--sp-2) var(--sp-4);
   background: var(--c-warn);
   color: var(--c-text-invert);
@@ -82,12 +84,20 @@
   text-align: center;
 }
 
-/* Пока связи нет — ничего не нажимается. */
+/* Пока связи нет — ничего не нажимается. Приглушаем, чтобы это было видно:
+   иначе кнопки выглядят живыми, а тап не даёт вообще никакого отклика. */
 .is-offline .stage,
-.is-offline .actionbar,
-.is-offline .preview {
+.is-offline .actionbar {
   pointer-events: none;
+  opacity: 0.45;
 }
+
+/* У предпросмотра гасим содержимое, а не его самого: полупрозрачный фон
+   пропустил бы сквозь себя руку, и получилась бы каша из двух экранов. */
+.is-offline .preview { pointer-events: none; }
+
+.is-offline .preview__body,
+.is-offline .preview__actions { opacity: 0.45; }
 
 /* --- Кнопки ------------------------------------------------------------- */
 
@@ -180,8 +190,10 @@
 
 .input::placeholder { color: var(--c-text-faint); }
 
+/* Высоту под текст ставит play.js (autoGrow) — здесь только рамки допустимого. */
 .input--area {
   min-height: calc(var(--input-height) + var(--sp-5));
+  max-height: var(--input-area-max, 40vh);
   resize: vertical;
   overflow-wrap: anywhere;
 }
@@ -264,8 +276,11 @@
   overflow-wrap: anywhere;
 }
 
+/* Отметка выбранного варианта не должна менять размер карточки: рамка и
+   контур места не занимают, а значок внутри сдвигал бы весь список. */
 .card-answer--picked {
   border-color: var(--c-picked-border);
+  outline: 1px solid var(--c-picked-border);
   box-shadow: var(--sh-md);
 }
 
@@ -295,17 +310,6 @@
 }
 
 .hand-card:active { background: var(--c-answer-border); }
-
-.hand-card__badge {
-  display: inline-block;
-  margin-top: var(--sp-2);
-  padding: var(--sp-1) var(--sp-2);
-  border-radius: var(--r-pill);
-  background: var(--c-picked-border);
-  color: var(--c-text-invert);
-  font-size: var(--fs-xs);
-  font-weight: var(--fw-bold);
-}
 
 /* --- Список своих карт -------------------------------------------------- */
 
@@ -472,6 +476,16 @@
   border-top: 1px solid var(--c-border);
 }
 
+/* Пока человек печатает карту, экранная клавиатура забирает пол-экрана и эта
+   полоса садится ровно на кнопку «Добавить». На время ввода она перестаёт быть
+   прилипшей и уходит в конец страницы: «Добавить» свободна, а «Я готов»
+   никуда не делась — она просто ниже по прокрутке. */
+.is-typing #screenPrep .actionbar {
+  position: static;
+  transform: none;
+  margin-top: var(--sp-2);
+}
+
 .actionbar__row {
   display: flex;
   gap: var(--sp-2);
@@ -517,7 +531,8 @@
   right: 0;
   /* Выше панели главного действия (до двух рядов кнопок), чтобы её не перекрывать. */
   bottom: calc(var(--safe-bottom) + var(--btn-height) + var(--btn-height) + var(--sp-7));
-  z-index: 40;
+  /* Выше предпросмотра: ошибка «Отправить» не должна пропадать под ним. */
+  z-index: 55;
   display: flex;
   flex-direction: column;
   align-items: center;

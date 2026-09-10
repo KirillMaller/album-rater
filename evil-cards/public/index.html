@@ -32,6 +32,7 @@
     <form class="login" id="loginForm" autocomplete="off">
       <label class="visually-hidden" for="loginName">Твоё имя</label>
       <input class="input" id="loginName" name="name" type="text" maxlength="20"
+             placeholder="Например, Оля"
              autocomplete="off" autocapitalize="words" autocorrect="off" spellcheck="false"
              enterkeyhint="go" autofocus>
       <button class="btn btn--primary btn--block" id="loginBtn" type="submit">Войти</button>
@@ -57,13 +58,15 @@
       <form class="composer" id="promptForm" autocomplete="off">
         <label class="visually-hidden" for="promptInput">Новый вопрос</label>
         <textarea class="input input--area" id="promptInput" rows="2" maxlength="150"
+                  placeholder="Оля не может без этого: ___"
                   enterkeyhint="done" autocapitalize="sentences" spellcheck="true"></textarea>
-        <p class="counter" id="promptChars" hidden></p>
         <div class="composer__row">
           <button class="btn btn--ghost" id="gapBtn" type="button"
                   aria-label="Вставить пропуск в вопрос">Вставить пропуск</button>
           <button class="btn btn--primary" id="promptAdd" type="submit">Добавить</button>
         </div>
+        <!-- Счётчик под кнопками: появляясь, он не должен двигать «Добавить». -->
+        <p class="counter" id="promptChars" hidden></p>
       </form>
       <p class="hint">Пропуск — три подчёркивания ___ или кнопка „Вставить пропуск“. Пиши так, чтобы ответ вставлялся в именительном падеже: не „Оля не может без ___“, а „Оля не может без этого: ___“</p>
       <p class="counter" id="promptCount">Вопросов: 0 из 3 рекомендуемых</p>
@@ -75,11 +78,12 @@
       <form class="composer" id="answerForm" autocomplete="off">
         <label class="visually-hidden" for="answerInput">Новый ответ</label>
         <input class="input" id="answerInput" type="text" maxlength="80"
+               placeholder="ночной дожор"
                enterkeyhint="done" autocapitalize="none" spellcheck="true">
-        <p class="counter" id="answerChars" hidden></p>
         <div class="composer__row">
           <button class="btn btn--primary btn--block" id="answerAdd" type="submit">Добавить</button>
         </div>
+        <p class="counter" id="answerChars" hidden></p>
       </form>
       <p class="hint">С маленькой буквы, без точки, в именительном падеже: „ночной дожор“, „бывший, который снова пишет“</p>
       <p class="counter" id="answerCount">Ответов: 0 из 5 рекомендуемых</p>
@@ -116,9 +120,12 @@
     <div class="submitted" id="answerSubmitted" hidden>
       <p class="status status--ok">Ответ отправлен</p>
       <div class="card-prompt" id="submittedCard" hidden></div>
+      <!-- Чтобы не гадать, почему ничего не происходит: сколько ещё ждём. -->
+      <p class="counter" id="answerWaiting"></p>
     </div>
 
-    <p class="empty" id="answerEmpty" hidden>Карт в руке не осталось — в этом раунде отвечать нечем. В следующем раздадут заново.</p>
+    <!-- id не answerEmpty: такой уже занят на экране подготовки. -->
+    <p class="empty" id="handEmpty" hidden>Карт в руке не осталось — в этом раунде отвечать нечем. В следующем раздадут заново.</p>
 
     <div class="actionbar" id="answerBar" hidden>
       <button class="btn btn--ghost btn--block" id="retractBtn" type="button">Забрать</button>
@@ -179,6 +186,7 @@
     <p class="host-title">Игра окончена</p>
     <p class="status status--ok" id="gameOverWinner"></p>
     <ul class="scoreboard" id="gameOverStandings"></ul>
+    <p class="hint">Новую игру запускают с ноутбука. Телефон можно не закрывать.</p>
   </section>
 
   <!-- Ждём первый снимок от сервера. -->

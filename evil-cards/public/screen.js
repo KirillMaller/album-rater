@@ -139,13 +139,22 @@ function fitOne(box) {
   const availH = box.clientHeight - padY;
   const availW = box.clientWidth - padX;
 
+  const fits = () => inner.scrollHeight <= availH + 1 && inner.scrollWidth <= availW + 1;
+
   let size = max;
   while (size > min) {
-    const tooTall = inner.scrollHeight > availH + 1;
-    const tooWide = inner.scrollWidth > availW + 1;
-    if (!tooTall && !tooWide) break;
+    if (fits()) break;
     size = Math.max(min, size - step);
     box.style.fontSize = `${size}px`;
+  }
+
+  // Шаг подгонки грубый (обычно 4 px), из-за него текст мог остаться заметно
+  // мельче, чем помещается. Добираем размер вверх по пикселю — на общем экране
+  // каждый пиксель кегля виден с трёх метров.
+  while (size < max && fits()) {
+    box.style.fontSize = `${size + 1}px`;
+    if (!fits()) { box.style.fontSize = `${size}px`; break; }
+    size += 1;
   }
 }
 

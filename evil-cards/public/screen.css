@@ -317,6 +317,7 @@ button.card-answer:disabled { cursor: default; }
 }
 
 .card-answer__author {
+  flex: 0 0 auto;            /* имя автора не выжимается карточкой — ради него весь шаг */
   margin: 0;
   text-align: center;
   font-size: var(--fs-screen-small);
@@ -409,13 +410,21 @@ button.card-answer:disabled { cursor: default; }
 }
 
 .lobby-url {
+  --fit-max: var(--fs-screen-title);
+  --fit-min: var(--fs-sm);
+  --fit-step: var(--sp-1);
+  /* 0 0 auto: колонку ужимает QR-код, а не адрес — иначе у букв срезает
+     нижние хвосты и «sslip» читается как «sslin». */
+  flex: 0 0 auto;
+  align-self: stretch;
   margin: 0;
   font-family: var(--font-mono-local);
-  font-size: var(--fs-screen-body);
   font-weight: var(--fw-bold);
   color: var(--c-text);
-  word-break: break-all;
 }
+
+/* Адрес не рвём посередине домена — вместо переноса уменьшаем кегль. */
+.lobby-url .fit-inner { white-space: nowrap; }
 
 .lobby-fullscreen { align-self: stretch; }
 
@@ -441,7 +450,17 @@ button.card-answer:disabled { cursor: default; }
   border-radius: var(--r-lg);
 }
 
-.lobby-block--start { margin-top: auto; }
+/* Блок со стартом всегда целиком на экране: если колонка не помещается,
+   ужимается блок настроек, а не «Начать игру» с предупреждениями. */
+.lobby-block--start {
+  margin-top: auto;
+  flex: 0 0 auto;
+}
+
+.lobby-col--settings > .lobby-block:not(.lobby-block--start) {
+  min-height: 0;
+  overflow: hidden;
+}
 
 .base-counts {
   margin: 0;
@@ -596,8 +615,57 @@ button.card-answer:disabled { cursor: default; }
 .stage-body > .card-prompt,
 .stage-body > .judge-grid { flex: 1 1 0; min-height: 0; }
 
-.stage-body--result > .card-prompt { flex: 3 1 0; }
-.stage-body--result > .judge-grid { flex: 2 1 0; }
+/* ---- Итог раунда --------------------------------------------------------
+   Три вещи сразу: победная комбинация целиком, кто её написал, и кто написал
+   остальные варианты. На 12 игроках вариантов 11, и всё это одновременно в
+   720 пикселей по высоте не влезает. Приоритет такой:
+     1) победная карта — крупно и БЕЗ обрезки (потому опускаем её нижнюю
+        границу кегля: лучше мельче, чем срезанный хвост ответа);
+     2) имена авторов — они и есть смысл этого шага;
+     3) текст проигравших вариантов — его только что прочитали вслух, поэтому
+        при тесноте показываем первые строки с многоточием.                */
+.stage-body--result > .card-prompt {
+  flex: 2 1 0;
+  --fit-min: var(--fs-screen-small);
+  padding: var(--sp-4);
+}
+
+.stage-body--result > .judge-grid { flex: 3 1 0; }
+
+.stage-body--result .card-answer {
+  padding: var(--sp-4) var(--sp-2) var(--sp-2);
+  --fit-min: var(--fs-sm);
+}
+
+.stage-body--result .card-answer__author { font-size: var(--fs-sm); }
+
+/* Вариантов девять и больше (это 10-12 игроков) — текста на экране физически
+   больше, чем в него влезает. Проигравшие варианты только что прочитали вслух,
+   поэтому показываем первые строки с многоточием: так победная карта остаётся
+   крупной и целой, а имена авторов видны все. Обрезаем по строкам, а не
+   «половинкой буквы» посередине карточки. */
+.stage-body--result .judge-grid[data-count="9"] .card-answer,
+.stage-body--result .judge-grid[data-count="10"] .card-answer,
+.stage-body--result .judge-grid[data-count="11"] .card-answer,
+.stage-body--result .judge-grid[data-count="12"] .card-answer {
+  --fit-max: var(--fs-sm);
+  --fit-min: var(--fs-sm);
+}
+
+.stage-body--result .judge-grid[data-count="9"] .fit-inner,
+.stage-body--result .judge-grid[data-count="10"] .fit-inner,
+.stage-body--result .judge-grid[data-count="11"] .fit-inner,
+.stage-body--result .judge-grid[data-count="12"] .fit-inner {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  overflow: hidden;
+}
+
+/* Что произошло, уже сказано крупно под картой («Написал(а): …») и кнопкой
+   «Следующий раунд» — подсказка только отнимала высоту у вариантов. */
+.stage-body--result ~ .stage-hint { display: none; }
 
 .stage-body > .prompt-strip {
   flex: 0 1 auto;
@@ -691,6 +759,15 @@ button.card-answer:disabled { cursor: default; }
 .judge-grid[data-count="10"],
 .judge-grid[data-count="11"],
 .judge-grid[data-count="12"] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+/* От девяти вариантов места на карточку остаётся мало: убираем лишние поля,
+   чтобы текст ответа влезал целиком, а не обрезался посередине. */
+.judge-grid[data-count="9"] .card-answer,
+.judge-grid[data-count="10"] .card-answer,
+.judge-grid[data-count="11"] .card-answer,
+.judge-grid[data-count="12"] .card-answer {
+  padding: var(--sp-4) var(--sp-2) var(--sp-2);
+}
 
 .judge-item {
   display: flex;
@@ -838,9 +915,13 @@ button.card-answer:disabled { cursor: default; }
   grid-template-columns: repeat(auto-fill, minmax(12em, 1fr));
 }
 
+/* Лента «Лучшее за вечер». Строки делят высоту поровну и не вылезают за экран:
+   раньше нижние карточки резало пополам прямо по буквам. */
 .history {
   font-size: var(--fs-screen-small);
   grid-template-columns: repeat(auto-fill, minmax(14em, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  align-content: stretch;
 }
 
 .standings-row {
@@ -886,23 +967,36 @@ button.card-answer:disabled { cursor: default; }
   flex-direction: column;
   gap: var(--sp-1);
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .history-round {
+  flex: 0 0 auto;
   font-size: var(--fs-sm);
   color: var(--c-text-faint);
   font-weight: var(--fw-bold);
 }
 
+/* Ужимается по строкам с многоточием — так карточка не режется по буквам,
+   а имя победителя под ней остаётся на месте. */
 .history-text {
+  flex: 1 1 auto;
+  min-height: 0;
   margin: 0;
   font-size: var(--fs-screen-small);
   color: var(--c-text);
   line-height: 1.25;
   overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
 }
 
 .history-winner {
+  flex: 0 0 auto;           /* кто выиграл — не выжимаем никогда */
   margin: 0;
   font-size: var(--fs-sm);
   font-weight: var(--fw-bold);
@@ -1154,9 +1248,9 @@ button.card-answer:disabled { cursor: default; }
   .base-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* 1920×1080 и больше: адрес под QR можно показать крупнее. */
+/* 1920×1080 и больше: адрес в углу можно показать крупнее
+   (адрес в лобби сам занимает всю ширину колонки, ему потолок не нужен). */
 @media (min-width: 1600px) {
-  .lobby-url { font-size: var(--fs-screen-title); }
   .qr-corner-url { font-size: var(--fs-screen-small); }
 }
 

@@ -69,8 +69,8 @@ for (const id of [
   'answerForm', 'answerInput', 'answerChars', 'answerAdd',
   'answerCount', 'answerList', 'answerEmpty',
   'readyBtn', 'unreadyBtn', 'waitPlayers',
-  'answerRoundLine', 'answerPrompt', 'answerStatus', 'answerHandBox', 'hand',
-  'answerSubmitted', 'submittedCard', 'answerBar', 'retractBtn',
+  'answerRoundLine', 'answerPrompt', 'answerStatus', 'answerHandBox', 'hand', 'handEmpty',
+  'answerSubmitted', 'submittedCard', 'answerWaiting', 'answerBar', 'retractBtn',
   'hostRoundLine', 'hostStatus', 'hostPrompt', 'hostAnswering', 'hostAnsweredCount',
   'hostWho', 'hostRevealing', 'hostRevealCounter', 'hostRevealCard',
   'hostJudging', 'hostOptions', 'hostResult', 'hostWinnerLine', 'hostWinnerCard',
@@ -166,6 +166,21 @@ function makeButton(className, text, ariaLabel) {
   return btn;
 }
 
+/**
+ * Поле вопроса растёт под текст. В двух строках длинный вопрос не виден целиком:
+ * при правке человек видел середину своей карты и не понимал, что правит.
+ * Потолок задан в CSS (--input-area-max), дальше поле само прокручивается.
+ */
+function autoGrow(field) {
+  if (!field) return;
+  field.style.height = 'auto';
+  // scrollHeight — без рамок, а height считается по border-box: без этой добавки
+  // поле выходит на пару пикселей ниже текста и первая строка уезжает вверх.
+  const frame = field.offsetHeight - field.clientHeight;
+  field.style.height = field.scrollHeight + frame + 'px';
+  field.scrollTop = 0;
+}
+
 /** Enter в поле = «Добавить»/«Сохранить», перевод строки в карте не нужен. */
 function enterSubmits(event) {
   if (event.key !== 'Enter' || event.shiftKey) return;
@@ -181,6 +196,12 @@ function enterSubmits(event) {
 // ---------------------------------------------------------------------------
 
 const toastSeen = new Map();
+
+/** Проглотить один конкретный тост: мы уже ответили на него экраном. */
+function muteToast(message) {
+  const text = String(message ?? '').trim();
+  if (text) toastSeen.set(text, Date.now());
+}
 
 function toast(message, kind) {
   const text = String(message ?? '').trim();
@@ -270,7 +291,7 @@ function sayHello() {
 }
 
 /** Единая отправка действия: ack обязателен, ошибка — тостом. */
-function send(event, payload, onAck) {
+function send(event, payload, onAck, quiet) {
   if (!socket.connected) {
     toast('Нет связи — сейчас переподключимся');
     return;
@@ -278,7 +299,12 @@ function send(event, payload, onAck) {
   socket.emit(event, payload || {}, (res) => {
     const result = res && typeof res === 'object' ? res : { ok: false, error: 'Что-то пошло не так' };
     // stale — погашенный двойной тап, о нём пользователю знать незачем.
-    if (!result.ok && !result.stale && result.error) toast(result.error, 'error');
+    if (!result.ok && !result.stale && result.error) {
+      // quiet решает сам вызывающий: сервер шлёт тот же текст ещё и событием,
+      // поэтому текст надо не «не показать», а погасить в дедупликаторе.
+      if (typeof quiet === 'function' && quiet(result)) muteToast(result.error);
+      else toast(result.error, 'error');
+    }
     if (typeof onAck === 'function') {
       try {
         onAck(result);
@@ -311,6 +337,7 @@ function showScreen(id) {
   if (currentScreen === id) return;
   currentScreen = id;
   for (const name of SCREENS) setHidden(els[name], name !== id);
+  if (id !== 'screenPrep') document.body.classList.remove('is-typing');
   if (id !== 'screenAnswer') closePreview();
   if (id === 'screenLogin') {
     try {
@@ -397,7 +424,8 @@ function renderTopbar(snapshot) {
   setHidden(els.topbar, !you);
   if (!you) return;
   setText(els.topbarName, you.name);
-  setText(els.topbarScore, String(you.score));
+  // Голая цифра в углу ни о чём не говорит — пишем словом.
+  setText(els.topbarScore, `${you.score} ${plural(you.score, 'очко', 'очка', 'очков')}`);
   setHidden(els.topbarHost, !you.isHost);
 }
 
@@ -433,7 +461,9 @@ els.loginForm.addEventListener('submit', (event) => {
       // Имя занято игроком не в сети — предлагаем вернуться в игру (ТЗ 5.4).
       showClaim(res.canClaim, res.claimName || name);
     }
-  });
+  // Красная ошибка «Имя занято» рядом с «Это ты? Вернуться в игру» пугает зря:
+  // человек решает, что сломал что-то, хотя ему уже предложили вернуться.
+  }, (res) => Boolean(res.canClaim));
 });
 
 els.claimBtn.addEventListener('click', () => {
@@ -475,9 +505,32 @@ function updateChars(kind) {
   }
 }
 
-els.promptInput.addEventListener('input', () => updateChars('prompt'));
+els.promptInput.addEventListener('input', () => {
+  updateChars('prompt');
+  autoGrow(els.promptInput);
+});
 els.answerInput.addEventListener('input', () => updateChars('answer'));
 els.promptInput.addEventListener('keydown', enterSubmits);
+
+/**
+ * Пока человек печатает, экранная клавиатура съедает пол-экрана, а фиксированная
+ * полоса «Я готов» садится ровно на кнопку «Добавить». На время ввода прячем её.
+ */
+els.screenPrep.addEventListener('focusin', (event) => {
+  const tag = event.target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA') document.body.classList.add('is-typing');
+});
+
+els.screenPrep.addEventListener('focusout', () => {
+  // Пауза заметная: тап по «Добавить» сначала снимает фокус с поля и только
+  // потом становится нажатием. Вернись полоса мгновенно — она перехватила бы
+  // это нажатие себе. Заодно фокус не мигает при переходе между полями.
+  setTimeout(() => {
+    const el = document.activeElement;
+    const typing = el && els.screenPrep.contains(el) && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
+    document.body.classList.toggle('is-typing', Boolean(typing));
+  }, 250);
+});
 
 // «Вставить пропуск» — прямо в позицию курсора.
 els.gapBtn.addEventListener('click', () => {
@@ -494,6 +547,7 @@ els.gapBtn.addEventListener('click', () => {
     /* поле могло не дать курсор — текст всё равно вставлен */
   }
   updateChars('prompt');
+  autoGrow(input);
 });
 
 function addCard(kind) {
@@ -510,6 +564,7 @@ function addCard(kind) {
     if (!res.ok) return;
     input.value = '';
     updateChars(kind);
+    if (kind === 'prompt') autoGrow(input);
   });
 }
 
@@ -710,6 +765,11 @@ function buildRowPanel(li, card, kind, mode) {
   field.enterKeyHint = 'done';
   // Значение ставится один раз, при входе в режим правки: перерисовки его не трогают.
   field.value = card.text;
+  if (kind === 'prompt') {
+    // Длинный вопрос должен быть виден целиком, а не серединой в щели на две строки.
+    field.addEventListener('input', () => autoGrow(field));
+    requestAnimationFrame(() => autoGrow(field));
+  }
 
   const cancel = makeButton('btn btn--ghost', 'Отмена');
   const save = makeButton('btn btn--primary', 'Сохранить');
@@ -839,7 +899,7 @@ function renderAnswer(snapshot) {
   setHidden(els.answerHandBox, !showHand);
   if (showHand) renderHand(you.hand);
 
-  setHidden(els.answerEmpty, !(round.step === 'answering' && !submittedId && handEmpty));
+  setHidden(els.handEmpty, !(round.step === 'answering' && !submittedId && handEmpty));
 
   setHidden(els.answerSubmitted, !submittedId);
   if (submittedId) {
@@ -851,6 +911,15 @@ function renderAnswer(snapshot) {
       // После перезагрузки вкладки текста своей карты у нас нет — это не беда.
       setHidden(els.submittedCard, true);
     }
+    // Пустой экран после отправки пугает: говорим, чего именно ждём.
+    // На остальных шагах то же самое уже сказано в answerStatus — не дублируем.
+    const waiting = round.step !== 'answering'
+      ? ''
+      : round.answered >= round.expected
+        ? 'Все ответили — ждём ведущего'
+        : `Ответили ${round.answered} из ${round.expected}`;
+    setText(els.answerWaiting, waiting);
+    setHidden(els.answerWaiting, waiting === '');
   }
 
   setHidden(els.answerBar, !snapshot.can.retract);
@@ -981,7 +1050,8 @@ function renderHost(snapshot) {
   setHidden(els.hostResult, !result);
   if (result) {
     if (round.winner) {
-      setText(els.hostWinnerLine, `Победил ${round.winner.authorName}`);
+      // «Победил Даша» — половина гостей девушки. «Победитель» подходит всем.
+      setText(els.hostWinnerLine, `Победитель — ${round.winner.authorName}`);
       renderFilled(els.hostWinnerCard, round.winner);
       setHidden(els.hostWinnerCard, false);
     } else {
@@ -999,13 +1069,16 @@ function renderHost(snapshot) {
   setHidden(els.btnReveal, !can.reveal);
   setText(els.btnReveal, round.step === 'revealing' ? 'Следующий ответ' : 'Открыть ответы');
 
-  const canPickNow = Boolean(can.pick && pickedSubmissionId);
-  setHidden(els.btnPick, !canPickNow);
+  // Кнопку показываем сразу, как только дошли до выбора: иначе ведущий видит
+  // список вариантов и ни одной кнопки и не понимает, куда жать.
+  // Пока вариант не отмечен — она видна, но нажать нельзя.
+  setHidden(els.btnPick, !can.pick);
+  els.btnPick.disabled = !pickedSubmissionId;
   setHidden(els.btnNext, !can.next);
 
   // Пустая полоса внизу без единой кнопки выглядит поломкой — прячем её целиком.
   const anyAction =
-    can.draw || can.redraw || can.skipWaiting || can.reveal || canPickNow || can.next;
+    can.draw || can.redraw || can.skipWaiting || can.reveal || can.pick || can.next;
   setHidden(els.hostBar, !anyAction);
 }
 
@@ -1021,15 +1094,12 @@ function renderHostOptions(round) {
     btn.type = 'button';
     btn.className = 'card-answer hand-card';
     const picked = pickedSubmissionId === item.id;
+    // Отметка — только рамкой и кнопкой внизу, которая из серой становится
+    // красной. Значок «выбран» внутри карточки менял её высоту, и весь список
+    // под пальцем уезжал вниз — ведущий промахивался по соседнему варианту.
     if (picked) btn.classList.add('card-answer--picked');
     btn.setAttribute('aria-pressed', String(picked));
     btn.textContent = item.answerText;
-    if (picked) {
-      const badge = document.createElement('span');
-      badge.className = 'hand-card__badge';
-      badge.textContent = 'выбран';
-      btn.append(document.createElement('br'), badge);
-    }
     btn.addEventListener('click', () => {
       pickedSubmissionId = pickedSubmissionId === item.id ? null : item.id;
       if (state) renderHost(state);
@@ -1068,7 +1138,7 @@ function renderResult(snapshot) {
     const mine = round.winner.authorId === snapshot.you.id;
     setText(
       els.resultWinnerLine,
-      mine ? 'Победил твой ответ!' : `Победил ${round.winner.authorName}`
+      mine ? 'Победил твой ответ!' : `Победитель — ${round.winner.authorName}`
     );
     renderFilled(els.resultCard, round.winner);
     setHidden(els.resultCard, false);
@@ -1086,7 +1156,7 @@ function renderResult(snapshot) {
 
 function renderGameOver(snapshot) {
   const over = snapshot.gameOver;
-  setText(els.gameOverWinner, over ? `Победил ${over.winnerName}` : 'Игра окончена');
+  setText(els.gameOverWinner, over ? `Победитель — ${over.winnerName}` : 'Игра окончена');
   renderPlayerList(
     els.gameOverStandings,
     (over ? over.standings : []).map((row, index) => ({
@@ -1145,4 +1215,5 @@ window.addEventListener('online', () => {
 setTab('prompts');
 updateChars('prompt');
 updateChars('answer');
+autoGrow(els.promptInput);
 requestWakeLock();

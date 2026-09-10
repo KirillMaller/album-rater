@@ -13,8 +13,19 @@
 
 services:
   evil-cards:
-    build: .
+    # image должен совпадать с тем, под каким именем образ привезли на сервер:
+    #   docker build -t evil-cards:latest .            (на своей машине)
+    #   docker save evil-cards:latest | gzip | ssh bot-aeza 'gunzip | docker load'
+    # Если образ уже есть локально, `docker compose up -d` его НЕ пересобирает.
     image: evil-cards:latest
+
+    # build оставлен, чтобы собрать образ на своей машине одной командой
+    # (`docker compose build`). НА СЕРВЕРЕ СБОРКУ НЕ ЗАПУСКАТЬ: одно ядро и
+    # ~960 МБ свободной памяти, npm ci внутри съест их и может задеть чужие
+    # сервисы. deploy/deploy.sh поэтому проверяет наличие образа и без него
+    # не собирает, а печатает команды для локальной сборки.
+    build: .
+
     container_name: evil-cards
     restart: unless-stopped
 

@@ -225,3 +225,55 @@ test('драйвер ботов на таймерах', async (t) => {
     checkCardConservation(game, 'после устаревшего таймера');
   });
 });
+
+// ==========================================================================
+// Выключение сервера. Живёт рядом с ботами, потому что close() среди прочего
+// снимает их таймеры, а сам процесс на празднике перезапускают руками.
+test('выключение сервера', async (t) => {
+  await t.test('close() не виснет на полуоткрытом соединении', async () => {
+    const { createApp } = await import('../server/index.js');
+    const net = await import('node:net');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const fs = await import('node:fs');
+
+    const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'evil-cards-close-'));
+    const port = 39500 + Math.floor(Math.random() * 400);
+    const app = createApp({ port, quiet: true, dataDir });
+    await app.listen();
+
+    // Телефон уснул на середине запроса: TCP открыт, заголовки не дописаны.
+    // Такое соединение само не закроется, и наивный server.close() ждал бы вечно.
+    const sock = net.connect(port, '127.0.0.1');
+    await new Promise((res, rej) => { sock.on('connect', res); sock.on('error', rej); });
+    sock.write('GET /health HTTP/1.1\r\nHost: x\r\n');
+
+    const started = Date.now();
+    await app.close();
+    const spent = Date.now() - started;
+
+    sock.destroy();
+    fs.rmSync(dataDir, { recursive: true, force: true });
+    assert.ok(spent < 3000, `close() занял ${spent} мс — systemd и docker столько не ждут`);
+  });
+
+  await t.test('close() сохраняет состояние на диск перед разрывом связи', async () => {
+    const { createApp } = await import('../server/index.js');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const fs = await import('node:fs');
+
+    const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'evil-cards-flush-'));
+    const port = 39900 + Math.floor(Math.random() * 90);
+    const app = createApp({ port, quiet: true, dataDir });
+    await app.listen();
+    app.game.join({ name: 'Оля' });
+
+    await app.close();
+
+    const saved = JSON.parse(fs.readFileSync(path.join(dataDir, 'state.json'), 'utf8'));
+    assert.equal(saved.players.length, 1);
+    assert.equal(saved.players[0].name, 'Оля');
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  });
+});

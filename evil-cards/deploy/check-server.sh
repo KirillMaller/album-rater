@@ -120,7 +120,7 @@ else
     echo "  Варианты:"
     echo "    - поставить:  curl -fsSL https://get.docker.com | sh   (~300 МБ на диске)"
     echo "    - или идти запасным путём без Docker: systemd + node,"
-    echo "      см. deploy/README.md, «Путь Б»."
+    echo "      см. deploy/README.md, «Запасной путь: без Docker»."
 fi
 
 # ---------------------------------------------------------------------------
@@ -339,7 +339,40 @@ if have nft; then
 fi
 echo
 echo "  Что должно быть открыто СНАРУЖИ: 80 и 443 (для HTTPS и сертификата)."
+echo "  На сервере Aeza их в списке ufw НЕТ — открыть явно, с комментарием:"
+echo "      ufw allow 80/tcp  comment 'game http'"
+echo "      ufw allow 443/tcp comment 'game https'"
 echo "  Порт 3000 наружу открывать НЕ НАДО — игра смотрит в мир только через прокси."
+echo "  Чужие порты (22, 8443, 8444, 1959, 2053, 40443/udp, 30000-32000/udp) не трогать."
+
+# ---------------------------------------------------------------------------
+section "10. FAIL2BAN И CROWDSEC"
+# ---------------------------------------------------------------------------
+# Важно знать ДО деплоя: обе штуки банят по IP. Свои же проверки после
+# установки (десяток curl подряд) вполне могут закончиться баном.
+if have fail2ban-client; then
+    echo "  --- fail2ban: активные джейлы ---"
+    fail2ban-client status 2>&1 | sed 's/^/    /'
+    echo
+    echo "  --- джейл nginx-limit-req (следит в том числе за 80/443) ---"
+    fail2ban-client status nginx-limit-req 2>&1 | sed 's/^/    /'
+    echo
+    echo "  Если забанил тебя самого:"
+    echo "      fail2ban-client set nginx-limit-req unbanip <твой-IP>"
+    echo "  Проверяй игру С ПАУЗАМИ, не циклом."
+else
+    echo "  fail2ban не установлен (или нет прав — перезапусти через sudo)."
+fi
+echo
+if have cscli; then
+    echo "  --- CrowdSec: решения (баны) ---"
+    cscli decisions list 2>&1 | head -15 | sed 's/^/    /'
+    echo "  Снять свой бан:  cscli decisions delete --ip <твой-IP>"
+elif have systemctl && systemctl is-active crowdsec >/dev/null 2>&1; then
+    echo "  CrowdSec запущен, но cscli не найден в PATH."
+else
+    echo "  CrowdSec не найден." 
+fi
 
 # ---------------------------------------------------------------------------
 section "ГОТОВО"

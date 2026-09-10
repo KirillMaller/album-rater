@@ -1,24 +1,28 @@
 #!/usr/bin/env bash
 # ============================================================================
-#  Злобные карты — установка и обновление НА СЕРВЕРЕ (путь А, с Docker).
+#  Злобные карты — установка и обновление НА СЕРВЕРЕ (основной путь, Docker).
 #
 #  Скрипт идемпотентный: первый запуск — установка, каждый следующий —
-#  обновление (пересборка образа и перезапуск контейнера). Данные из data/
+#  обновление (перезапуск контейнера на новом образе). Данные из data/
 #  при этом не трогаются: они лежат на хосте и подключаются томом.
 #
-#  ЗАПУСК (из папки проекта):
+#  ЗАПУСК (из папки проекта, на сервере):
 #      bash deploy/deploy.sh
 #
 #  ЧТО ДЕЛАЕТ:
 #      1. проверяет, что есть docker и docker compose;
 #      2. создаёт .env из .env.example и требует заполнить PUBLIC_URL;
 #      3. готовит папку data/ (права для пользователя внутри контейнера);
-#      4. docker compose build && docker compose up -d;
+#      4. поднимает контейнер из УЖЕ ПРИВЕЗЁННОГО образа;
 #      5. ждёт, пока /health ответит;
 #      6. печатает, что делать дальше с reverse-proxy.
 #
-#  ЧЕГО НЕ ДЕЛАЕТ: не трогает Caddy/nginx, сайт, бота и VPN. Настройка
-#  прокси — отдельный ручной шаг, чтобы случайно ничего не сломать.
+#  ЧЕГО НЕ ДЕЛАЕТ:
+#    - НЕ СОБИРАЕТ образ. На сервере одно ядро и ~960 МБ свободной памяти,
+#      сборка забрала бы их и могла задеть чужие сервисы. Образ собирается
+#      на своей машине и приезжает через `docker save | ssh docker load`.
+#    - не трогает nginx/Caddy, ufw, чужие сайты, бота и VPN. Порты и прокси —
+#      отдельные ручные шаги, см. deploy/README.md.
 # ============================================================================
 
 set -euo pipefail
@@ -62,11 +66,12 @@ step "2/6 Проверяю Docker"
 # ---------------------------------------------------------------------------
 command -v docker >/dev/null 2>&1 || die "docker не установлен.
 
-Два варианта:
-  1) поставить Docker:   curl -fsSL https://get.docker.com | sh
-  2) пойти БЕЗ Docker — путь Б: systemd + node.
-     Инструкция: deploy/README.md, раздел «Путь Б (без Docker)».
-     Юнит лежит здесь: deploy/evil-cards.service"
+На сервере Aeza docker должен быть (29.1.3) — если его нет, ты не на той машине.
+Проверь, куда зашёл, и спроси Кирилла, прежде чем что-то ставить.
+
+Запасной путь без docker: systemd + node,
+инструкция — deploy/README.md, раздел «Запасной путь: без Docker».
+Юнит лежит здесь: deploy/evil-cards.service"
 
 docker info >/dev/null 2>&1 || die "docker установлен, но демон не отвечает.
 Проверь:   sudo systemctl status docker
@@ -83,7 +88,7 @@ else
     die "нет docker compose.
 
 Поставь плагин:   sudo apt install docker-compose-plugin
-Или иди путём Б без Docker: deploy/README.md, раздел «Путь Б»."
+Или без Docker: deploy/README.md, раздел «Запасной путь: без Docker»."
 fi
 ok "$DC — $($DC version 2>&1 | head -1)"
 
@@ -110,8 +115,14 @@ PUBLIC_URL="$(read_env PUBLIC_URL)"
 PORT="$(read_env PORT)"
 [ -n "$PORT" ] || PORT=3000
 
-if [ -z "$PUBLIC_URL" ] || [ "$PUBLIC_URL" = "https://109-172-94-130.sslip.io" ] \
-   || case "$PUBLIC_URL" in *109.172.94.130*) true;; *) false;; esac; then
+# Пусто или осталась «рыба» вида <IP-СЕРВЕРА> — заполнять.
+# Реальный адрес этого сервера (109-172-94-130.sslip.io) — ВАЛИДНОЕ значение,
+# отвергать его нельзя: именно он прописан в .env.example и в конфигах прокси.
+case "$PUBLIC_URL" in
+    *'<'*|*'>'*|*IP-СЕРВЕРА*|*'<IP>'*|*example.com*) PUBLIC_URL="" ;;
+esac
+
+if [ -z "$PUBLIC_URL" ]; then
     IP_HINT="$(curl -s --max-time 5 https://api.ipify.org 2>/dev/null || true)"
     [ -n "$IP_HINT" ] || IP_HINT="<IP-СЕРВЕРА>"
     [ "$NEW_ENV" = "1" ] && echo "    .env только что создан — его надо заполнить."
@@ -157,7 +168,15 @@ fi
 
 for BASE in base-prompts.txt base-answers.txt; do
     if [ -s "data/$BASE" ]; then
-        ok "data/$BASE — $(grep -cvE '^[[:space:]]*($|#)' "data/$BASE" 2>/dev/null || echo '?') карт"
+        # grep -c при нуле совпадений возвращает код 1 — без `|| true` из-за
+        # set -e скрипт бы упал, а с `|| echo ?` печаталось бы «0» и «?» разом.
+        CARDS="$(grep -cvE '^[[:space:]]*($|#)' "data/$BASE" 2>/dev/null || true)"
+        [ -n "$CARDS" ] || CARDS='?'
+        if [ "$CARDS" = "0" ]; then
+            warn "data/$BASE есть, но в нём только пустые строки и комментарии"
+        else
+            ok "data/$BASE — карт: $CARDS"
+        fi
     else
         warn "data/$BASE пустой или отсутствует — базу можно долить позже"
         warn "через панель организатора («Загрузить базу»)."
@@ -165,10 +184,46 @@ for BASE in base-prompts.txt base-answers.txt; do
 done
 
 # ---------------------------------------------------------------------------
-step "5/6 Собираю образ и запускаю контейнер"
+step "5/6 Запускаю контейнер"
 # ---------------------------------------------------------------------------
-echo "    (первая сборка — пара минут, дальше быстрее за счёт кеша слоёв)"
-$DC build
+# ВАЖНО: на этом сервере одно ядро и меньше гигабайта свободной памяти, а рядом
+# работают чужие сервисы. `docker build` (внутри него npm ci) съедает и то и
+# другое и может уронить соседей. Поэтому образ собирается НА СВОЕЙ машине и
+# приезжает готовым. Сборка здесь возможна только по явному EC_BUILD=1.
+IMAGE="$(sed -n 's/^[[:space:]]*image:[[:space:]]*//p' docker-compose.yml | head -n1)"
+[ -n "$IMAGE" ] || IMAGE="evil-cards:latest"
+
+if docker image inspect "$IMAGE" >/dev/null 2>&1; then
+    ok "образ $IMAGE уже на сервере — собирать ничего не надо"
+elif [ "${EC_BUILD:-0}" = "1" ]; then
+    warn "EC_BUILD=1 — собираю образ прямо на сервере."
+    warn "Следи за памятью в соседнем окне: docker stats / free -m"
+    $DC build
+else
+    die "образа $IMAGE на сервере нет, а собирать его здесь нельзя.
+
+На этой машине одно ядро и около 960 МБ свободной памяти. Сборка образа
+(npm ci внутри) заберёт их себе и может задеть чужие сервисы на сервере.
+
+Собери образ У СЕБЯ и привези готовым (обе команды — на своей машине):
+
+    docker build -t $IMAGE .
+    docker save $IMAGE | gzip | ssh bot-aeza 'gunzip | docker load'
+
+Потом снова здесь:
+
+    bash deploy/deploy.sh
+
+Если образ уже привезён, но называется иначе (например evil-cards:1) —
+переименуй его на сервере, ничего не пересобирая:
+
+    docker tag evil-cards:1 $IMAGE
+
+Осознанно собрать прямо тут (на свой страх, следя за памятью):
+
+    EC_BUILD=1 bash deploy/deploy.sh"
+fi
+
 $DC up -d --remove-orphans
 ok "контейнер запущен"
 
@@ -218,25 +273,26 @@ echo
 echo "  Сейчас она доступна ТОЛЬКО изнутри сервера (127.0.0.1:${PORT})."
 echo "  Это правильно: наружу она должна смотреть через HTTPS-прокси."
 echo
-echo "  СЛЕДУЮЩИЙ ШАГ — добавить блок в reverse-proxy:"
+echo "  СЛЕДУЮЩИЕ ШАГИ (оба обязательны, иначе гости не зайдут):"
 echo
-echo "    Если на сервере Caddy:"
-echo "      1. взять блок из deploy/Caddyfile.example,"
-echo "      2. заменить 109.172.94.130 на реальный IP,"
-echo "      3. дописать блок В КОНЕЦ /etc/caddy/Caddyfile (чужие блоки не трогать!),"
-echo "      4. sudo caddy validate --config /etc/caddy/Caddyfile"
-echo "      5. sudo systemctl reload caddy"
+echo "    1. Открыть порты, если ещё не открыты:"
+echo "         ufw allow 80/tcp  comment 'game http'"
+echo "         ufw allow 443/tcp comment 'game https'"
 echo
-echo "    Если на сервере nginx:"
-echo "      1. sudo cp deploy/nginx.example.conf /etc/nginx/sites-available/evil-cards.conf"
-echo "      2. sudo sed -i 's/109.172.94.130/<IP>/g' /etc/nginx/sites-available/evil-cards.conf"
-echo "      3. дальше по инструкции в шапке того же файла (certbot, symlink, reload)"
+echo "    2. Добавить свой блок в nginx (Caddy на этой машине НЕ ставим —"
+echo "       nginx тут уже работает и обслуживает чужие сайты):"
+echo "         tar czf /root/nginx-backup-\$(date +%F).tar.gz /etc/nginx"
+echo "         cp deploy/nginx.example.conf /etc/nginx/sites-available/evil-cards.conf"
+echo "       дальше строго по инструкции в шапке того же файла:"
+echo "       сначала блок :80 -> nginx -t -> reload -> сертификат webroot -> блок :443."
+echo "       certbot --nginx НЕ запускать: он правит конфиги чужих сайтов."
 echo
 echo "  Полезное:"
 echo "    логи:        $DC logs -f"
 echo "    память:      docker stats evil-cards"
 echo "    рестарт:     $DC restart"
-echo "    обновление:  git pull && bash deploy/deploy.sh   (этот же скрипт)"
+echo "    обновление:  собрать образ у себя, docker save | ssh docker load,"
+echo "                 rsync код, затем снова этот скрипт (deploy/README.md)"
 echo "    бэкап:       tar czf ~/evil-cards-data-\$(date +%F).tar.gz data/"
 echo
 echo "  Проверка снаружи после настройки прокси:"

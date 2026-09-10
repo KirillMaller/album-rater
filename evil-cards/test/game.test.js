@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { Game } from '../server/game.js';
 import {
   SCREEN, asPlayer, makeGame, advanceTo, allSnapshots,
-  fakeStorage, bigBase, seededRng,
+  fakeStorage, bigBase, seededRng, assertCardsIntact,
 } from './helpers.js';
 
 // ==========================================================================
@@ -581,7 +581,13 @@ test('крайние случаи из раздела 6 ТЗ', async (t) => {
     assert.equal(game.adminKick(SCREEN, { playerId: victim.id }).ok, true);
     assert.equal(game.getPlayer(victim.id), null, 'игрок удалён');
     assert.equal(game.state.round.submissions.some((s) => s.playerId === victim.id), false, 'ответ снят');
-    assert.equal(game.state.decks.discard.length, discardBefore + handSize, 'рука ушла в сброс');
+    // В сброс уходит и рука, и снятая с раунда сданная карта — иначе она
+    // не вернётся никуда и просто исчезнет из игры.
+    assert.equal(
+      game.state.decks.discard.length,
+      discardBefore + handSize + 1,
+      'рука и снятый ответ ушли в сброс'
+    );
     assert.equal(
       Object.values(game.state.cards).filter((c) => c.authorId === victim.id).length,
       authored,
@@ -799,5 +805,200 @@ test('панель организатора', async (t) => {
     assert.equal(game.adminSetIp(SCREEN, { url: 'http://192.168.1.5:3000' }).ok, true);
     assert.equal(game.state.selectedUrl, 'http://192.168.1.5:3000');
     assert.equal(game.adminSetIp(SCREEN, { url: '' }).ok, false);
+  });
+});
+
+// ==========================================================================
+// Целостность колоды: карта не может ни раздвоиться, ни пропасть.
+// Каждый тест ниже падал до правки — это регрессии, а не «на всякий случай».
+test('целостность карт', async (t) => {
+  await t.test('удаление игрока на шаге ответов не съедает его сданную карту', () => {
+    const { game } = makeGame({ players: 4, start: true, guestCards: 2 });
+    const r = advanceTo(game, 'answering');
+    const victim = game.state.players.find((p) => p.id !== r.hostId);
+    const cardId = victim.hand[0];
+    game.submitAnswer(asPlayer(victim.id), { round: r.number, cardId });
+
+    game.adminKick(SCREEN, { playerId: victim.id });
+
+    assertCardsIntact(game, 'после кика на шаге ответов');
+    assert.ok(game.state.decks.discard.includes(cardId), 'сданная карта ушла в сброс');
+  });
+
+  await t.test('«передать ход» на шаге результата не раздваивает карты', () => {
+    const { game } = makeGame({ players: 4, start: true, guestCards: 2 });
+    advanceTo(game, 'result');
+    const promptId = game.state.round.promptId;
+    const handsBefore = game.state.players.map((p) => p.hand.length);
+
+    assert.equal(game.adminPassHost(SCREEN).ok, true);
+
+    assertCardsIntact(game, 'после «передать ход» на результате');
+    assert.deepEqual(
+      game.state.players.map((p) => p.hand.length),
+      handsBefore,
+      'руки уже добраны — второй раз карты в них не возвращаются'
+    );
+    assert.equal(
+      game.state.decks.guestPrompts.includes(promptId) ||
+        game.state.decks.basePrompts.includes(promptId),
+      false,
+      'сыгранный вопрос не возвращается в очередь второй раз'
+    );
+    assert.equal(game.state.round.step, 'draw');
+  });
+
+  await t.test('удаление ведущего на шаге результата не раздваивает карты', () => {
+    const { game } = makeGame({ players: 5, start: true, guestCards: 2 });
+    advanceTo(game, 'result');
+    game.adminKick(SCREEN, { playerId: game.state.round.hostId });
+    assertCardsIntact(game, 'после кика ведущего на результате');
+  });
+
+  await t.test('карта не пропадает, если автора сдачи уже удалили', () => {
+    const { game } = makeGame({ players: 5, start: true, guestCards: 2 });
+    const r = advanceTo(game, 'answering');
+    const victim = game.state.players.find((p) => p.id !== r.hostId);
+    game.submitAnswer(asPlayer(victim.id), { round: r.number, cardId: victim.hand[0] });
+    // Вскрытие началось — ответ остаётся в раунде, а игрока удаляют (ТЗ 6).
+    game.hostSkipWaiting(asPlayer(r.hostId), { round: r.number });
+    game.hostReveal(asPlayer(r.hostId), { round: r.number, index: 0 });
+    game.adminKick(SCREEN, { playerId: victim.id });
+    assertCardsIntact(game, 'после кика автора на вскрытии');
+
+    // Откат раунда: возвращать карту некому — она обязана уйти в сброс.
+    assert.equal(game.adminPassHost(SCREEN).ok, true);
+    assertCardsIntact(game, 'после отката раунда без автора');
+  });
+
+  await t.test('колода цела на всём протяжении партии с киками и откатами', () => {
+    const { game } = makeGame({ players: 6, start: true, guestCards: 2, seed: 42 });
+    const rng = seededRng(4242);
+    for (let i = 0; i < 500 && game.state.phase === 'round'; i += 1) {
+      const r = game.state.round;
+      const host = asPlayer(r.hostId);
+      const roll = rng();
+      if (roll < 0.04) game.adminPassHost(SCREEN);
+      else if (roll < 0.06 && game.state.players.length > 3) {
+        const v = game.state.players[Math.floor(rng() * game.state.players.length)];
+        game.adminKick(SCREEN, { playerId: v.id });
+      } else if (r.step === 'draw') game.hostDraw(host, { round: r.number });
+      else if (r.step === 'answering') {
+        const pending = game.state.players.filter(
+          (p) => p.connected && p.id !== r.hostId && p.hand.length > 0 &&
+                 !r.submissions.some((x) => x.playerId === p.id)
+        );
+        if (pending.length > 0 && roll < 0.75) {
+          game.submitAnswer(asPlayer(pending[0].id), { round: r.number, cardId: pending[0].hand[0] });
+        } else if (roll < 0.8 && !r.redrawUsed) game.hostRedraw(host, { round: r.number });
+        else if (r.submissions.length > 0) {
+          game.hostSkipWaiting(host, { round: r.number });
+          game.hostReveal(host, { round: r.number, index: 0 });
+        } else game.hostNext(host, { round: r.number });
+      } else if (r.step === 'revealing') game.hostReveal(host, { round: r.number, index: r.revealedCount });
+      else if (r.step === 'judging') game.hostPick(host, { round: r.number, submissionId: r.submissions[0].id });
+      else if (r.step === 'result') game.hostNext(host, { round: r.number });
+
+      assertCardsIntact(game, `на шаге ${i}`);
+    }
+  });
+});
+
+// ==========================================================================
+test('раунд всегда с живым ведущим', async (t) => {
+  await t.test('удаление ведущего, когда все остальные не в сети, не оставляет ведущего-призрака', () => {
+    const { game } = makeGame({ players: 4, start: true });
+    const r = advanceTo(game, 'answering');
+    for (const p of game.state.players) if (p.id !== r.hostId) game.setConnected(p.id, false);
+
+    assert.equal(game.adminKick(SCREEN, { playerId: r.hostId }).ok, true);
+
+    const s = game.state;
+    assert.ok(
+      s.players.some((p) => p.id === s.round.hostId),
+      'ведущий обязан быть настоящим игроком, иначе кнопки остаются только на ноутбуке'
+    );
+    assert.notEqual(game.snapshotFor(SCREEN).round.hostName, '—');
+    // И этот телефон действительно может вести раунд.
+    assert.equal(game.snapshotFor(asPlayer(s.round.hostId)).can.draw, true);
+  });
+
+  await t.test('удаление ведущего передаёт ход строго следующему по списку', () => {
+    const { game } = makeGame({ players: 4, start: true });
+    const r = advanceTo(game, 'answering');
+    const order = game.state.hostOrder;
+    const expected = order[(game.state.hostCursor + 1) % order.length];
+    game.adminKick(SCREEN, { playerId: r.hostId });
+    assert.equal(game.state.round.hostId, expected, 'ход не должен перепрыгивать через игрока');
+  });
+});
+
+// ==========================================================================
+test('«Загрузить базу» не врёт про успех', async (t) => {
+  await t.test('отказ диска возвращает ошибку, а не «сохранено»', async () => {
+    const boom = new Error('EACCES: нет прав на data/');
+    const game = new Game({
+      storage: {
+        loadBase: () => ({ prompts: [], answers: [] }),
+        saveBase: () => Promise.reject(boom),
+      },
+    });
+    const res = await game.adminSaveBase(SCREEN, { prompts: 'Вопрос: ___.', answers: 'ответ' });
+    assert.equal(res.ok, false);
+    assert.match(res.error, /Не удалось записать базу/);
+  });
+
+  await t.test('успешная асинхронная запись отвечает ok', async () => {
+    let written = null;
+    const game = new Game({
+      storage: {
+        loadBase: () => ({ prompts: [], answers: [] }),
+        saveBase: (d) => { written = d; return Promise.resolve(); },
+      },
+    });
+    const res = await game.adminSaveBase(SCREEN, { prompts: 'Вопрос: ___.', answers: 'ответ' });
+    assert.equal(res.ok, true);
+    assert.equal(written.prompts, 'Вопрос: ___.');
+  });
+});
+
+// ==========================================================================
+test('восстановление из битого state.json', async (t) => {
+  const brokenState = (mutate) => {
+    const { game } = makeGame({ players: 5, start: true, guestCards: 2 });
+    advanceTo(game, 'revealing');
+    const saved = JSON.parse(JSON.stringify(game.state));
+    mutate(saved);
+    const revived = new Game({ storage: fakeStorage(bigBase()), rng: seededRng(3) });
+    revived.restore(saved);
+    return revived;
+  };
+
+  await t.test('отрицательный счётчик вскрытых не показывает лишние ответы', () => {
+    const revived = brokenState((s) => { s.round.revealedCount = -5; });
+    assert.equal(revived.state.round.revealedCount, 0);
+    assert.equal(revived.snapshotFor(SCREEN).round.reveals.length, 0);
+  });
+
+  await t.test('счётчик больше числа ответов зажимается', () => {
+    const revived = brokenState((s) => { s.round.revealedCount = 999; });
+    const r = revived.state.round;
+    assert.equal(r.revealedCount, r.revealOrder.length);
+  });
+
+  await t.test('дубли игроков в файле не раздваивают руку', () => {
+    const revived = brokenState((s) => { s.players.push({ ...s.players[0] }); });
+    const ids = revived.state.players.map((p) => p.id);
+    assert.equal(new Set(ids).size, ids.length, 'каждый игрок ровно один раз');
+    assertCardsIntact(revived, 'после восстановления с дублями игроков');
+  });
+
+  await t.test('чужой winnerSubmissionId не рисует пустого победителя', () => {
+    const revived = brokenState((s) => {
+      s.round.step = 'result';
+      s.round.winnerSubmissionId = 'такого-нет';
+    });
+    assert.equal(revived.state.round.winnerSubmissionId, null);
+    assert.equal(revived.snapshotFor(SCREEN).round.winner, null);
   });
 });

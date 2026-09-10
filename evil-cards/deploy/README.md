@@ -1,9 +1,22 @@
 # Злобные карты на сервере
 
-Инструкция по установке игры на VPS Кирилла (Aeza, Германия).
-Адрес игры будет `https://109-172-94-130.sslip.io`, где `109.172.94.130` — реальный IP сервера.
-**`109.172.94.130` — это плейсхолдер, его надо заменить** на адрес, который покажет
-`deploy/check-server.sh` (или `curl -s https://api.ipify.org`).
+Установка игры на VPS Кирилла (Aeza, Германия).
+
+| Что | Значение |
+|---|---|
+| IP сервера | **109.172.94.130** (второй IP той же машины: 5.182.87.167) |
+| Вход | `ssh bot-aeza`, полная форма — `ssh -i ~/.ssh/bot-napominalka-aeza -o IdentitiesOnly=yes root@109.172.94.130` |
+| Адрес игры | **`https://109-172-94-130.sslip.io`** |
+| Куда кладём | `/opt/evil-cards` |
+| ОС | Ubuntu 22.04.5, **1 ядро, ~960 МБ свободной памяти**, своп 2 ГБ |
+| Docker | 29.1.3 + Compose 2.40.3, контейнеров ноль |
+| node на сервере | v25.9.0, `/usr/local/bin/node` |
+| Веб-сервер | **nginx активен** и занят портами 8443/8444 (чужие сервисы). **Caddy не установлен** |
+| Порты 80/443 | свободны, но **закрыты в ufw** — открыть явно (шаг 1) |
+
+`109.172.94.130` — это **настоящий IP этой машины**, а не заглушка: он уже
+подставлен в `.env.example`, `deploy/nginx.example.conf` и `deploy/Caddyfile.example`.
+Менять его нужно только если игру ставят на другой сервер.
 
 > **sslip.io** — авто-DNS. Имя вида `<IP>.sslip.io` само резолвится обратно
 > в этот `<IP>`. Домен покупать и настраивать не нужно, Let's Encrypt
@@ -13,101 +26,159 @@
 
 ## ⚠️ Прочитать до начала
 
-На этом сервере **уже работают сайт Кирилла, Telegram-бот и VPN**.
+На этом сервере **уже работают личные сервисы владельца**. Ничего из этого не
+останавливать, не переконфигурировать и не удалять:
 
-- Чужие конфиги **не править**. Только **добавлять** свой блок в конец файла.
-- Перед правкой конфига веб-сервера — **бэкап** (команды есть ниже).
-- Применять конфиг через `reload`, а не `restart` — иначе сайт моргнёт.
-- Порт **3000 наружу не открывать**. Игра слушает только `127.0.0.1`,
-  в интернет она смотрит исключительно через reverse-proxy с HTTPS.
-- Память ограничена **256 МБ** (`mem_limit` в Docker, `MemoryMax` в systemd).
-  Сайт уже падал при паре посетителей — игра не должна доесть остаток.
+- папки `/opt/bot-napominalka`, `/opt/beszel*`, `/opt/amnezia`, `/opt/cedar-sub`;
+- сервисы `bot-napominalka`, `beszel`, `beszel-agent`, `hysteria-server`, `x-ui`, `xray`;
+- конфиги nginx `sites-enabled/beszel`, `sites-enabled/cedar-sub`;
+- порты 22, 8443, 8444, 1959, 2053, 40443/udp, 30000-32000/udp.
+
+Правила, из которых ничего не выкидывать:
+
+1. **Не собирать на сервере.** Одно ядро и ~960 МБ свободной памяти: `docker build`
+   и `npm ci` заберут их себе и могут задеть соседей. Образ и зависимости
+   готовим у себя, на сервер везём готовое (шаг 2). `deploy/deploy.sh` теперь
+   сам отказывается собирать и печатает нужные команды.
+2. **`certbot --nginx` не запускать** — плагин правит чужие конфиги nginx.
+   Только `certbot certonly --webroot` (см. `nginx.example.conf`).
+3. **Caddy не ставить.** На 80/443 его нет, но nginx на этой машине уже работает
+   и обслуживает чужие сайты; второй веб-сервер рядом — лишний риск и лишняя
+   память. Идём вариантом nginx. `Caddyfile.example` оставлен на случай другой машины.
+4. Чужие конфиги **не править**, только **добавлять** свой файл.
+   Перед правкой — бэкап: `tar czf /root/nginx-backup-$(date +%F).tar.gz /etc/nginx`.
+5. Конфиг применять через `reload`, не `restart`.
+6. Порт **3000 наружу не открывать**: игра слушает `127.0.0.1`, наружу смотрит
+   только через reverse-proxy с HTTPS.
+7. Лимит памяти 256 МБ (`mem_limit` в Docker, `MemoryMax` в systemd) не снимать.
+   Он меняется только парой с `--max-old-space-size` (второе ≈75% первого).
+8. **fail2ban и CrowdSec работают.** fail2ban следит в том числе за 80 и 443
+   (`nginx-limit-req`). Свои проверки после деплоя делай с паузами, не циклом —
+   иначе забанит собственный IP.
+   ```bash
+   fail2ban-client status nginx-limit-req
+   fail2ban-client set nginx-limit-req unbanip <IP>
+   ```
 
 ---
 
-## Шаг 0. Посмотреть, что вообще на сервере
+## Шаг 0. Посмотреть, что на сервере (делается ПЕРВЫМ)
 
 ```bash
-ssh root@109.172.94.130
-cd /opt/evil-cards            # или туда, куда скопировал проект
+ssh bot-aeza
+cd /opt/evil-cards            # если код ещё не привезён — просто bash ./check-server.sh
 bash deploy/check-server.sh
 ```
 
 Скрипт **только читает**: ничего не ставит, не запускает и не меняет.
-Он покажет ОС, память, диск, есть ли Docker и Node, кто занимает
-порты 80/443/3000, какой веб-сервер активен, внешний IP и адрес игры.
+Он покажет ОС, память, диск, docker и node, кто занимает порты 80/443/3000,
+какой веб-сервер активен, фаервол, fail2ban/CrowdSec, внешний IP и адрес игры.
 
-**Скопируй весь вывод и пришли в чат** — по нему выбирается путь.
-
-Дальше развилка:
-
-| Что показал скрипт | Куда идти |
-|---|---|
-| Docker есть, демон отвечает | **Путь А** (ниже) — рекомендуемый |
-| Docker нет и ставить не хочется | **Путь Б** — systemd + node |
-| На 80/443 сидит **caddy** | reverse-proxy → **вариант Caddy** |
-| На 80/443 сидит **nginx** | reverse-proxy → **вариант nginx** |
-| 80/443 свободны | проще всего поставить Caddy |
-| Порт 3000 занят | поменять `PORT` в `.env` на 3100 и дальше как обычно |
+**Скопируй весь вывод и пришли в чат.** Если что-то расходится с таблицей в
+начале этого файла — остановись и спроси Кирилла, дальше не иди.
 
 ---
 
-## Путь А. С Docker (рекомендуется)
+## Шаг 1. Открыть порты 80 и 443
 
-Всё изолировано: у игры свой Node, свои зависимости, свой лимит памяти.
-Ничего из системного она не задевает.
+ufw работает по принципу «всё запрещено, кроме списка», и 80/443 в списке **нет**.
+Без этого шага Let's Encrypt не выдаст сертификат, а гости не откроют игру.
+На сервере принято писать комментарий к правилу:
 
 ```bash
-# 1. Код на сервер
-git clone <репозиторий> /opt/evil-cards
-cd /opt/evil-cards
-
-# 2. Установка (скрипт сам создаст .env и попросит заполнить PUBLIC_URL)
-bash deploy/deploy.sh
+ufw allow 80/tcp  comment 'game http'
+ufw allow 443/tcp comment 'game https'
+ufw status verbose        # проверить, что появились
 ```
 
-Первый запуск остановится с просьбой заполнить `PUBLIC_URL` — так и задумано.
-Впиши адрес и запусти скрипт снова:
+Порты 22, 8443, 8444, 1959, 2053, 40443/udp, 30000-32000/udp — чужие, не трогать.
+
+Откат, если игру убираем совсем: `ufw delete allow 80/tcp && ufw delete allow 443/tcp`.
+
+---
+
+## Шаг 2. Привезти код и образ (собираем У СЕБЯ)
+
+Игра лежит **подпапкой** `evil-cards/` в репозитории `KirillMaller/album-rater`
+(ветка `claude/game-german-server-dudtwb`). Всё остальное в репозитории — другой
+проект, на сервер его тащить не надо. Поэтому не `git clone` на сервере, а
+rsync именно этой папки со своей машины:
 
 ```bash
+# --- всё это НА СВОЕЙ МАШИНЕ, из папки evil-cards/ ---
+
+# образ (сборка тут, на сервере — нельзя)
+docker build -t evil-cards:latest .
+docker save evil-cards:latest | gzip | ssh bot-aeza 'gunzip | docker load'
+
+# код и .env-шаблон
+ssh bot-aeza 'mkdir -p /opt/evil-cards/data'
+rsync -av --exclude node_modules --exclude data/state.json ./ bot-aeza:/opt/evil-cards/
+```
+
+Имя образа должно совпадать с `image:` в `docker-compose.yml` — сейчас это
+`evil-cards:latest`. Если привёз под другим тегом, переименуй на сервере
+(это не пересборка, секунда):
+
+```bash
+ssh bot-aeza 'docker tag evil-cards:1 evil-cards:latest'
+```
+
+---
+
+## Шаг 3. Запустить игру
+
+```bash
+ssh bot-aeza
+cd /opt/evil-cards
+
+cp .env.example .env
+# раскомментировать и оставить строку без решётки:
+#   PUBLIC_URL=https://109-172-94-130.sslip.io
 nano .env
-#   PORT=3000
-#   PUBLIC_URL=https://109-172-94-130.sslip.io      <- вместо 109.172.94.130 свой IP
 
 bash deploy/deploy.sh
 ```
 
-Скрипт соберёт образ, поднимет контейнер, дождётся ответа `/health`
-и напечатает следующий шаг. Дальше — **настройка reverse-proxy** (ниже).
+Что делает `deploy/deploy.sh`: проверяет docker и `.env`, готовит `data/`
+(`chown 1000:1000` — под этим uid работает пользователь `node` внутри
+контейнера), поднимает контейнер из **уже привезённого** образа и ждёт `/health`.
+Собирать он не станет — если образа нет, честно скажет, какие команды выполнить
+у себя. Скрипт идемпотентный: повторный запуск = обновление.
 
-Проверка, что игра поднялась внутри сервера:
+Проверка изнутри сервера:
 
 ```bash
-curl -I http://127.0.0.1:3000/health     # ожидаем 200 OK
+curl -s http://127.0.0.1:3000/health     # {"ok":true,"phase":"lobby",...}
 docker compose ps
+docker stats --no-stream evil-cards      # MEM USAGE заметно меньше 256 МБ
 ```
+
+Дальше — **reverse-proxy** (ниже), без него игра доступна только изнутри сервера.
 
 ---
 
-## Путь Б. Без Docker (systemd + node)
+## Запасной путь: без Docker (systemd + node)
 
-Нужен Node.js 20+ на самом сервере.
+Нужен, только если с Docker что-то не так. Node на сервере есть
+(`/usr/local/bin/node`, v25).
 
 ```bash
-# 1. Код и зависимости
-git clone <репозиторий> /opt/evil-cards
-cd /opt/evil-cards
+# --- НА СВОЕЙ МАШИНЕ: зависимости ставим тут, не на сервере ---
 npm ci --omit=dev
+rsync -av --exclude data/state.json ./ bot-aeza:/opt/evil-cards/
 
-# 2. Отдельный пользователь без shell — от root игру не запускаем
+# --- НА СЕРВЕРЕ ---
+ssh bot-aeza
 useradd --system --no-create-home --shell /usr/sbin/nologin evilcards
+mkdir -p /opt/evil-cards/data
 chown -R evilcards:evilcards /opt/evil-cards/data
 
-# 3. Настройки
+cd /opt/evil-cards
 cp .env.example .env
-nano .env          # PUBLIC_URL=https://109-172-94-130.sslip.io  (109.172.94.130 заменить!)
+nano .env          # PUBLIC_URL=https://109-172-94-130.sslip.io
 
-# 4. Сервис
+command -v node    # СВЕРИТЬ с путём в ExecStart юнита (там /usr/local/bin/node)
 cp deploy/evil-cards.service /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable --now evil-cards
@@ -116,81 +187,96 @@ systemctl status evil-cards
 
 Подробные комментарии — в шапке [evil-cards.service](evil-cards.service).
 Юнит ограничивает память (`MemoryMax=256M`), перезапускает игру при падении
-и запирает запись на диск в единственную папку `data/`.
+и разрешает запись только в `data/`.
 
-Если `systemctl status` ругается на `/usr/bin/node` — посмотри `which node`
-и впиши реальный путь в `ExecStart`.
+Если `systemctl status` ругается `203/EXEC` — путь к node в `ExecStart` не тот,
+что показал `command -v node`. Впиши правильный и `systemctl daemon-reload`.
 
 ---
 
-## Настройка reverse-proxy (обязательно)
+## Шаг 4. Reverse-proxy — nginx (обязательно)
 
 Без этого шага игра доступна только изнутри сервера.
-**Главное здесь — WebSocket:** без него страница откроется, а игроки не подключатся.
+**Главное здесь — WebSocket:** без него страница откроется, а игроки будут
+вечно видеть «Переподключаемся…».
 
-### Вариант 1: Caddy
-
-Проще всего: HTTPS и WebSocket — из коробки.
-
-```bash
-sudo cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.bak-$(date +%F)   # бэкап
-sudo nano /etc/caddy/Caddyfile
-```
-
-Дописать **в конец файла** блок из [Caddyfile.example](Caddyfile.example) —
-адрес там уже подставлен. Существующие блоки не трогать: Caddy многосайтовый,
-новый сайт это просто новый блок в конце.
+На этой машине **nginx уже работает** (порты 8443/8444 — чужие сайты), а
+Caddy не установлен. Идём через nginx: только добавляем свой файл, чужие не трогаем.
+Ставить Caddy рядом не надо — см. правило 3 в начале файла.
 
 ```bash
-sudo caddy validate --config /etc/caddy/Caddyfile
-sudo systemctl reload caddy
+# 0. Бэкап конфигов (2 секунды)
+sudo tar czf /root/nginx-backup-$(date +%F).tar.gz /etc/nginx
+
+# 1. Свой файл (адрес 109-172-94-130.sslip.io там уже подставлен)
+sudo cp /opt/evil-cards/deploy/nginx.example.conf \
+        /etc/nginx/sites-available/evil-cards.conf
 ```
 
-Сертификат Let's Encrypt Caddy получит сам при первом обращении к домену.
+Дальше **строго по инструкции в шапке** [nginx.example.conf](nginx.example.conf).
+Порядок там такой и менять его нельзя:
 
-### Вариант 2: nginx
+1. временно закомментировать блок `server { listen 443 ... }` — сертификата
+   ещё нет, и nginx с ссылкой на несуществующий файл просто не стартует;
+2. `ln -s` в `sites-enabled/`, `nginx -t`, `systemctl reload nginx`;
+3. сертификат **только webroot-режимом**:
+   ```bash
+   sudo mkdir -p /var/www/html/.well-known/acme-challenge
+   sudo certbot certonly --webroot -w /var/www/html -d "109-172-94-130.sslip.io"
+   ```
+   **`certbot --nginx` не запускать** — плагин правит конфиги чужих сайтов.
+   Если certbot не стоит: `apt install -y certbot` (без `python3-certbot-nginx`);
+4. раскомментировать блок `:443`, `nginx -t && systemctl reload nginx`.
+
+В конфиге уже прописано то, без чего Socket.io не работает: `proxy_http_version 1.1`,
+заголовки `Upgrade` / `Connection` (через собственный map `$evil_cards_conn_upgrade`,
+чтобы не столкнуться с чужим), `proxy_read_timeout 7d` и `proxy_buffering off`.
+HTTP/2 намеренно выключен: на Ubuntu 22.04 nginx 1.18 не знает директиву `http2 on;`
+и `nginx -t` на ней падает.
+
+Проверка снаружи — **с паузами между командами**, иначе fail2ban забанит:
 
 ```bash
-sudo tar czf /root/nginx-backup-$(date +%F).tar.gz /etc/nginx      # бэкап
-sudo cp deploy/nginx.example.conf /etc/nginx/sites-available/evil-cards.conf
-sudo ln -s /etc/nginx/sites-available/evil-cards.conf /etc/nginx/sites-enabled/
-
-# Адрес в конфиге уже подставлен: 109-172-94-130.sslip.io
+curl -s  https://109-172-94-130.sslip.io/health
+sleep 5
+curl -sI https://109-172-94-130.sslip.io/socket.io/socket.io.js | head -1
+sleep 5
+# самое важное: ждём «101 Switching Protocols»
+curl -i -N -H "Connection: Upgrade" -H "Upgrade: websocket" \
+     -H "Sec-WebSocket-Version: 13" -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+     "https://109-172-94-130.sslip.io/socket.io/?EIO=4&transport=websocket"
 ```
 
-Дальше строго по инструкции в шапке [nginx.example.conf](nginx.example.conf):
-сначала включить только блок `:80`, получить сертификат через certbot,
-потом раскомментировать блок `:443`.
+Откат: `sudo rm /etc/nginx/sites-enabled/evil-cards.conf && sudo systemctl reload nginx`.
+Чужие сайты этим не задеваются.
 
-```bash
-sudo certbot --nginx -d "109-172-94-130.sslip.io"
-sudo nginx -t && sudo systemctl reload nginx
-```
+### Если игру ставят на другую машину, где на 80/443 Caddy
 
-В конфиге уже прописано то, без чего Socket.io не работает:
-`proxy_http_version 1.1`, заголовки `Upgrade` и `Connection`,
-`proxy_read_timeout 7d` и `proxy_buffering off`.
+Тогда пригодится [Caddyfile.example](Caddyfile.example): дописать блок **в конец**
+`/etc/caddy/Caddyfile`, `caddy validate --config /etc/caddy/Caddyfile`,
+`systemctl reload caddy`. Сертификат Caddy получит сам, WebSocket проксирует сам.
+**На сервере Aeza этот путь не используется.**
 
 ---
 
-## Как подставить IP: всего две правки
+## Если игру переносят на ДРУГОЙ сервер: где живёт IP
 
-IP сервера появляется ровно в двух местах.
+Здесь IP уже подставлен везде. На другой машине его надо поменять ровно в двух местах.
 
 1. **`.env` в папке проекта** — адрес для QR-кода:
 
    ```
-   PUBLIC_URL=https://109-172-94-130.sslip.io      # 109.172.94.130 -> реальный IP сервера
+   PUBLIC_URL=https://<IP-через-дефисы>.sslip.io
    ```
 
-2. **Конфиг прокси** — имя сайта: в Caddyfile строка `109-172-94-130.sslip.io {`,
-   в nginx — `server_name` и пути к сертификату.
+2. **Конфиг прокси** — имя сайта: в nginx это `server_name` и два пути к
+   сертификату, в Caddyfile — строка с доменом.
 
 После правки `.env`:
 
 ```bash
-docker compose up -d        # путь А: перечитать переменные
-systemctl restart evil-cards   # путь Б
+docker compose up -d           # Docker: именно up -d, restart переменные не перечитает
+systemctl restart evil-cards   # systemd
 ```
 
 Проверка, что QR ведёт куда надо: открыть `/screen` и убедиться, что адрес
@@ -202,22 +288,30 @@ systemctl restart evil-cards   # путь Б
 
 ### Обновить игру
 
+Порядок тот же, что при установке: **собрали у себя — привезли — перезапустили.**
+
 ```bash
-cd /opt/evil-cards
-git pull
-bash deploy/deploy.sh          # путь А: пересборка + перезапуск, данные целы
-# путь Б:
-npm ci --omit=dev && systemctl restart evil-cards
+# --- НА СВОЕЙ МАШИНЕ ---
+docker build -t evil-cards:latest .
+docker save evil-cards:latest | gzip | ssh bot-aeza 'gunzip | docker load'
+rsync -av --exclude node_modules --exclude data/state.json ./ bot-aeza:/opt/evil-cards/
+
+# --- НА СЕРВЕРЕ ---
+ssh bot-aeza 'cd /opt/evil-cards && bash deploy/deploy.sh'
 ```
 
-Скрипт идемпотентный: повторный запуск = обновление.
+Скрипт идемпотентный: повторный запуск = обновление. `data/` он не трогает —
+и партия, и база карт живут на хосте и переезжают в контейнер томом.
+
+Вариант без Docker: `rsync` тем же способом, потом
+`ssh bot-aeza 'systemctl restart evil-cards'`.
 
 ### Логи
 
 ```bash
-docker compose logs -f                  # путь А
+docker compose logs -f                  # Docker
 docker compose logs --tail=100
-journalctl -u evil-cards -f             # путь Б
+journalctl -u evil-cards -f             # systemd
 journalctl -u caddy -n 50 --no-pager    # логи прокси
 ```
 
@@ -240,18 +334,20 @@ tar czf ~/evil-cards-data-$(date +%F).tar.gz data/
 # вернуть данные
 cd /opt/evil-cards && tar xzf ~/evil-cards-data-2026-09-10.tar.gz
 
-# откатить код на прошлый коммит
-git log --oneline -5
-git checkout <хеш> && bash deploy/deploy.sh
+# откатить код: у себя переключиться на прошлый коммит,
+# собрать образ заново и снова привезти (шаг 2). На сервере git не нужен.
 
 # полностью убрать игру, ничего больше не задев
-docker compose down            # путь А
-systemctl disable --now evil-cards && rm /etc/systemd/system/evil-cards.service   # путь Б
-sudo rm /etc/nginx/sites-enabled/evil-cards.conf && sudo systemctl reload nginx
-#   (для Caddy — удалить свой блок из Caddyfile и sudo systemctl reload caddy)
+docker compose down                                      # Docker
+systemctl disable --now evil-cards \
+  && rm /etc/systemd/system/evil-cards.service           # systemd
+rm /etc/nginx/sites-enabled/evil-cards.conf && systemctl reload nginx
+ufw delete allow 80/tcp && ufw delete allow 443/tcp      # если порты больше не нужны
 ```
 
-Сайт, бот и VPN после такого удаления продолжают работать как работали.
+Чужие сервисы (бот, beszel, VPN, сайты на 8443/8444) после такого удаления
+продолжают работать как работали: игра жила в своём контейнере, своей папке
+и своём файле nginx.
 
 ### Начать игру заново
 
@@ -271,9 +367,10 @@ docker compose restart      # или systemctl restart evil-cards
 
 - **nginx:** проверь, что в `location /` есть все три строки —
   `proxy_http_version 1.1;`, `proxy_set_header Upgrade $http_upgrade;`,
-  `proxy_set_header Connection $connection_upgrade;` — и что `map $http_upgrade
-  $connection_upgrade` вообще определён (без него `Connection` уедет пустым).
-  Проверить: `sudo nginx -T | grep -A3 connection_upgrade`.
+  `proxy_set_header Connection $evil_cards_conn_upgrade;` — и что
+  `map $http_upgrade $evil_cards_conn_upgrade` вообще определён (без него
+  `Connection` уедет пустым).
+  Проверить: `sudo nginx -T | grep -A3 evil_cards_conn_upgrade`.
 - **Caddy:** он проксирует WebSocket сам; если не работает — дело не в нём,
   смотри логи игры.
 - Быстрая проверка снаружи (ожидаем `101 Switching Protocols`):
@@ -330,9 +427,36 @@ docker compose logs --tail=50
 
 ### Сертификат не выпускается
 
-- Порт 80 должен быть открыт снаружи (`ufw status`), Let's Encrypt ходит на него.
-- Домен должен резолвиться: `dig +short "109-172-94-130.sslip.io"` → должен вернуть тот же IP.
+- Порт 80 должен быть **открыт в ufw** (шаг 1): `ufw status | grep 80`.
+  Это причина номер один — по умолчанию он закрыт.
+- Каталог проверки должен существовать: `mkdir -p /var/www/html/.well-known/acme-challenge`.
+- Домен должен резолвиться: `dig +short "109-172-94-130.sslip.io"` → тот же IP.
 - У Let's Encrypt лимит 5 неудачных попыток в час на домен — не долби подряд.
+- И не запускай `certbot --nginx`: он правит чужие конфиги. Только `--webroot`.
+
+### Мои curl вдруг перестали доходить
+
+Скорее всего забанил fail2ban (следит в том числе за 80/443) или CrowdSec.
+
+```bash
+fail2ban-client status nginx-limit-req
+fail2ban-client set nginx-limit-req unbanip <твой-IP>
+cscli decisions list
+cscli decisions delete --ip <твой-IP>
+```
+
+Дальше проверяй с паузами по 5-10 секунд, а не циклом.
+
+### nginx -t падает
+
+- `unknown directive "http2"` — nginx старше 1.25.1 (на Ubuntu 22.04 это 1.18).
+  В нашем конфиге `http2` уже выключен; если включал руками — верни как было
+  или используй `listen 443 ssl http2;`.
+- `duplicate ... $connection_upgrade` — где-то в чужом конфиге уже есть такой map.
+  У нас переменная называется `$evil_cards_conn_upgrade` и конфликтовать не должна;
+  если всё же ругается — переименуй **свою**, чужую не трогай.
+- `cannot load certificate ... No such file` — блок `:443` включён раньше, чем
+  выпущен сертификат. Закомментируй его, получи сертификат, потом раскомментируй.
 
 ### Порт 3000 занят
 
@@ -352,8 +476,8 @@ docker compose up -d
 |---|---|
 | [check-server.sh](check-server.sh) | Диагностика сервера. Только читает, ничего не меняет. Шаг 0. |
 | [deploy.sh](deploy.sh) | Установка и обновление через Docker. Идемпотентный. |
-| [Caddyfile.example](Caddyfile.example) | Блок для Caddy. WebSocket — сам, HTTPS — сам. |
-| [nginx.example.conf](nginx.example.conf) | Server-блок для nginx + команды certbot. |
+| [nginx.example.conf](nginx.example.conf) | **Наш путь.** Server-блок для nginx + команды certbot (webroot). |
+| [Caddyfile.example](Caddyfile.example) | Для другой машины, где на 80/443 Caddy. На Aeza не используется. |
 | [evil-cards.service](evil-cards.service) | systemd-юнит для пути без Docker. |
 | `../Dockerfile` | Образ игры: node:20-alpine, не-root, heap 192 МБ. |
 | `../docker-compose.yml` | Лимиты 256 МБ / 0.5 CPU, том `data/`, порт только на localhost. |
@@ -363,10 +487,17 @@ docker compose up -d
 
 ## Перед праздником
 
-- [ ] `curl -I https://<IP>.sslip.io/health` отвечает 200 **с телефона по мобильному интернету**, а не только с сервера.
-- [ ] Зайти с двух телефонов, проверить, что оба видны в лобби (это и есть тест WebSocket).
-- [ ] QR на `/screen` ведёт на `https://<IP>.sslip.io`, а не на localhost.
-- [ ] База карт лежит в `data/base-prompts.txt` и `data/base-answers.txt`.
-- [ ] `npm run loadtest` прогнан на сервере (см. раздел 10 ТЗ).
+- [ ] `ufw status` показывает открытые 80/tcp и 443/tcp.
+- [ ] `curl -s https://109-172-94-130.sslip.io/health` отвечает `{"ok":true,...}`
+      **с телефона по мобильному интернету**, а не только с сервера.
+- [ ] Апгрейд до WebSocket отвечает `101 Switching Protocols` (команда выше).
+- [ ] Зайти с двух телефонов, оба видны в лобби (это и есть живой тест WebSocket).
+- [ ] QR на `/screen` ведёт на `https://109-172-94-130.sslip.io`, а не на localhost.
+- [ ] База карт лежит в `data/base-prompts.txt` и `data/base-answers.txt`
+      (или залита через «Загрузить базу» в панели организатора).
+- [ ] `LOADTEST_URL=https://109-172-94-130.sslip.io npm run loadtest` прогнан
+      **со своей машины** (на сервере его гонять не надо — там одно ядро).
 - [ ] Бэкап `data/` сделан.
-- [ ] `docker stats evil-cards` под нагрузкой показывает заметно меньше 256 МБ.
+- [ ] `docker stats --no-stream evil-cards` под нагрузкой — заметно меньше 256 МБ.
+- [ ] `docker compose restart` посреди раунда — игра продолжается с того же места.
+- [ ] Чужие сервисы живы: `systemctl is-active bot-napominalka beszel x-ui nginx`.

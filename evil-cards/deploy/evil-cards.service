@@ -6,8 +6,19 @@
 #  (MemoryMax=256M — это замена mem_limit из docker-compose.yml).
 #
 #  --------------------------- УСТАНОВКА -------------------------------------
-#  1. Положить код в /opt/evil-cards и поставить зависимости (от root):
-#       git clone <репозиторий> /opt/evil-cards
+#  1. Положить код в /opt/evil-cards.
+#
+#     ЗАВИСИМОСТИ СТАВИМ НЕ НА СЕРВЕРЕ. На этой машине одно ядро и меньше
+#     гигабайта свободной памяти; `npm ci` заберёт их и может задеть чужие
+#     сервисы. Ставим у себя и везём готовое (обе команды — на своей машине):
+#
+#       npm ci --omit=dev
+#       rsync -a --delete --exclude data/state.json \
+#             ./ bot-aeza:/opt/evil-cards/
+#
+#     node_modules при этом едет вместе с кодом. Пакеты у игры чистый JS
+#     (express, socket.io, qrcode) — нативных сборок нет, переносятся как есть.
+#     Если всё же ставить на сервере — только осознанно и глядя на `free -m`:
 #       cd /opt/evil-cards && npm ci --omit=dev
 #
 #  2. Завести отдельного пользователя без домашней папки и без shell —
@@ -35,12 +46,15 @@
 #  6. Дальше — reverse-proxy: deploy/Caddyfile.example или deploy/nginx.example.conf.
 #
 #  --------------------------- ОБНОВЛЕНИЕ ------------------------------------
-#       cd /opt/evil-cards && git pull && npm ci --omit=dev
-#       systemctl restart evil-cards
+#     Так же, как установка: собираем у себя, везём готовое, перезапускаем.
+#       rsync -a --delete --exclude data/state.json ./ bot-aeza:/opt/evil-cards/
+#       ssh bot-aeza 'systemctl restart evil-cards'
 #
-#  ВНИМАНИЕ: путь /usr/bin/node ниже должен существовать. Проверь: which node.
-#  Если node стоит в другом месте (например /usr/local/bin/node или nvm) —
-#  впиши реальный путь в ExecStart, systemd PATH не разворачивает.
+#  ВНИМАНИЕ: путь к node в ExecStart должен существовать — systemd PATH не
+#  разворачивает. На сервере Aeza node лежит в /usr/local/bin/node (v25) —
+#  этот путь и стоит ниже. ОБЯЗАТЕЛЬНО сверь перед установкой:
+#       which node          # или: command -v node
+#  и, если путь другой (часто /usr/bin/node, у nvm — свой), впиши его.
 # ============================================================================
 
 [Unit]
@@ -64,7 +78,7 @@ Environment=NODE_ENV=production
 
 # --max-old-space-size=192 — тот же приём, что и в Docker: Node сам держит
 # heap ниже лимита и до жёсткого MemoryMax дело не доходит.
-ExecStart=/usr/bin/node --max-old-space-size=192 server/index.js
+ExecStart=/usr/local/bin/node --max-old-space-size=192 server/index.js
 
 # Игра падать не должна: посреди партии перезапуск на 3 секунды почти незаметен,
 # состояние восстановится из data/state.json.
