@@ -276,6 +276,12 @@ body[data-phase="lobby"] .topbar-fullscreen { display: none; }
 .lobby-h2 .counter,
 #round-badge { font-variant-numeric: lining-nums tabular-nums; }
 
+/* В тексте карт цифры тоже ровные: «1700 рублей», «710 см». */
+.card-prompt,
+.prompt-strip,
+.card-answer,
+.history-text { font-variant-numeric: lining-nums; }
+
 .input {
   height: var(--input-height);
   padding: 0 var(--sp-3);
@@ -711,7 +717,8 @@ button.card-answer:disabled { cursor: default; }
 
 .player-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  /* Имя важнее счётчика карт: при тесноте ужимается счётчик, а не имя. */
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--sp-3);
   padding: var(--sp-3) var(--sp-2);
@@ -740,10 +747,13 @@ button.card-answer:disabled { cursor: default; }
 }
 
 .player-cards {
+  min-width: 0;
   font-family: var(--font-mono-local);
   font-size: var(--fs-xs);
   color: var(--c-text-dim);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .player-marks { display: flex; align-items: center; gap: var(--sp-2); }
@@ -839,19 +849,30 @@ button.card-answer:disabled { cursor: default; }
      3) текст проигравших вариантов — его только что прочитали вслух, поэтому
         при тесноте показываем первые строки с многоточием.                */
 .stage-body--result > .card-prompt {
-  flex: 2 1 0;
+  flex: 1.5 1 0;
   --fit-min: var(--fs-screen-small);
   padding: var(--sp-5) var(--sp-5) var(--sp-6);
 }
 
-.stage-body--result > .judge-grid { flex: 3 1 0; }
+.stage-body--result > .judge-grid { flex: 3 1 0; gap: var(--sp-2) var(--sp-3); }
 
 .stage-body--result .card-answer {
   padding: var(--sp-4) var(--sp-2) var(--sp-2);
   --fit-min: var(--fs-sm);
 }
 
-.stage-body--result .card-answer__author { font-size: var(--fs-screen-body); }
+.stage-body--result .card-answer__author { font-size: var(--fs-sm); }
+
+/* На итоге карточки низкие — номер-штампик без рамки, чтобы не лез на текст,
+   а розовый росчерк на победной карте убран: он ложился на строку ответа. */
+.stage-body--result .card-answer__num {
+  min-width: 0;
+  border: 0;
+  line-height: 1;
+  transform: none;
+}
+
+.stage-body--result > .card-prompt::after { display: none; }
 
 /* Вариантов девять и больше (это 10-12 игроков) — текста на экране физически
    больше, чем в него влезает. Проигравшие варианты только что прочитали вслух,
@@ -968,7 +989,7 @@ button.card-answer:disabled { cursor: default; }
   text-align: center;
   font-family: var(--font-display);
   font-style: italic;
-  font-size: var(--fs-screen-title);
+  font-size: var(--fs-screen-counter);
   line-height: 1;
   color: var(--c-pink-deep);
   white-space: nowrap;
@@ -988,6 +1009,13 @@ button.card-answer:disabled { cursor: default; }
   align-content: stretch;
   overflow: hidden;
 }
+
+/* От пяти вариантов потолок кегля ниже: иначе короткое слово раздувается
+   до заголовка, а длинный ответ рядом мельчает — разнобой мешает читать. */
+.judge-grid[data-count="5"] .card-answer,
+.judge-grid[data-count="6"] .card-answer,
+.judge-grid[data-count="7"] .card-answer,
+.judge-grid[data-count="8"] .card-answer { --fit-max: var(--fs-screen-counter); }
 
 .judge-grid[data-count="1"] { grid-template-columns: minmax(0, 1fr); }
 .judge-grid[data-count="2"],

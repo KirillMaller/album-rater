@@ -317,6 +317,17 @@ body::before {
 
 .composer__row > .btn { flex: 1; }
 
+/* Две кнопки в ряд на 360 px: ярлыки теснее, чтобы слово не рвалось
+   посреди («СОХРАНИТ / Ь»). */
+.composer__row > .btn,
+.cardlist__row > .btn,
+.actionbar__row > .btn,
+.preview__actions > .btn {
+  padding-inline: var(--sp-2);
+  letter-spacing: 0.04em;
+  overflow-wrap: normal;
+}
+
 /* --- Вкладки: две бумажные закладки ------------------------------------- */
 
 .tabs {
@@ -393,6 +404,12 @@ body::before {
 }
 
 .card-prompt--big { font-size: var(--fs-xl); line-height: 1.15; }
+
+/* Цифры в тексте карт ровные, а не «прыгающие» старостильные. */
+.card-prompt,
+.card-answer,
+.cardlist__text,
+.status { font-variant-numeric: lining-nums; }
 
 /* Ответ — бумажная карточка с тонкой рамкой. */
 .card-answer {
