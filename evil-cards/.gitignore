@@ -4,3 +4,9 @@ data/state.json.tmp
 data/state.json.broken
 .env
 test/screenshots/
+
+# Карты игры. Тексты пишет человек, они про конкретных живых людей,
+# а репозиторий публичный — в git их не пускаем. Формат и примеры лежат
+# рядом в base-*.example.txt, они версионируются.
+data/base-prompts.txt
+data/base-answers.txt
