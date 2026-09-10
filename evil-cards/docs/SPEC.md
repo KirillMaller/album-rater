@@ -161,7 +161,7 @@ export function createStorage(opts): {
   clear(): Promise<void>,
   /** Читает базу из base-prompts.txt / base-answers.txt. Нет файлов → пустые массивы. */
   loadBase(): { prompts: string[], answers: string[] },
-  /** Пишет базу в те же файлы (панель организатора → «Сохранить базу»). Атомарно. */
+  /** Пишет базу в те же файлы (панель организатора → «Сохранить карты»). Атомарно. */
   saveBase(data: { prompts: string[], answers: string[] }): Promise<void>
 }
 ```
@@ -211,6 +211,8 @@ export class Game {
    * нажатия; не совпал с текущим — тап опоздал и не засчитывается.
    * Когда подтвердили все живые игроки (кроме ведущего и ботов), экран
    * переключается сам: revealing → следующий ответ, result → новый раунд.
+   * На judging кнопка тоже работает (гости читают варианты), но автоперехода
+   * там нет: победителя выбирает ведущий.
    */
   ackRead(actor, { round, mark }): Result
 
@@ -225,7 +227,7 @@ export class Game {
   // --- Организатор (только ноутбук) ---
   /** Подтверждения независимы: needConfirm в ответе = 'notReady' | 'fewAnswers'. */
   adminStart(actor, { force?, confirmNotReady?, confirmFewAnswers? }): Result
-  adminSettings(actor, { targetScore?, handSize? }): Result
+  adminSettings(actor, { targetScore?, handSize?, askPrompts?, askAnswers? }): Result
   adminKick(actor, { playerId }): Result
   adminPassHost(actor): Result
   adminNewGame(actor): Result
@@ -365,7 +367,7 @@ export class Game {
 | `host:pick` | `{ round, submissionId }` | оба |
 | `host:next` | `{ round }` | оба |
 | `admin:start` | `{ force?, confirmNotReady?, confirmFewAnswers? }` | ноутбук |
-| `admin:settings` | `{ targetScore?, handSize? }` | ноутбук |
+| `admin:settings` | `{ targetScore?, handSize?, askPrompts?, askAnswers? }` | ноутбук |
 | `admin:kick` | `{ playerId }` | ноутбук |
 | `admin:passHost` | `{}` | ноутбук |
 | `admin:newGame` | `{}` | ноутбук |
@@ -424,7 +426,7 @@ Ack нужен там, где важен не только факт ошибки
 {
   v: 1,
   phase: 'lobby' | 'round' | 'gameOver',
-  settings: { targetScore: 10, handSize: 10 },
+  settings: { targetScore: 10, handSize: 10, askPrompts: 3, askAnswers: 5 },
   players: [{
     id, token, name, score, connected, ready, isBot,
     hand: [cardId], joinedAt
