@@ -438,23 +438,58 @@ function applyQr() {
   const url = currentUrl();
   $('lobby-url').textContent = url || '—';
   $('topbar-url').textContent = url;
-  $('qr-corner-url').textContent = url;
+  // Адрес наверху нужен, только пока гости заходят. Во время игры он
+  // занимает место и никому не нужен — QR уже отсканировали.
+  $('topbar-url').hidden = snap?.phase !== 'lobby';
 
   const big = $('qr-image');
-  const corner = $('qr-corner-image');
   if (qr && qr.dataUrl) {
-    if (big.getAttribute('src') !== qr.dataUrl) {
-      big.src = qr.dataUrl;
-      corner.src = qr.dataUrl;
-    }
+    if (big.getAttribute('src') !== qr.dataUrl) big.src = qr.dataUrl;
     big.hidden = false;
-    corner.hidden = false;
     $('qr-wait').hidden = true;
   } else {
     big.hidden = true;
-    corner.hidden = true;
     $('qr-wait').hidden = false;
   }
+}
+
+// --- Кринж в углу -----------------------------------------------------------
+// Раньше там висел QR-код. Он нужен один раз, в лобби. Теперь угол занимает
+// ерунда, которая меняется каждый раунд: гости замечают её не сразу и потом
+// специально ждут следующую. Никаких внешних картинок — только символы из
+// системного шрифта: игра обязана работать без интернета.
+const CRINGE = [
+  ['💅', 'ноготочки важнее раунда'],
+  ['🍸', 'первый тост за тех, кто читает правила'],
+  ['💋', 'этот раунд спонсирован сплетнями'],
+  ['🦢', 'лебедь на пруду — символ вечера'],
+  ['📼', 'записано на кассету, не перематывай'],
+  ['🕯', 'свеча горит, совесть молчит'],
+  ['🐩', 'пудель одобряет твой выбор'],
+  ['📟', 'сообщение на пейджер: «ты лучшая»'],
+  ['🪩', 'дискошар не осуждает'],
+  ['🍒', 'вишенка на торте этого вечера'],
+  ['💿', 'трек года по версии этого стола'],
+  ['🧿', 'от сглаза и от плохих карт'],
+  ['🎀', 'бантик для тех, кто проигрывает'],
+  ['📸', 'этот момент попадёт в сторис'],
+  ['🥂', 'звон бокалов вместо аплодисментов'],
+  ['🐚', 'ракушка с моря, привезена специально'],
+  ['💄', 'подкрасься перед следующим раундом'],
+  ['🛼', 'катимся дальше'],
+  ['🍓', 'сладко, но с косточкой'],
+  ['👛', 'кошелёк пуст, зато душа богата'],
+];
+
+function renderCringe(round) {
+  const box = $('cringe');
+  if (!box) return;
+  const n = Number(round?.number);
+  if (!Number.isFinite(n)) { box.hidden = true; return; }
+  box.hidden = false;
+  const [pic, text] = CRINGE[(n - 1) % CRINGE.length];
+  $('cringe-pic').textContent = pic;
+  $('cringe-text').textContent = text;
 }
 
 // --- Лобби ------------------------------------------------------------------
@@ -612,6 +647,7 @@ function renderRound() {
 
   $('stage-counter').textContent = stageCounter(round);
   renderReadingLine(round);
+  renderCringe(round);
   $('stage-hint').textContent = stageHint(round);
 
   const labels = { reveal: round.step === 'answering' ? 'Открыть ответы' : 'Следующий ответ' };

@@ -20,7 +20,9 @@
   <span class="topbar-brand">Злобные карты</span>
   <span class="badge" id="topbar-phase">Лобби</span>
   <span class="topbar-spacer"></span>
-  <span class="topbar-url" id="topbar-url"></span>
+  <!-- Адрес показываем только в лобби: во время игры его уже отсканировали,
+       а место на экране дороже. Прячется в renderTopbar(). -->
+  <span class="topbar-url" id="topbar-url" hidden></span>
   <button class="btn btn--ghost topbar-fullscreen" id="btn-fullscreen" type="button">Во весь экран</button>
   <button class="btn btn--ghost" id="btn-admin" type="button" aria-haspopup="dialog">Организатор</button>
 </header>
@@ -123,9 +125,12 @@
 
     <aside class="stage-side">
       <ul class="scoreboard" id="scoreboard"></ul>
-      <div class="qr qr--corner">
-        <img class="qr-img" id="qr-corner-image" alt="QR-код для входа в игру" hidden>
-        <span class="qr-corner-url" id="qr-corner-url"></span>
+      <!-- Раньше здесь висел QR-код и адрес. Гости сканируют его один раз
+           в лобби, дальше он только занимает место. Теперь тут кринж,
+           который меняется каждый раунд. -->
+      <div class="cringe" id="cringe" aria-hidden="true">
+        <span class="cringe__pic" id="cringe-pic"></span>
+        <span class="cringe__text" id="cringe-text"></span>
       </div>
     </aside>
 
