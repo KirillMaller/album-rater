@@ -1615,3 +1615,22 @@ button.card-answer:hover:not(:disabled) { transform: none; }
   color: var(--c-text-dim);
   text-align: center;
 }
+
+/* Кринж в углу вместо QR-кода. Мелкий и в стороне: он для настроения,
+   а не для чтения с трёх метров. Оформление — за дизайном. */
+.cringe {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3em;
+  text-align: center;
+  opacity: 0.85;
+}
+
+.cringe__pic { font-size: clamp(2rem, 4vw, 3.5rem); line-height: 1; }
+
+.cringe__text {
+  font-size: clamp(0.8rem, 1.1vw, 1.05rem);
+  color: var(--c-text-dim);
+  max-width: 14em;
+}
