@@ -28,11 +28,9 @@ const TOKEN_KEY = 'ec.token';
 const PLAYER_KEY = 'ec.playerId';
 
 /** Рекомендуемый минимум карт (ТЗ 2.1.3) — подсказка, а не запрет. */
-// Запасные значения на случай старого снимка без настроек: сколько карт
-// просим написать гостя. Настоящие числа приходят с сервера — организатор
-// задаёт их в лобби перед стартом.
-const RECOMMENDED_PROMPTS = 3;
-const RECOMMENDED_ANSWERS = 5;
+// Сколько карт просим написать — решает организатор, число приходит с
+// сервера. Своей копии здесь намеренно НЕТ: два числа в двух местах
+// разъезжаются при первой же правке.
 
 /** Счётчик символов показываем, когда осталось меньше стольких. */
 const CHARS_WARN_AT = 30;
@@ -422,11 +420,26 @@ function render(snapshot) {
  */
 function renderReadBar(snapshot) {
   const reading = snapshot.round?.reading;
-  const active = Boolean(reading?.active) && snapshot.phase === 'round' && !snapshot.you?.isHost;
+  const active = Boolean(reading?.active) && snapshot.phase === 'round';
   setHidden(els.readBar, !active);
   if (!active) return;
 
   const left = Array.isArray(reading.waitingFor) ? reading.waitingFor : [];
+  const iAmHost = Boolean(snapshot.you?.isHost);
+
+  // Ведущему кнопка не нужна — он и так переключает экран. Но видеть, кого
+  // ещё ждём, он обязан: иначе листает вслепую, глядя в свой телефон, и
+  // гости не успевают дочитать. Ровно этого мы и добивались правкой.
+  if (iAmHost) {
+    els.readCount.textContent = left.length === 0
+      ? 'Все прочитали — можно дальше'
+      : (left.length <= 2
+        ? `Ещё читают: ${left.join(' и ')}`
+        : `Прочитали ${reading.acked} из ${reading.needed} — ещё читают`);
+    setHidden(els.readBtn, true);
+    return;
+  }
+
   if (reading.youAcked) {
     els.readCount.textContent = left.length === 0
       ? 'Все прочитали — сейчас поедем дальше'
@@ -623,12 +636,10 @@ els.unreadyBtn.addEventListener('click', () => {
 function renderPrep(snapshot) {
   const you = snapshot.you;
 
-  // Сколько просим написать — решает организатор в лобби. Ноль означает
-  // «сколько хочешь», и тогда счётчик не давит на гостя цифрой.
-  const askP = Number.isFinite(snapshot.settings?.askPrompts)
-    ? snapshot.settings.askPrompts : RECOMMENDED_PROMPTS;
-  const askA = Number.isFinite(snapshot.settings?.askAnswers)
-    ? snapshot.settings.askAnswers : RECOMMENDED_ANSWERS;
+  // Ноль или отсутствие настройки означает «пиши сколько хочешь» — тогда
+  // счётчик не давит на гостя цифрой.
+  const askP = Number.isFinite(snapshot.settings?.askPrompts) ? snapshot.settings.askPrompts : 0;
+  const askA = Number.isFinite(snapshot.settings?.askAnswers) ? snapshot.settings.askAnswers : 0;
 
   setText(
     els.promptCount,

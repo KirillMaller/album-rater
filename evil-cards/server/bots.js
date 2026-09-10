@@ -23,9 +23,16 @@ const NEXT_DELAY = 3000;             // через 3 с — следующий �
  * у Кирилла сел телефон — и бот ждёт его до конца вечера.
  */
 const DEFAULT_PATIENCE = 25000;
+// Ждать, пока прочтут, и ждать молчуна — разные вещи. Прочесть один ответ
+// хватает нескольких секунд, а 25 с ожидания зависшего гостя (телефон
+// экраном вниз, вкладка открыта) съедали до 2 минут на раунд из пяти
+// ответов — замер 10.09.2026. Берём меньшее из двух.
+const READ_PATIENCE = 12000;
 
 export function createBotDriver({ game, rng = Math.random, log = () => {},
                                   patienceMs = DEFAULT_PATIENCE }) {
+  // В тестах терпение укорачивают — ожидание чтения не должно оказаться длиннее.
+  const readPatience = Math.min(READ_PATIENCE, patienceMs);
   /** key -> timeout. Ключ содержит раунд и шаг, поэтому один шаг планируется один раз. */
   const timers = new Map();
 
@@ -124,7 +131,7 @@ export function createBotDriver({ game, rng = Math.random, log = () => {},
       // Люди ещё читают — не листаем. Переключит либо их «Прочитал»
       // (через Game.ackRead), либо это же терпение, если кто-то отвлёкся:
       // из-за одного ушедшего игра вставать не должна.
-      const revealWait = game.isWaitingForReaders() ? patienceMs : REVEAL_DELAY;
+      const revealWait = game.isWaitingForReaders() ? readPatience : REVEAL_DELAY;
       schedule(`${round}:reveal:${index}`, revealWait, () => {
         const cur = game.state.round;
         if (!cur || cur.number !== round || cur.step !== 'revealing') return;
@@ -136,7 +143,7 @@ export function createBotDriver({ game, rng = Math.random, log = () => {},
 
     if (r.step === 'judging' && hostIsBot) {
       // Варианты на столе — даём людям прочитать их все, прежде чем выбирать.
-      const pickWait = game.isWaitingForReaders() ? patienceMs : PICK_DELAY;
+      const pickWait = game.isWaitingForReaders() ? readPatience : PICK_DELAY;
       schedule(`${round}:pick`, pickWait, () => {
         const cur = game.state.round;
         if (!cur || cur.number !== round || cur.step !== 'judging') return;
@@ -151,7 +158,7 @@ export function createBotDriver({ game, rng = Math.random, log = () => {},
 
     if (r.step === 'result' && hostIsBot) {
       // Итог раунда — самый важный экран: кто победил и с каким ответом.
-      const nextWait = game.isWaitingForReaders() ? patienceMs : NEXT_DELAY;
+      const nextWait = game.isWaitingForReaders() ? readPatience : NEXT_DELAY;
       schedule(`${round}:next`, nextWait, () => {
         const cur = game.state.round;
         if (!cur || cur.number !== round || cur.step !== 'result') return;

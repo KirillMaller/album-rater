@@ -205,6 +205,15 @@ export class Game {
   submitAnswer(actor, { round, cardId }): Result
   retractAnswer(actor, { round }): Result
 
+  /**
+   * «Прочитал» — гость подтверждает, что успел прочесть текущий экран.
+   * mark — ключ экрана (`номер:шаг:вскрыто`), который человек видел в момент
+   * нажатия; не совпал с текущим — тап опоздал и не засчитывается.
+   * Когда подтвердили все живые игроки (кроме ведущего и ботов), экран
+   * переключается сам: revealing → следующий ответ, result → новый раунд.
+   */
+  ackRead(actor, { round, mark }): Result
+
   // --- Ведущий (может звать сам ведущий ИЛИ ноутбук) ---
   hostDraw(actor, { round }): Result
   hostRedraw(actor, { round }): Result
@@ -254,7 +263,12 @@ export class Game {
   v: 1,
   phase: 'lobby' | 'round' | 'gameOver',
   isScreen: boolean,
-  settings: { targetScore: number, handSize: number },
+  settings: {
+    targetScore: number,      // 5, 7 или 10; другое молча становится 10
+    handSize: number,         // 3..15
+    askPrompts: number,       // сколько вопросов просим написать гостя, 0..20
+    askAnswers: number        // сколько ответов, 0..20; 0 = «пиши сколько хочешь»
+  },
 
   // Только для телефона (у ноутбука null)
   you: {
@@ -290,7 +304,18 @@ export class Game {
       authorName: string | null,   // не null только на step==='result'
       isWinner: boolean
     }],
-    winner: { submissionId, authorId, authorName, answerText, parts, mode } | null
+    winner: { submissionId, authorId, authorName, answerText, parts, mode } | null,
+
+    // Кто успел прочесть текущий экран. Ждём только живых подключённых
+    // игроков, кроме ведущего; ботов не ждём никогда.
+    reading: {
+      mark: string,           // ключ экрана: `номер:шаг:вскрыто`
+      needed: number,         // сколько человек ждём
+      acked: number,          // сколько уже нажали
+      youAcked: boolean,
+      waitingFor: string[],   // имена тех, кто ещё читает
+      active: boolean         // шаг читаемый И есть кого ждать
+    }
   } | null,
 
   history: [{ round, promptText, answerText, winnerName, parts }],
@@ -306,7 +331,8 @@ export class Game {
 
   can: {                           // что этому клиенту сейчас можно
     start, draw, redraw, skipWaiting, reveal, pick, next,
-    submit, retract, addCards, ready
+    submit, retract, addCards, ready,
+    ackRead                        // можно нажать «Прочитал» (не ведущий, не бот)
   }
 }
 ```
@@ -331,6 +357,7 @@ export class Game {
 | `prep:ready` | `{ ready }` | телефон |
 | `answer:submit` | `{ round, cardId }` | телефон |
 | `answer:retract` | `{ round }` | телефон |
+| `read:ack` | `{ round, mark }` | телефон — «прочитал текущий экран» |
 | `host:draw` | `{ round }` | оба |
 | `host:redraw` | `{ round }` | оба |
 | `host:skipWaiting` | `{ round }` | оба |
@@ -429,7 +456,9 @@ Ack нужен там, где важен не только факт ошибки
 `.hand`, `.hand-card`, `.scoreboard`, `.scoreboard-row`, `.scoreboard-row--host`,
 `.scoreboard-row--offline`, `.qr`, `.qr--corner`, `.stage`, `.topbar`, `.btn`,
 `.btn--primary`, `.btn--ghost`, `.btn--danger`, `.tabs`, `.tab`, `.tab--active`,
-`.badge`, `.hint`, `.counter`, `.offline-banner`, `.admin-panel`, `.lobby`.
+`.badge`, `.hint`, `.counter`, `.offline-banner`, `.admin-panel`, `.lobby`,
+`.readbar`, `.readbar__count` (панель «Прочитал» на телефоне),
+`.reading-line` (строка «Прочитали 2 из 4» на ноутбуке).
 
 Все цвета/шрифты/отступы/скругления — переменные в `public/theme.css`.
 В остальных css — **только** `var(--…)`.
