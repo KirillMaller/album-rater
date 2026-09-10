@@ -16,6 +16,20 @@
 
 Это **личный проект Кирилла**, отдельный от платформы Yvane. Здесь **Supabase Cloud** (`*.supabase.co`), а **не** self-hosted Postgres на VPS. Никита в этот репо не лазит.
 
+## ⚠️ Подпапка `evil-cards/` — это другой проект
+
+В `evil-cards/` лежат **«Злобные карты»** — браузерная игра на день рождения
+(Node.js + Express + Socket.io, без сборки и без БД). Отдельный проект со своим
+`package.json`, ставится на **немецкий VPS Aeza**, а не на GitHub Pages.
+
+- Весь контекст, доступы и порядок деплоя: [evil-cards/HANDOFF.md](evil-cards/HANDOFF.md).
+- Правила игры и запуск: [evil-cards/README.md](evil-cards/README.md).
+- На сайт R1Fрейтинг игра не влияет: корневой `tsconfig.json` включает только
+  `src`, а `.github/workflows/deploy.yml` собирает только сайт. Проверено сборкой.
+- Правила этого CLAUDE.md (Supabase, миграции, `npx tsc --noEmit` перед push)
+  к игре **не применяются** — у неё свои тесты: `npm test`, `npm run loadtest`,
+  `npm run e2e` внутри `evil-cards/`.
+
 ## Стек
 
 - **Frontend:** React 18 + Vite 6 + TypeScript, React Router, lucide-react, react-markdown.

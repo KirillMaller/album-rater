@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Злобные карты — экран</title>
+<!-- Ни одного внешнего запроса: игра работает в локальной Wi-Fi без интернета. -->
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/theme.css">
+<link rel="stylesheet" href="/screen.css">
+</head>
+<body class="screen" data-phase="lobby">
+
+<!-- Связь с сервером пропала: действия заблокированы, состояние живёт на сервере. -->
+<div class="offline-banner" id="offline-banner" hidden role="status">
+  Связь потеряна, переподключаемся…
+</div>
+
+<header class="topbar">
+  <span class="topbar-brand">Злобные карты</span>
+  <span class="badge" id="topbar-phase">Лобби</span>
+  <span class="topbar-spacer"></span>
+  <span class="topbar-url" id="topbar-url"></span>
+  <button class="btn btn--ghost topbar-fullscreen" id="btn-fullscreen" type="button">Во весь экран</button>
+  <button class="btn btn--ghost" id="btn-admin" type="button" aria-haspopup="dialog">Организатор</button>
+</header>
+
+<main class="screen-main">
+
+  <!-- ================= ЛОББИ ================= -->
+  <section class="lobby" id="view-lobby" hidden>
+
+    <div class="lobby-col lobby-col--qr">
+      <h1 class="lobby-title">Заходи в игру</h1>
+      <div class="qr qr--big">
+        <img class="qr-img" id="qr-image" alt="QR-код со ссылкой на игру" hidden>
+        <p class="hint qr-wait" id="qr-wait">QR-код готовится…</p>
+      </div>
+      <p class="lobby-url" id="lobby-url">—</p>
+      <p class="hint">Наведи камеру телефона на код — или набери адрес руками.
+        Телефоны и ноутбук должны быть в одной Wi-Fi.</p>
+      <button class="btn btn--ghost btn--big lobby-fullscreen" id="btn-fullscreen-lobby" type="button">
+        Во весь экран
+      </button>
+    </div>
+
+    <div class="lobby-col lobby-col--players">
+      <h2 class="lobby-h2">Игроки <span class="counter" id="players-count">0</span></h2>
+      <ul class="player-list" id="player-list"></ul>
+      <p class="hint" id="players-hint"></p>
+      <p class="base-counts" id="base-counts">В базе: 0 вопросов, 0 ответов</p>
+    </div>
+
+    <div class="lobby-col lobby-col--settings">
+      <div class="lobby-block">
+        <h2 class="lobby-h2">Настройки</h2>
+
+        <div class="setting">
+          <span class="setting-label">Цель по очкам</span>
+          <div class="seg" id="target-buttons" role="group" aria-label="Цель по очкам">
+            <button class="btn btn--ghost seg-btn" type="button" data-act="target" data-key="target-5" data-value="5">5</button>
+            <button class="btn btn--ghost seg-btn" type="button" data-act="target" data-key="target-7" data-value="7">7</button>
+            <button class="btn btn--ghost seg-btn" type="button" data-act="target" data-key="target-10" data-value="10">10</button>
+          </div>
+        </div>
+        <p class="hint duration-hint" id="duration-hint"></p>
+
+        <div class="setting">
+          <label class="setting-label" for="hand-size">Размер руки</label>
+          <input class="input input--num" id="hand-size" type="number" min="3" max="15" step="1" inputmode="numeric">
+        </div>
+        <p class="hint">Сколько карт-ответов на руках у каждого. По умолчанию 10.</p>
+      </div>
+
+      <div class="lobby-block lobby-block--start">
+        <ul class="warnings" id="lobby-warnings"></ul>
+        <button class="btn btn--primary btn--big" id="btn-start" type="button" data-act="start">Начать игру</button>
+        <p class="hint" id="start-hint"></p>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ================= ИГРА ================= -->
+  <section class="stage" id="view-round" hidden>
+
+    <div class="stage-main">
+      <div class="stage-head">
+        <span class="badge" id="round-badge">Раунд 1</span>
+        <span class="stage-host" id="stage-host"></span>
+        <span class="badge badge--step" id="step-badge"></span>
+      </div>
+
+      <!-- Содержимое шага. Перерисовывается только когда шаг реально сменился. -->
+      <div class="stage-body" id="stage-body"></div>
+
+      <p class="counter" id="stage-counter"></p>
+      <p class="hint stage-hint" id="stage-hint"></p>
+
+      <div class="stage-actions" id="stage-actions">
+        <button class="btn btn--primary" type="button" data-act="draw" hidden>Вытянуть вопрос</button>
+        <button class="btn btn--ghost" type="button" data-act="redraw" hidden>Другой вопрос</button>
+        <button class="btn btn--ghost" type="button" data-act="skipWaiting" hidden>Не ждать</button>
+        <button class="btn btn--primary" type="button" data-act="reveal" hidden>Открыть ответы</button>
+        <button class="btn btn--primary" type="button" data-act="next" hidden>Следующий раунд</button>
+      </div>
+    </div>
+
+    <aside class="stage-side">
+      <ul class="scoreboard" id="scoreboard"></ul>
+      <div class="qr qr--corner">
+        <img class="qr-img" id="qr-corner-image" alt="QR-код для входа в игру" hidden>
+        <span class="qr-corner-url" id="qr-corner-url"></span>
+      </div>
+    </aside>
+
+  </section>
+
+  <!-- ================= КОНЕЦ ИГРЫ ================= -->
+  <section class="gameover" id="view-gameover" hidden>
+
+    <div class="gameover-main">
+      <p class="gameover-label">Победитель вечера</p>
+      <p class="gameover-winner" id="gameover-winner">—</p>
+      <ol class="standings" id="standings"></ol>
+      <div class="gameover-actions">
+        <button class="btn btn--primary btn--big" type="button" data-act="newGame" data-key="newGame-final">
+          Новая игра
+        </button>
+      </div>
+    </div>
+
+    <aside class="gameover-side">
+      <h2 class="lobby-h2">Лучшее за вечер</h2>
+      <ul class="history" id="history"></ul>
+      <p class="hint" id="history-hint"></p>
+    </aside>
+
+  </section>
+
+</main>
+
+<!-- ================= ПАНЕЛЬ ОРГАНИЗАТОРА ================= -->
+<div class="overlay" id="admin-overlay" hidden>
+  <section class="admin-panel" id="admin-panel" role="dialog" aria-modal="true" aria-labelledby="admin-title">
+    <header class="admin-panel__head">
+      <h2 class="admin-panel__title" id="admin-title">Панель организатора</h2>
+      <button class="btn btn--ghost" id="btn-admin-close" type="button">Закрыть (Esc)</button>
+    </header>
+
+    <div class="admin-panel__body">
+
+      <section class="admin-section">
+        <h3 class="admin-h3">Настройки</h3>
+        <div class="setting">
+          <span class="setting-label">Цель по очкам</span>
+          <div class="seg" id="admin-target-buttons" role="group" aria-label="Цель по очкам">
+            <button class="btn btn--ghost seg-btn" type="button" data-act="target" data-key="target-5" data-value="5">5</button>
+            <button class="btn btn--ghost seg-btn" type="button" data-act="target" data-key="target-7" data-value="7">7</button>
+            <button class="btn btn--ghost seg-btn" type="button" data-act="target" data-key="target-10" data-value="10">10</button>
+          </div>
+        </div>
+        <div class="setting">
+          <label class="setting-label" for="admin-hand-size">Размер руки</label>
+          <input class="input input--num" id="admin-hand-size" type="number" min="3" max="15" step="1" inputmode="numeric">
+        </div>
+        <p class="hint" id="admin-settings-hint"></p>
+      </section>
+
+      <section class="admin-section">
+        <h3 class="admin-h3">Игроки</h3>
+        <ul class="admin-players" id="admin-players"></ul>
+        <div class="admin-row">
+          <button class="btn btn--ghost" type="button" data-act="passHost">Передать ход следующему</button>
+        </div>
+      </section>
+
+      <section class="admin-section">
+        <h3 class="admin-h3">Адрес для QR</h3>
+        <p class="hint">Если телефоны не открывают адрес — выбери другой.</p>
+        <ul class="url-list" id="url-list"></ul>
+      </section>
+
+      <section class="admin-section">
+        <h3 class="admin-h3">Боты</h3>
+        <p class="hint">Боты нужны, чтобы погонять игру в одиночку.</p>
+        <div class="admin-row">
+          <label class="setting-label" for="bots-count">Сколько</label>
+          <input class="input input--num" id="bots-count" type="number" min="1" max="6" step="1" value="3" inputmode="numeric">
+          <button class="btn" type="button" data-act="addBots">Добавить ботов</button>
+          <button class="btn btn--ghost" type="button" data-act="removeBots">Убрать ботов</button>
+        </div>
+      </section>
+
+      <section class="admin-section">
+        <h3 class="admin-h3">Загрузить базу</h3>
+        <p class="hint">
+          По одной карте на строку. Пустые строки и строки на «#» пропускаются.
+          Сохранение <b>перезапишет</b> файлы <code>data/base-prompts.txt</code> и
+          <code>data/base-answers.txt</code>. База читается в момент «Начать игру».
+        </p>
+        <div class="base-grid">
+          <label class="base-field">
+            <span class="setting-label">Вопросы</span>
+            <textarea id="base-prompts" class="textarea" spellcheck="false"
+              placeholder="Оля не проживёт и дня без этого: ___.&#10;Что Оля прячет на дне сумки?"></textarea>
+          </label>
+          <label class="base-field">
+            <span class="setting-label">Ответы</span>
+            <textarea id="base-answers" class="textarea" spellcheck="false"
+              placeholder="ночной дожор&#10;голосовое на семь минут"></textarea>
+          </label>
+        </div>
+        <div class="admin-row">
+          <button class="btn btn--primary" type="button" data-act="saveBase">Сохранить базу</button>
+          <span class="hint" id="base-hint"></span>
+        </div>
+      </section>
+
+      <!-- Опасное держим отдельно и далеко от безопасных кнопок. -->
+      <section class="admin-section admin-section--danger">
+        <h3 class="admin-h3">Опасное</h3>
+        <p class="hint">
+          «Новая игра» — те же игроки и карты, очки обнуляются.
+          «Полный сброс» стирает игроков, карты гостей, очки и историю.
+        </p>
+        <div class="admin-row admin-row--danger">
+          <button class="btn btn--danger" type="button" data-act="newGame">Новая игра</button>
+          <button class="btn btn--danger" type="button" data-act="reset">Полный сброс</button>
+        </div>
+      </section>
+
+    </div>
+  </section>
+</div>
+
+<!-- ================= ДИАЛОГ ПОДТВЕРЖДЕНИЯ ================= -->
+<div class="overlay" id="confirm-overlay" hidden>
+  <section class="confirm" id="confirm-box" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
+    <h2 class="confirm-title" id="confirm-title">Точно?</h2>
+    <p class="confirm-text" id="confirm-text"></p>
+    <div class="confirm-actions">
+      <button class="btn btn--ghost" id="confirm-cancel" type="button">Отмена</button>
+      <button class="btn btn--primary" id="confirm-ok" type="button">Да</button>
+    </div>
+  </section>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script type="module" src="/screen.js"></script>
+</body>
+</html>

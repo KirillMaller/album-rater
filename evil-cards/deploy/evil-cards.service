@@ -1,0 +1,114 @@
+# ============================================================================
+#  Злобные карты — systemd-юнит. ЗАПАСНОЙ ПУТЬ, если на сервере нет Docker.
+#
+#  Здесь systemd делает ровно то же, что делал бы docker-compose:
+#  держит процесс живым, перезапускает при падении и ограничивает память
+#  (MemoryMax=256M — это замена mem_limit из docker-compose.yml).
+#
+#  --------------------------- УСТАНОВКА -------------------------------------
+#  1. Положить код в /opt/evil-cards и поставить зависимости (от root):
+#       git clone <репозиторий> /opt/evil-cards
+#       cd /opt/evil-cards && npm ci --omit=dev
+#
+#  2. Завести отдельного пользователя без домашней папки и без shell —
+#     игра не должна работать от root:
+#       useradd --system --no-create-home --shell /usr/sbin/nologin evilcards
+#       chown -R root:root /opt/evil-cards
+#       chown -R evilcards:evilcards /opt/evil-cards/data
+#
+#  3. Создать .env (в нём PORT и PUBLIC_URL):
+#       cp /opt/evil-cards/.env.example /opt/evil-cards/.env
+#       nano /opt/evil-cards/.env      # PUBLIC_URL=https://109-172-94-130.sslip.io
+#     ВАЖНО: systemd читает .env как простые KEY=VALUE, без кавычек и без
+#     подстановок вида $VAR. Комментарии с # понимает.
+#
+#  4. Поставить и запустить юнит:
+#       cp /opt/evil-cards/deploy/evil-cards.service /etc/systemd/system/
+#       systemctl daemon-reload
+#       systemctl enable --now evil-cards
+#
+#  5. Проверить:
+#       systemctl status evil-cards
+#       journalctl -u evil-cards -f
+#       curl -I http://127.0.0.1:3000/health
+#
+#  6. Дальше — reverse-proxy: deploy/Caddyfile.example или deploy/nginx.example.conf.
+#
+#  --------------------------- ОБНОВЛЕНИЕ ------------------------------------
+#       cd /opt/evil-cards && git pull && npm ci --omit=dev
+#       systemctl restart evil-cards
+#
+#  ВНИМАНИЕ: путь /usr/bin/node ниже должен существовать. Проверь: which node.
+#  Если node стоит в другом месте (например /usr/local/bin/node или nvm) —
+#  впиши реальный путь в ExecStart, systemd PATH не разворачивает.
+# ============================================================================
+
+[Unit]
+Description=Злобные карты — браузерная игра (Node.js + Socket.io)
+Documentation=file:/opt/evil-cards/deploy/README.md
+After=network-online.target
+Wants=network-online.target
+# Если процесс падает по кругу — не долбить сервер: не больше 5 попыток за минуту.
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=evilcards
+Group=evilcards
+WorkingDirectory=/opt/evil-cards
+
+# PORT и PUBLIC_URL приезжают отсюда.
+EnvironmentFile=/opt/evil-cards/.env
+Environment=NODE_ENV=production
+
+# --max-old-space-size=192 — тот же приём, что и в Docker: Node сам держит
+# heap ниже лимита и до жёсткого MemoryMax дело не доходит.
+ExecStart=/usr/bin/node --max-old-space-size=192 server/index.js
+
+# Игра падать не должна: посреди партии перезапуск на 3 секунды почти незаметен,
+# состояние восстановится из data/state.json.
+Restart=always
+RestartSec=3
+# --- Лимиты ресурсов (замена mem_limit/cpus из docker-compose) --------------
+# Жёсткий потолок: превысит — ядро убьёт процесс, systemd перезапустит.
+MemoryMax=256M
+# Мягкий порог: с 224 МБ ядро начнёт поджимать процесс заранее.
+MemoryHigh=224M
+MemorySwapMax=0
+# Половина ядра, как cpus: 0.5 в compose.
+CPUQuota=50%
+TasksMax=64
+
+# --- Защита: сервер общий, на нём живут сайт, бот и VPN ---------------------
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+# Вся файловая система только для чтения...
+ProtectSystem=strict
+ProtectHome=true
+# ...кроме единственной папки, куда игра пишет: state.json.
+ReadWritePaths=/opt/evil-cards/data
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+RemoveIPC=true
+# Игре нужны только обычные сети IPv4/IPv6 и unix-сокеты.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+# --- Логи -------------------------------------------------------------------
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=evil-cards
+
+[Install]
+WantedBy=multi-user.target

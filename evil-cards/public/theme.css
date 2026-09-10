@@ -1,0 +1,164 @@
+/* ==========================================================================
+   theme.css — ВСЕ цвета, шрифты, размеры, отступы, скругления и тени.
+   В play.css и screen.css допускаются ТОЛЬКО var(--…) из этого файла.
+   Дизайн придёт позже — тогда меняется только этот файл, JS не трогается.
+   ========================================================================== */
+
+:root {
+  /* --- Цвета: поверхности --- */
+  --c-bg:            #14151a;
+  --c-bg-soft:       #1c1e26;
+  --c-surface:       #23262f;
+  --c-surface-2:     #2c303b;
+  --c-border:        #383d4a;
+  --c-border-strong: #4d5464;
+
+  /* --- Цвета: текст --- */
+  --c-text:          #f2f3f7;
+  --c-text-dim:      #a7adbb;
+  --c-text-faint:    #6f7688;
+  --c-text-invert:   #14151a;
+
+  /* --- Цвета: акценты --- */
+  --c-accent:        #e0464b;
+  --c-accent-hover:  #f05a5f;
+  --c-accent-text:   #ffffff;
+  --c-ok:            #3fb96b;
+  --c-warn:          #e8a33d;
+  --c-danger:        #d8453f;
+  --c-offline:       #767d8e;
+
+  /* --- Карты --- */
+  --c-prompt-bg:     #0f1014;   /* заход — тёмная карта */
+  --c-prompt-text:   #f7f7fa;
+  --c-prompt-border: #2b2e38;
+  --c-answer-bg:     #f4f4f7;   /* ответы — светлые */
+  --c-answer-text:   #16171c;
+  --c-answer-border: #d3d5dd;
+  --c-filled:        #e0464b;   /* подставленный ответ внутри захода */
+  --c-filled-bg:     rgba(224, 70, 75, 0.14);
+  --c-picked-border: #3fb96b;
+
+  /* --- Шрифты (только системные, без внешних загрузок) --- */
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+             "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --font-card: var(--font-ui);
+  --fw-normal: 400;
+  --fw-medium: 600;
+  --fw-bold: 800;
+
+  /* --- Размеры текста: телефон --- */
+  --fs-xs:   13px;
+  --fs-sm:   15px;
+  --fs-base: 17px;
+  --fs-md:   19px;
+  --fs-lg:   23px;
+  --fs-xl:   28px;
+  --fs-2xl:  34px;
+
+  /* --- Размеры текста: ноутбук (читается с 3 метров) --- */
+  --fs-screen-card:      64px;   /* базовый размер карты, ужимается скриптом */
+  --fs-screen-card-min:  26px;   /* ниже не опускаться */
+  --fs-screen-title:     40px;
+  --fs-screen-body:      26px;
+  --fs-screen-small:     20px;
+  --fs-screen-counter:   30px;
+
+  /* --- Отступы --- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+  --sp-8: 64px;
+
+  /* --- Скругления --- */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 18px;
+  --r-xl: 26px;
+  --r-pill: 999px;
+
+  /* --- Тени --- */
+  --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --sh-md: 0 4px 14px rgba(0, 0, 0, 0.35);
+  --sh-lg: 0 12px 38px rgba(0, 0, 0, 0.45);
+
+  /* --- Элементы управления --- */
+  --touch-min:    48px;   /* минимальный размер кнопки на телефоне (ТЗ 3.1) */
+  --btn-height:   52px;
+  --btn-radius:   var(--r-md);
+  --input-height: 52px;
+
+  /* --- Раскладка --- */
+  --phone-max:      560px;
+  --content-gap:    var(--sp-4);
+  --safe-bottom:    env(safe-area-inset-bottom, 0px);
+  --topbar-height:  56px;
+
+  /* --- Прочее --- */
+  --focus-ring: 0 0 0 3px rgba(224, 70, 75, 0.45);
+  --transition: 120ms ease;
+}
+
+/* Сброс и общая база — общая для обеих страниц. */
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-base);
+  line-height: 1.35;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body { overflow-x: hidden; }
+
+button, input, textarea, select {
+  font: inherit;
+  color: inherit;
+}
+
+button { cursor: pointer; }
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+[hidden] { display: none !important; }
+
+/* Утилиты, общие для двух страниц. */
+.visually-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Подставленный ответ внутри захода — всегда визуально выделен (ТЗ 4.4). */
+.filled {
+  color: var(--c-filled);
+  background: var(--c-filled-bg);
+  border-radius: var(--r-sm);
+  padding: 0 0.15em;
+  font-weight: var(--fw-bold);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

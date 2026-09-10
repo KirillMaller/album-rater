@@ -1,0 +1,545 @@
+/* ==========================================================================
+   play.css — экран телефона. Mobile-first, одна колонка, удобно на 360 px.
+   Здесь ТОЛЬКО var(--…) из theme.css: цифрами — лишь 0, 1px границ, проценты
+   и безразмерные числа (z-index, flex). Дизайн придёт позже — меняется только CSS.
+   ========================================================================== */
+
+/* --- Каркас страницы ---------------------------------------------------- */
+
+.stage {
+  width: 100%;
+  max-width: var(--phone-max);
+  margin: 0 auto;
+  padding: var(--sp-4);
+  /* Место под фиксированную панель действий (до двух рядов кнопок) и вырез снизу. */
+  padding-bottom: calc(var(--sp-6) + var(--btn-height) + var(--btn-height) + var(--safe-bottom));
+}
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--content-gap);
+}
+
+.screen__title {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+}
+
+/* --- Верхняя полоса ----------------------------------------------------- */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  max-width: var(--phone-max);
+  margin: 0 auto;
+  min-height: var(--topbar-height);
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--c-bg-soft);
+  border-bottom: 1px solid var(--c-border);
+}
+
+/* Длинное имя не ломает полосу: ужимается многоточием. */
+.topbar__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
+}
+
+.topbar__score {
+  flex: none;
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--r-pill);
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-bold);
+}
+
+/* --- Плашка «нет связи» ------------------------------------------------- */
+
+.offline-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--c-warn);
+  color: var(--c-text-invert);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  text-align: center;
+}
+
+/* Пока связи нет — ничего не нажимается. */
+.is-offline .stage,
+.is-offline .actionbar,
+.is-offline .preview {
+  pointer-events: none;
+}
+
+/* --- Кнопки ------------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-height: var(--btn-height);
+  min-width: var(--touch-min);
+  padding: var(--sp-2) var(--sp-4);
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--btn-radius);
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
+  text-align: center;
+  overflow-wrap: anywhere;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.btn:active { background: var(--c-surface-2); }
+
+.btn:disabled {
+  background: var(--c-bg-soft);
+  border-color: var(--c-border);
+  color: var(--c-text-faint);
+  cursor: default;
+}
+
+.btn--block { width: 100%; }
+
+.btn--primary {
+  background: var(--c-accent);
+  border-color: var(--c-accent);
+  color: var(--c-accent-text);
+}
+
+.btn--primary:active { background: var(--c-accent-hover); }
+
+.btn--primary:disabled {
+  background: var(--c-bg-soft);
+  border-color: var(--c-border);
+  color: var(--c-text-faint);
+}
+
+.btn--ghost {
+  background: transparent;
+  border-color: var(--c-border-strong);
+  color: var(--c-text);
+}
+
+.btn--ghost:active { background: var(--c-surface); }
+
+.btn--danger {
+  background: transparent;
+  border-color: var(--c-danger);
+  color: var(--c-danger);
+}
+
+.btn--danger:active { background: var(--c-surface); }
+
+/* Кнопка-символ: всё равно не меньше пальца по обеим сторонам. */
+.btn--icon {
+  width: var(--touch-min);
+  min-width: var(--touch-min);
+  height: var(--touch-min);
+  min-height: var(--touch-min);
+  padding: 0;
+  font-size: var(--fs-md);
+}
+
+/* --- Поля ввода --------------------------------------------------------- */
+
+.input {
+  display: block;
+  width: 100%;
+  min-height: var(--input-height);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-md);
+  background: var(--c-surface);
+  color: var(--c-text);
+  /* Не меньше 16 px, иначе iOS Safari зумит страницу при фокусе. */
+  font-size: var(--fs-base);
+  font-family: var(--font-ui);
+}
+
+.input::placeholder { color: var(--c-text-faint); }
+
+.input--area {
+  min-height: calc(var(--input-height) + var(--sp-5));
+  resize: vertical;
+  overflow-wrap: anywhere;
+}
+
+.login,
+.claim,
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.composer__row {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.composer__row > .btn { flex: 1; }
+
+/* --- Вкладки ------------------------------------------------------------ */
+
+.tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-1);
+  padding: var(--sp-1);
+  border-radius: var(--r-md);
+  background: var(--c-bg-soft);
+}
+
+.tab {
+  min-height: var(--touch-min);
+  padding: var(--sp-2) var(--sp-3);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--c-text-dim);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.tab--active {
+  background: var(--c-surface);
+  color: var(--c-text);
+  box-shadow: var(--sh-sm);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+/* --- Карты -------------------------------------------------------------- */
+
+.card-prompt {
+  padding: var(--sp-4);
+  border: 1px solid var(--c-prompt-border);
+  border-radius: var(--r-lg);
+  background: var(--c-prompt-bg);
+  color: var(--c-prompt-text);
+  font-family: var(--font-card);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  overflow-wrap: anywhere;
+}
+
+.card-prompt--big { font-size: var(--fs-lg); }
+
+.card-answer {
+  padding: var(--sp-4);
+  border: 1px solid var(--c-answer-border);
+  border-radius: var(--r-md);
+  background: var(--c-answer-bg);
+  color: var(--c-answer-text);
+  font-family: var(--font-card);
+  font-size: var(--fs-base);
+  overflow-wrap: anywhere;
+}
+
+.card-answer--picked {
+  border-color: var(--c-picked-border);
+  box-shadow: var(--sh-md);
+}
+
+/* Ответ, подставленный в вопрос, на светлой карте — тем же акцентом. */
+.card-answer .filled { background: var(--c-filled-bg); }
+
+/* --- Рука --------------------------------------------------------------- */
+
+.hand,
+.scoreboard,
+.cardlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.hand-card {
+  display: block;
+  width: 100%;
+  min-height: var(--touch-min);
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.hand-card:active { background: var(--c-answer-border); }
+
+.hand-card__badge {
+  display: inline-block;
+  margin-top: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--r-pill);
+  background: var(--c-picked-border);
+  color: var(--c-text-invert);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+}
+
+/* --- Список своих карт -------------------------------------------------- */
+
+.cardlist__item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  background: var(--c-surface);
+}
+
+.cardlist__text {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--fs-base);
+  overflow-wrap: anywhere;
+}
+
+.cardlist__actions {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.cardlist__panel {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.cardlist__row {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.cardlist__row > .btn { flex: 1; }
+
+/* --- Список игроков ----------------------------------------------------- */
+
+.scoreboard { gap: var(--sp-2); }
+
+.scoreboard-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  background: var(--c-surface);
+  font-size: var(--fs-base);
+}
+
+.scoreboard-row__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.scoreboard-row__value {
+  flex: none;
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+}
+
+.scoreboard-row--host { border-color: var(--c-accent); }
+
+.scoreboard-row--offline { color: var(--c-offline); }
+
+.scoreboard-row--offline .scoreboard-row__value { color: var(--c-offline); }
+
+/* --- Мелочи ------------------------------------------------------------- */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--r-pill);
+  background: var(--c-surface-2);
+  color: var(--c-text-dim);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+}
+
+.badge--host {
+  background: var(--c-accent);
+  color: var(--c-accent-text);
+}
+
+.badge--ok {
+  background: var(--c-ok);
+  color: var(--c-text-invert);
+}
+
+.hint {
+  margin: 0;
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+.counter {
+  margin: 0;
+  color: var(--c-text-faint);
+  font-size: var(--fs-sm);
+}
+
+.empty {
+  margin: 0;
+  color: var(--c-text-faint);
+  font-size: var(--fs-sm);
+}
+
+.status {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  overflow-wrap: anywhere;
+}
+
+.status--ok { color: var(--c-ok); }
+
+.host-title {
+  margin: 0;
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+}
+
+.round-line {
+  margin: 0;
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+}
+
+.host-step,
+.handbox,
+.submitted {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+/* --- Панель главного действия (зона большого пальца) -------------------- */
+
+.actionbar {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  width: 100%;
+  max-width: var(--phone-max);
+  padding: var(--sp-3) var(--sp-4) calc(var(--sp-3) + var(--safe-bottom));
+  background: var(--c-bg-soft);
+  border-top: 1px solid var(--c-border);
+}
+
+.actionbar__row {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.actionbar__row > .btn { flex: 1; }
+
+/* --- Предпросмотр ответа ------------------------------------------------ */
+
+.preview {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  padding-bottom: calc(var(--sp-4) + var(--safe-bottom));
+  background: var(--c-bg);
+}
+
+/* Текст листается, кнопки всегда на месте — «Отправить» видно без прокрутки. */
+.preview__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.preview__actions {
+  flex: none;
+  display: flex;
+  gap: var(--sp-3);
+}
+
+.preview__actions > .btn { flex: 1; }
+
+/* --- Тосты -------------------------------------------------------------- */
+
+.toasts {
+  position: fixed;
+  left: 0;
+  right: 0;
+  /* Выше панели главного действия (до двух рядов кнопок), чтобы её не перекрывать. */
+  bottom: calc(var(--safe-bottom) + var(--btn-height) + var(--btn-height) + var(--sp-7));
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-4);
+  pointer-events: none;
+}
+
+.toast {
+  max-width: 100%;
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-md);
+  background: var(--c-surface-2);
+  color: var(--c-text);
+  box-shadow: var(--sh-md);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+.toast--error {
+  background: var(--c-danger);
+  border-color: var(--c-danger);
+  color: var(--c-accent-text);
+}

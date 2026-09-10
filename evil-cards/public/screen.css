@@ -1,0 +1,1167 @@
+/* ==========================================================================
+   screen.css — экран ноутбука «Злобных карт». Читается с 2–3 метров.
+
+   Правило файла: все цвета, шрифты, размеры текста, отступы, скругления и тени
+   берутся ТОЛЬКО из переменных theme.css. Литералами остаются исключительно
+   структурные величины, для которых в теме переменных нет и быть не может:
+   доли flex/grid (1fr, minmax), проценты, em-ы от уже заданного шрифта,
+   волосяная линия 1px и брейкпойнты медиазапросов.
+   Дизайн придёт позже — меняется этот файл и theme.css, JS не трогается.
+   ========================================================================== */
+
+/* Локальные подпорки: если в теме однажды появятся свои переменные с такими
+   именами — они автоматически победят, потому что стоят первым аргументом var(). */
+.screen {
+  --font-mono-local: var(--font-mono, ui-monospace, "Cascadia Mono", "Segoe UI Mono",
+                     "SF Mono", Menlo, Consolas, monospace);
+  /* Нижняя граница шрифта в сетке вариантов: там карточек может быть 12.
+     Только простое значение, без calc(): подгонка читает его как число. */
+  --fs-grid-min: var(--fs-screen-grid-min, var(--fs-sm));
+}
+
+/* --------------------------------------------------------------- каркас */
+
+html,
+body { height: 100%; }
+
+body.screen {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;              /* скролла на игровом экране быть не должно */
+  font-size: var(--fs-screen-body);
+}
+
+.screen-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+
+.screen-main > section {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* --------------------------------------------------------------- топбар */
+
+.topbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  height: var(--topbar-height);
+  padding: 0 var(--sp-5);
+  background: var(--c-bg-soft);
+  border-bottom: 1px solid var(--c-border);
+}
+
+.topbar-brand {
+  font-size: var(--fs-screen-small);
+  font-weight: var(--fw-bold);
+  color: var(--c-text-dim);
+  white-space: nowrap;
+}
+
+.topbar-spacer { flex: 1 1 auto; }
+
+.topbar-url {
+  font-family: var(--font-mono-local);
+  font-size: var(--fs-screen-small);
+  color: var(--c-text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 40%;
+}
+
+/* В лобби адрес и «во весь экран» уже есть крупно в левой колонке. */
+body[data-phase="lobby"] .topbar-url,
+body[data-phase="lobby"] .topbar-fullscreen { display: none; }
+
+/* --------------------------------------------------------------- кнопки */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-height: var(--btn-height);
+  padding: 0 var(--sp-5);
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--btn-radius);
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-screen-small);
+  font-weight: var(--fw-medium);
+  text-align: center;
+  transition: background var(--transition), border-color var(--transition), color var(--transition);
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--c-surface-2);
+  border-color: var(--c-text-faint);
+}
+
+.btn:disabled {
+  background: var(--c-bg-soft);
+  border-color: var(--c-border);
+  color: var(--c-text-faint);
+  cursor: default;
+}
+
+.btn--primary {
+  background: var(--c-accent);
+  border-color: var(--c-accent);
+  color: var(--c-accent-text);
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: var(--c-accent-hover);
+  border-color: var(--c-accent-hover);
+}
+
+.btn--ghost {
+  background: transparent;
+  border-color: var(--c-border);
+  color: var(--c-text-dim);
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--c-surface);
+  color: var(--c-text);
+}
+
+.btn--danger {
+  background: var(--c-danger);
+  border-color: var(--c-danger);
+  color: var(--c-accent-text);
+}
+
+.btn--danger:hover:not(:disabled) {
+  background: var(--c-accent-hover);
+  border-color: var(--c-accent-hover);
+}
+
+.btn--big {
+  min-height: calc(var(--btn-height) + var(--sp-4));
+  padding: 0 var(--sp-6);
+  font-size: var(--fs-screen-body);
+}
+
+.btn--small {
+  min-height: auto;
+  padding: var(--sp-2) var(--sp-4);
+  font-size: var(--fs-sm);
+}
+
+/* --------------------------------------------------------------- мелочи */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--r-pill);
+  background: var(--c-surface-2);
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+}
+
+.badge--ok      { background: var(--c-ok);      color: var(--c-text-invert); }
+.badge--host    { background: var(--c-accent);  color: var(--c-accent-text); }
+.badge--offline { background: var(--c-offline); color: var(--c-text-invert); }
+.badge--wait    { background: var(--c-surface-2); color: var(--c-text-dim); }
+.badge--bot     { background: var(--c-bg); color: var(--c-text-faint); }
+.badge--step    { background: var(--c-surface-2); color: var(--c-text); }
+
+.hint {
+  margin: 0;
+  font-size: var(--fs-screen-small);
+  color: var(--c-text-dim);
+}
+
+.counter {
+  margin: 0;
+  font-size: var(--fs-screen-counter);
+  font-weight: var(--fw-bold);
+  color: var(--c-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.input {
+  height: var(--input-height);
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-md);
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-size: var(--fs-screen-body);
+}
+
+.input--num {
+  width: calc(var(--input-height) * 2);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.textarea {
+  width: 100%;
+  min-height: calc(var(--input-height) * 4);
+  padding: var(--sp-3);
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-md);
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: var(--font-mono-local);
+  font-size: var(--fs-base);
+  line-height: 1.4;
+  resize: vertical;
+}
+
+/* --------------------------------------------------------- автоподгонка */
+
+/* Границы и шаг подгонки живут здесь, JS их только читает. */
+.fit {
+  --fit-max: var(--fs-screen-card);
+  --fit-min: var(--fs-screen-card-min);
+  --fit-step: var(--sp-1);
+  overflow: hidden;
+}
+
+.fit-inner {
+  width: 100%;
+  overflow-wrap: anywhere;   /* длинное слово ломается, а не выезжает за карту */
+}
+
+/* Пробник, которым JS спрашивает у браузера значение переменной.
+   Абсолютный и невидимый — на раскладку карты не влияет. */
+.fit-probe {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* ----------------------------------------------------------------- карты */
+
+.card-prompt {
+  display: flex;
+  align-items: center;
+  /* safe center: если текст всё же не влез, он обрежется снизу, а не с двух
+     сторон сразу — начало фразы остаётся читаемым. */
+  align-items: safe center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--sp-6);
+  background: var(--c-prompt-bg);
+  color: var(--c-prompt-text);
+  border: 1px solid var(--c-prompt-border);
+  border-radius: var(--r-xl);
+  box-shadow: var(--sh-lg);
+  font-family: var(--font-card);
+  font-weight: var(--fw-bold);
+  line-height: 1.2;
+}
+
+.card-prompt--winner { border-color: var(--c-picked-border); }
+
+/* Режим 'below' — ответа не было куда вставить, он идёт строкой ниже. */
+.fit-inner[data-mode="below"] .filled {
+  display: block;
+  margin-top: var(--sp-4);
+}
+
+.card-answer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  align-items: safe center;   /* см. .card-prompt */
+  justify-content: center;
+  width: 100%;
+  padding: var(--sp-5) var(--sp-3) var(--sp-4);
+  background: var(--c-answer-bg);
+  color: var(--c-answer-text);
+  border: 1px solid var(--c-answer-border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-sm);
+  font-family: var(--font-card);
+  font-weight: var(--fw-medium);
+  line-height: 1.15;
+  text-align: center;
+  --fit-max: var(--fs-screen-body);
+  --fit-min: var(--fs-grid-min);
+  --fit-step: var(--sp-1);
+}
+
+button.card-answer:hover:not(:disabled) {
+  border-color: var(--c-picked-border);
+  box-shadow: var(--sh-md);
+}
+
+button.card-answer:disabled { cursor: default; }
+
+.card-answer--picked {
+  border-color: var(--c-picked-border);
+  box-shadow: var(--sh-md);
+}
+
+.card-answer__num {
+  position: absolute;
+  top: var(--sp-1);
+  left: var(--sp-2);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  color: var(--c-text-faint);
+}
+
+.card-answer__author {
+  margin: 0;
+  text-align: center;
+  font-size: var(--fs-screen-small);
+  font-weight: var(--fw-medium);
+  color: var(--c-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ------------------------------------------------------------------- QR */
+
+.qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+  background: var(--c-answer-bg);   /* светлая подложка — код точно отсканируется */
+  border-radius: var(--r-md);
+}
+
+.qr-img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.qr--big {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  align-self: stretch;
+  justify-content: center;
+  overflow: hidden;
+  padding: var(--sp-3);
+}
+
+.qr--corner {
+  flex: 0 0 auto;
+  margin-top: auto;               /* прижат к низу правой колонки */
+  align-self: stretch;
+}
+
+.qr--corner .qr-img {
+  max-height: calc(var(--fs-screen-card) + var(--fs-screen-title));
+}
+
+.qr-corner-url {
+  max-width: 100%;
+  font-family: var(--font-mono-local);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--c-answer-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qr-wait { padding: var(--sp-5); color: var(--c-answer-text); }
+
+/* ---------------------------------------------------------------- лобби */
+
+.lobby {
+  display: grid;
+  grid-template-columns: minmax(0, 6fr) minmax(0, 5fr) minmax(0, 5fr);
+  gap: var(--sp-5);
+  padding: var(--sp-5);
+  overflow: hidden;
+}
+
+.lobby-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+  min-height: 0;
+}
+
+.lobby-col--qr {
+  align-items: center;
+  text-align: center;
+}
+
+.lobby-title {
+  margin: 0;
+  font-size: var(--fs-screen-title);
+  font-weight: var(--fw-bold);
+}
+
+.lobby-url {
+  margin: 0;
+  font-family: var(--font-mono-local);
+  font-size: var(--fs-screen-body);
+  font-weight: var(--fw-bold);
+  color: var(--c-text);
+  word-break: break-all;
+}
+
+.lobby-fullscreen { align-self: stretch; }
+
+.lobby-h2 {
+  margin: 0;
+  font-size: var(--fs-screen-body);
+  font-weight: var(--fw-bold);
+  color: var(--c-text);
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+}
+
+.lobby-h2 .counter { font-size: var(--fs-screen-body); color: var(--c-accent); }
+
+.lobby-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  background: var(--c-bg-soft);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-lg);
+}
+
+.lobby-block--start { margin-top: auto; }
+
+.base-counts {
+  margin: 0;
+  font-size: var(--fs-screen-small);
+  font-weight: var(--fw-medium);
+  color: var(--c-text);
+}
+
+.setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.setting-label {
+  font-size: var(--fs-screen-small);
+  font-weight: var(--fw-medium);
+  color: var(--c-text-dim);
+}
+
+.seg { display: flex; gap: var(--sp-2); }
+
+.seg-btn {
+  min-width: var(--btn-height);
+  padding: 0 var(--sp-4);
+  font-size: var(--fs-screen-body);
+  font-weight: var(--fw-bold);
+}
+
+.seg-btn--active:not(:disabled) {
+  background: var(--c-accent);
+  border-color: var(--c-accent);
+  color: var(--c-accent-text);
+}
+
+.duration-hint { color: var(--c-text); }
+
+/* Список игроков в лобби */
+
+.player-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.player-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  line-height: 1.15;
+}
+
+.player-list[data-dense="1"] { gap: var(--sp-1); }
+.player-list[data-dense="1"] .player-row { padding-block: var(--sp-1); }
+.player-list[data-dense="1"] .badge { font-size: var(--fs-xs); padding-block: 0; }
+
+.player-row--ready { border-color: var(--c-ok); }
+.player-row--offline { background: var(--c-bg-soft); }
+.player-row--offline .player-name { color: var(--c-text-faint); }
+
+.player-name {
+  font-size: var(--fs-screen-small);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-cards {
+  font-size: var(--fs-sm);
+  color: var(--c-text-dim);
+  white-space: nowrap;
+}
+
+.player-marks { display: flex; align-items: center; gap: var(--sp-1); }
+
+.warnings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.warning {
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--c-warn);
+  color: var(--c-text-invert);
+  font-size: var(--fs-screen-small);
+  font-weight: var(--fw-medium);
+}
+
+/* ----------------------------------------------------------------- игра */
+
+.stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.34fr);
+  gap: var(--sp-4);
+  padding: var(--sp-5);
+  overflow: hidden;
+}
+
+.stage-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+  min-height: 0;
+}
+
+.stage-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.stage-host {
+  font-size: var(--fs-screen-body);
+  font-weight: var(--fw-medium);
+  color: var(--c-text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stage-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  overflow: hidden;
+}
+
+.stage-body > .card-prompt,
+.stage-body > .judge-grid { flex: 1 1 0; min-height: 0; }
+
+.stage-body--result > .card-prompt { flex: 3 1 0; }
+.stage-body--result > .judge-grid { flex: 2 1 0; }
+
+.stage-body > .prompt-strip {
+  flex: 0 1 auto;
+  max-height: 32%;
+}
+
+.stage-counter,
+.stage-hint,
+.stage-actions { flex: 0 0 auto; }
+
+.stage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+}
+
+.stage-draw {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  text-align: center;
+}
+
+.stage-draw-label {
+  margin: 0;
+  font-size: var(--fs-screen-body);
+  color: var(--c-text-dim);
+  text-transform: uppercase;
+}
+
+.stage-draw-host {
+  --fit-max: var(--fs-screen-card);
+  --fit-min: var(--fs-screen-title);
+  --fit-step: var(--sp-1);
+  align-self: stretch;
+  text-align: center;
+  font-weight: var(--fw-bold);
+  color: var(--c-accent);
+  line-height: 1.1;
+}
+
+.stage-draw-host .fit-inner { white-space: nowrap; }
+
+.prompt-strip {
+  --fit-max: var(--fs-screen-title);
+  --fit-min: var(--fs-screen-small);
+  --fit-step: var(--sp-1);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--c-prompt-bg);
+  color: var(--c-prompt-text);
+  border: 1px solid var(--c-prompt-border);
+  border-radius: var(--r-lg);
+  font-family: var(--font-card);
+  font-weight: var(--fw-bold);
+  line-height: 1.2;
+  text-align: center;
+}
+
+.winner-author {
+  flex: 0 0 auto;
+  margin: 0;
+  text-align: center;
+  font-size: var(--fs-screen-title);
+  font-weight: var(--fw-bold);
+  color: var(--c-accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Сетка вариантов: все влезают без скролла — карточки ужимаются, а не прячутся. */
+.judge-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--sp-3);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  align-content: stretch;
+  overflow: hidden;
+}
+
+.judge-grid[data-count="1"] { grid-template-columns: minmax(0, 1fr); }
+.judge-grid[data-count="2"],
+.judge-grid[data-count="4"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.judge-grid[data-count="10"],
+.judge-grid[data-count="11"],
+.judge-grid[data-count="12"] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+.judge-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+  min-height: 0;
+}
+
+.judge-item > .card-answer { flex: 1 1 auto; min-height: 0; }
+
+/* Таблица очков */
+
+.stage-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
+  min-height: 0;
+}
+
+.scoreboard {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.scoreboard-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  line-height: 1.15;
+}
+
+.scoreboard-row--host {
+  background: var(--c-surface-2);
+  border-color: var(--c-accent);
+}
+
+.scoreboard-row--offline {
+  background: var(--c-bg-soft);
+  border-color: var(--c-border);
+}
+
+.scoreboard-row--offline .scoreboard-name,
+.scoreboard-row--offline .scoreboard-score { color: var(--c-text-faint); }
+
+.scoreboard-name {
+  font-size: var(--fs-screen-small);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.scoreboard-marks {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.scoreboard-score {
+  font-size: var(--fs-screen-counter);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* Много народу — ужимаем строки, чтобы влезли все 12 без обрезки. */
+.scoreboard[data-dense="1"] .scoreboard-row { padding-block: var(--sp-1); }
+.scoreboard[data-dense="1"] .scoreboard-score { font-size: var(--fs-screen-small); }
+.scoreboard[data-dense="1"] .badge { font-size: var(--fs-xs); padding-block: 0; }
+
+/* ------------------------------------------------------------ конец игры */
+
+.gameover {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--sp-5);
+  padding: var(--sp-5);
+  overflow: hidden;
+}
+
+.gameover-main,
+.gameover-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+  min-height: 0;
+}
+
+.gameover-label {
+  margin: 0;
+  font-size: var(--fs-screen-body);
+  color: var(--c-text-dim);
+  text-transform: uppercase;
+}
+
+.gameover-winner {
+  --fit-max: var(--fs-screen-card);
+  --fit-min: var(--fs-screen-title);
+  --fit-step: var(--sp-1);
+  flex: 0 0 auto;
+  font-weight: var(--fw-bold);
+  color: var(--c-accent);
+  line-height: 1.1;
+}
+
+.gameover-winner .fit-inner { white-space: nowrap; }
+
+.gameover-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: var(--sp-4);
+}
+
+.standings,
+.history {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--sp-2);
+  align-content: start;
+}
+
+/* Колонок столько, сколько влезает: 12 игроков не должны уехать вниз. */
+.standings {
+  font-size: var(--fs-screen-small);
+  grid-template-columns: repeat(auto-fill, minmax(12em, 1fr));
+}
+
+.history {
+  font-size: var(--fs-screen-small);
+  grid-template-columns: repeat(auto-fill, minmax(14em, 1fr));
+}
+
+.standings-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-3);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  font-size: var(--fs-screen-small);
+  line-height: 1.15;
+}
+
+.standings-row--first { border-color: var(--c-accent); background: var(--c-surface-2); }
+
+.standings-place {
+  font-weight: var(--fw-bold);
+  color: var(--c-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.standings-name {
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.standings-score {
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.history-item {
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--c-surface);
+  border-left: solid var(--c-accent);
+  border-left-width: var(--sp-1);
+  border-radius: var(--r-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.history-round {
+  font-size: var(--fs-sm);
+  color: var(--c-text-faint);
+  font-weight: var(--fw-bold);
+}
+
+.history-text {
+  margin: 0;
+  font-size: var(--fs-screen-small);
+  color: var(--c-text);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.history-winner {
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  color: var(--c-text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ------------------------------------------------- связь, тосты, оверлеи */
+
+.offline-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  padding: var(--sp-3);
+  background: var(--c-danger);
+  color: var(--c-accent-text);
+  font-size: var(--fs-screen-body);
+  font-weight: var(--fw-bold);
+  text-align: center;
+  box-shadow: var(--sh-md);
+}
+
+.toasts {
+  position: fixed;
+  right: var(--sp-5);
+  bottom: var(--sp-5);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  max-width: 40%;
+}
+
+.toast {
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-md);
+  border: 1px solid var(--c-border-strong);
+  background: var(--c-surface-2);
+  color: var(--c-text);
+  font-size: var(--fs-screen-small);
+  box-shadow: var(--sh-md);
+}
+
+.toast--info { background: var(--c-surface-2); }
+
+.toast--error {
+  background: var(--c-danger);
+  border-color: var(--c-danger);
+  color: var(--c-accent-text);
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-5);
+  background: var(--c-bg-soft);
+  background: color-mix(in srgb, var(--c-bg) 82%, transparent);
+}
+
+/* --------------------------------------------------- панель организатора */
+
+.admin-panel {
+  width: 100%;
+  max-width: calc(var(--phone-max) * 2);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-lg);
+  overflow: hidden;
+}
+
+.admin-panel__head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--c-bg-soft);
+  border-bottom: 1px solid var(--c-border);
+}
+
+.admin-panel__title {
+  margin: 0;
+  font-size: var(--fs-screen-body);
+  font-weight: var(--fw-bold);
+}
+
+/* Единственное место с прокруткой: панель открыта поверх игры и её листают мышкой. */
+.admin-panel__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+}
+
+.admin-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.admin-h3 {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-bold);
+  color: var(--c-text);
+}
+
+.admin-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+}
+
+.admin-players,
+.url-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.admin-player {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--c-bg-soft);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+}
+
+.admin-player-name {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-player-marks {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+/* Опасная кнопка не должна стоять вплотную к безопасным. */
+.admin-player .btn--danger { margin-left: var(--sp-5); }
+
+.url-item { min-width: 0; display: flex; }
+
+.url-btn {
+  width: 100%;
+  justify-content: flex-start;
+  font-family: var(--font-mono-local);
+  font-size: var(--fs-base);
+}
+
+.url-btn--active:not(:disabled) {
+  border-color: var(--c-accent);
+  color: var(--c-text);
+  background: var(--c-surface-2);
+}
+
+.base-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-4);
+}
+
+.base-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.admin-section--danger {
+  margin-top: var(--sp-7);
+  padding: var(--sp-4);
+  border: 1px solid var(--c-danger);
+  border-radius: var(--r-lg);
+}
+
+.admin-row--danger { gap: var(--sp-6); }
+
+/* ------------------------------------------------- диалог подтверждения */
+
+.confirm {
+  width: 100%;
+  max-width: calc(var(--phone-max) + var(--sp-8) * 4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-6);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-lg);
+}
+
+.confirm-title {
+  margin: 0;
+  font-size: var(--fs-screen-title);
+  font-weight: var(--fw-bold);
+}
+
+.confirm-text {
+  margin: 0;
+  font-size: var(--fs-screen-body);
+  color: var(--c-text);
+  overflow-wrap: anywhere;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-6);
+}
+
+/* --------------------------------------------------------- адаптация */
+
+/* Ноутбук 1280×720: колонки лобби уже, адрес мельче — всё влезает без скролла. */
+@media (max-width: 1279px) {
+  .lobby {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .lobby-col--qr { grid-row: span 2; }
+  .base-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* 1920×1080 и больше: адрес под QR можно показать крупнее. */
+@media (min-width: 1600px) {
+  .lobby-url { font-size: var(--fs-screen-title); }
+  .qr-corner-url { font-size: var(--fs-screen-small); }
+}
+
+/* Экран с низким разрешением по высоте — карточки вариантов теснее. */
+@media (max-height: 800px) {
+  .stage-body { gap: var(--sp-3); }
+  .judge-grid { gap: var(--sp-2); }
+}
