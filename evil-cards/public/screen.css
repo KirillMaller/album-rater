@@ -5,8 +5,12 @@
    берутся ТОЛЬКО из переменных theme.css. Литералами остаются исключительно
    структурные величины, для которых в теме переменных нет и быть не может:
    доли flex/grid (1fr, minmax), проценты, em-ы от уже заданного шрифта,
-   волосяная линия 1px и брейкпойнты медиазапросов.
-   Дизайн придёт позже — меняется этот файл и theme.css, JS не трогается.
+   волосяная линия 1px, углы наклона и брейкпойнты медиазапросов.
+
+   Дизайн: разворот винтажного приглашения, увеличенный до экрана. Бумага
+   со складками, чёрная роза-гравюра вылезает из-за края, кружево по кромкам,
+   заголовки — крупный курсивный антиква, подписи — рукописные. Кнопки —
+   ярлыки и штампы. Сетки нарочно чуть кривые: коллаж, а не таблица.
    ========================================================================== */
 
 /* Локальные подпорки: если в теме однажды появятся свои переменные с такими
@@ -25,19 +29,54 @@ html,
 body { height: 100%; }
 
 body.screen {
+  position: relative;
   display: flex;
   flex-direction: column;
   overflow: hidden;              /* скролла на игровом экране быть не должно */
   font-size: var(--fs-screen-body);
 }
 
+/* Роза вылезает из-за нижнего левого угла, завиток — из верхнего правого.
+   Оба под контентом и не ловят клики. */
+body.screen::before {
+  content: "";
+  position: fixed;
+  left: -6vw;
+  bottom: -9vh;
+  z-index: 0;
+  width: 34vh;
+  height: 46vh;
+  background: var(--orn-rose) center / contain no-repeat;
+  opacity: 0.32;
+  transform: rotate(14deg);
+  pointer-events: none;
+}
+
 .screen-main {
+  position: relative;
+  z-index: 1;
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
 }
 
+.screen-main::after {
+  content: "";
+  position: fixed;
+  right: -7vw;
+  top: -9vh;
+  z-index: 0;
+  width: 30vh;
+  height: 30vh;
+  background: var(--orn-corner) center / contain no-repeat;
+  transform: scaleX(-1);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
 .screen-main > section {
+  position: relative;
+  z-index: 1;
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
@@ -45,22 +84,40 @@ body.screen {
 
 /* --------------------------------------------------------------- топбар */
 
+/* Узкая бумажная лента с кружевом снизу. */
 .topbar {
+  position: relative;
+  z-index: 2;
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: var(--sp-4);
   height: var(--topbar-height);
   padding: 0 var(--sp-5);
-  background: var(--c-bg-soft);
+  background: var(--c-bg);
   border-bottom: 1px solid var(--c-border);
 }
 
+.topbar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: var(--sp-3);
+  background: var(--orn-lace) left top / auto 100% repeat-x;
+  opacity: 0.8;
+  pointer-events: none;
+}
+
 .topbar-brand {
-  font-size: var(--fs-screen-small);
-  font-weight: var(--fw-bold);
-  color: var(--c-text-dim);
+  font-family: var(--font-script);
+  font-size: var(--fs-screen-title);
+  line-height: 1;
+  color: var(--c-text);
   white-space: nowrap;
+  transform: rotate(-3deg);
+  transform-origin: left center;
 }
 
 .topbar-spacer { flex: 1 1 auto; }
@@ -81,6 +138,7 @@ body[data-phase="lobby"] .topbar-fullscreen { display: none; }
 
 /* --------------------------------------------------------------- кнопки */
 
+/* Печатный ярлык: тонкая рамка и вторая линия внутри. */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -88,117 +146,144 @@ body[data-phase="lobby"] .topbar-fullscreen { display: none; }
   gap: var(--sp-2);
   min-height: var(--btn-height);
   padding: 0 var(--sp-5);
-  border: 1px solid var(--c-border-strong);
-  border-radius: var(--btn-radius);
+  border: 1px solid var(--c-border);
+  outline: 1px solid var(--c-border);
+  outline-offset: -4px;
   background: var(--c-surface);
   color: var(--c-text);
-  font-family: var(--font-ui);
-  font-size: var(--fs-screen-small);
-  font-weight: var(--fw-medium);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
   text-align: center;
-  transition: background var(--transition), border-color var(--transition), color var(--transition);
+  transition: background var(--transition), border-color var(--transition), color var(--transition), transform var(--transition);
 }
 
 .btn:hover:not(:disabled) {
   background: var(--c-surface-2);
-  border-color: var(--c-text-faint);
 }
+
+.btn:focus-visible { box-shadow: var(--focus-ring); }
 
 .btn:disabled {
   background: var(--c-bg-soft);
-  border-color: var(--c-border);
+  border-color: var(--c-text-faint);
+  outline-color: var(--c-text-faint);
   color: var(--c-text-faint);
   cursor: default;
 }
 
+/* Главная — чёрный ярлык с розовым сдвигом, наклеен чуть криво. */
 .btn--primary {
   background: var(--c-accent);
   border-color: var(--c-accent);
+  outline-color: var(--c-accent-text);
   color: var(--c-accent-text);
+  box-shadow: var(--sh-lg);
+  transform: rotate(var(--tilt-1));
 }
 
 .btn--primary:hover:not(:disabled) {
   background: var(--c-accent-hover);
-  border-color: var(--c-accent-hover);
+  transform: rotate(0deg);
+}
+
+.btn--primary:disabled {
+  box-shadow: none;
+  transform: none;
 }
 
 .btn--ghost {
   background: transparent;
   border-color: var(--c-border);
-  color: var(--c-text-dim);
-}
-
-.btn--ghost:hover:not(:disabled) {
-  background: var(--c-surface);
+  outline-style: dashed;
   color: var(--c-text);
 }
 
+.btn--ghost:hover:not(:disabled) {
+  background: var(--c-surface-2);
+}
+
 .btn--danger {
-  background: var(--c-danger);
+  background: transparent;
   border-color: var(--c-danger);
-  color: var(--c-accent-text);
+  outline-color: var(--c-danger);
+  color: var(--c-danger);
 }
 
 .btn--danger:hover:not(:disabled) {
-  background: var(--c-accent-hover);
-  border-color: var(--c-accent-hover);
+  background: var(--c-danger);
+  color: var(--c-accent-text);
 }
 
 .btn--big {
   min-height: calc(var(--btn-height) + var(--sp-4));
   padding: 0 var(--sp-6);
-  font-size: var(--fs-screen-body);
+  font-size: var(--fs-screen-small);
+  letter-spacing: 0.14em;
 }
 
 .btn--small {
   min-height: auto;
   padding: var(--sp-2) var(--sp-4);
-  font-size: var(--fs-sm);
+  font-size: var(--fs-xs);
 }
 
 /* --------------------------------------------------------------- мелочи */
 
+/* Штамп: тонкая рамка, чуть криво, как оттиск. */
 .badge {
   display: inline-flex;
   align-items: center;
   padding: var(--sp-1) var(--sp-3);
-  border-radius: var(--r-pill);
-  background: var(--c-surface-2);
-  color: var(--c-text-dim);
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-medium);
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
   white-space: nowrap;
+  transform: rotate(var(--tilt-1));
 }
 
-.badge--ok      { background: var(--c-ok);      color: var(--c-text-invert); }
-.badge--host    { background: var(--c-accent);  color: var(--c-accent-text); }
-.badge--offline { background: var(--c-offline); color: var(--c-text-invert); }
-.badge--wait    { background: var(--c-surface-2); color: var(--c-text-dim); }
-.badge--bot     { background: var(--c-bg); color: var(--c-text-faint); }
-.badge--step    { background: var(--c-surface-2); color: var(--c-text); }
+.badge--ok      { background: var(--c-accent);   border-color: var(--c-accent); color: var(--c-accent-text); }
+.badge--host    { background: var(--c-surface-2); }
+.badge--offline { background: transparent; border-style: dashed; color: var(--c-offline); border-color: var(--c-offline); }
+.badge--wait    { background: transparent; color: var(--c-text-dim); }
+.badge--bot     { background: transparent; border-style: dotted; color: var(--c-text-faint); border-color: var(--c-text-faint); }
+.badge--step    { background: var(--c-surface-2); transform: rotate(var(--tilt-2)); }
 
 .hint {
   margin: 0;
   font-size: var(--fs-screen-small);
+  font-style: italic;
   color: var(--c-text-dim);
 }
 
 .counter {
   margin: 0;
+  font-family: var(--font-display);
   font-size: var(--fs-screen-counter);
   font-weight: var(--fw-bold);
   color: var(--c-text);
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
 }
+
+/* У Playfair цифры по умолчанию «старостильные» (прыгают по высоте) —
+   для очков берём ровные, чтобы читались с трёх метров. */
+.scoreboard-score,
+.standings-score,
+.standings-place,
+.card-answer__num,
+.lobby-h2 .counter,
+#round-badge { font-variant-numeric: lining-nums tabular-nums; }
 
 .input {
   height: var(--input-height);
   padding: 0 var(--sp-3);
-  border: 1px solid var(--c-border-strong);
-  border-radius: var(--r-md);
+  border: 1px solid var(--c-border);
   background: var(--c-surface);
   color: var(--c-text);
+  font-family: var(--font-display);
   font-size: var(--fs-screen-body);
+  box-shadow: var(--sh-sm);
 }
 
 .input--num {
@@ -211,9 +296,8 @@ body[data-phase="lobby"] .topbar-fullscreen { display: none; }
   width: 100%;
   min-height: calc(var(--input-height) * 4);
   padding: var(--sp-3);
-  border: 1px solid var(--c-border-strong);
-  border-radius: var(--r-md);
-  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
   color: var(--c-text);
   font-family: var(--font-mono-local);
   font-size: var(--fs-base);
@@ -246,7 +330,10 @@ body[data-phase="lobby"] .topbar-fullscreen { display: none; }
 
 /* ----------------------------------------------------------------- карты */
 
+/* Заход — чёрная карта, отпечатанная трафаретом: растр точек, двойная рамка,
+   розовый росчерк в углу. */
 .card-prompt {
+  position: relative;
   display: flex;
   align-items: center;
   /* safe center: если текст всё же не влез, он обрежется снизу, а не с двух
@@ -254,18 +341,37 @@ body[data-phase="lobby"] .topbar-fullscreen { display: none; }
   align-items: safe center;
   justify-content: center;
   text-align: center;
-  padding: var(--sp-6);
-  background: var(--c-prompt-bg);
+  padding: var(--sp-7) var(--sp-7) var(--sp-8);
+  background-color: var(--c-prompt-bg);
+  background-image: var(--tex-halftone);
+  background-size: var(--tex-halftone-size);
   color: var(--c-prompt-text);
   border: 1px solid var(--c-prompt-border);
-  border-radius: var(--r-xl);
+  outline: 1px solid var(--c-prompt-text);
+  outline-offset: -8px;
   box-shadow: var(--sh-lg);
   font-family: var(--font-card);
-  font-weight: var(--fw-bold);
-  line-height: 1.2;
+  font-weight: var(--fw-normal);
+  line-height: 1.15;
 }
 
-.card-prompt--winner { border-color: var(--c-picked-border); }
+.card-prompt::after {
+  content: "";
+  position: absolute;
+  right: var(--sp-5);
+  bottom: var(--sp-3);
+  width: calc(var(--sp-8) * 3);
+  height: var(--sp-6);
+  background-color: var(--c-pink-dusty);
+  -webkit-mask: var(--orn-flourish) center / contain no-repeat;
+  mask: var(--orn-flourish) center / contain no-repeat;
+  pointer-events: none;
+}
+
+.card-prompt--winner {
+  outline-color: var(--c-pink-dusty);
+  box-shadow: var(--sh-lg), 0 0 0 var(--sp-2) var(--c-surface-2);
+}
 
 /* Режим 'below' — ответа не было куда вставить, он идёт строкой ниже. */
 .fit-inner[data-mode="below"] .filled {
@@ -273,6 +379,7 @@ body[data-phase="lobby"] .topbar-fullscreen { display: none; }
   margin-top: var(--sp-4);
 }
 
+/* Ответ — бумажная карточка, приклеенная чуть криво. */
 .card-answer {
   position: relative;
   display: flex;
@@ -284,19 +391,18 @@ body[data-phase="lobby"] .topbar-fullscreen { display: none; }
   background: var(--c-answer-bg);
   color: var(--c-answer-text);
   border: 1px solid var(--c-answer-border);
-  border-radius: var(--r-lg);
   box-shadow: var(--sh-sm);
   font-family: var(--font-card);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-normal);
   line-height: 1.15;
   text-align: center;
-  --fit-max: var(--fs-screen-body);
+  --fit-max: var(--fs-screen-title);
   --fit-min: var(--fs-grid-min);
   --fit-step: var(--sp-1);
 }
 
 button.card-answer:hover:not(:disabled) {
-  border-color: var(--c-picked-border);
+  background: var(--c-surface-2);
   box-shadow: var(--sh-md);
 }
 
@@ -304,25 +410,38 @@ button.card-answer:disabled { cursor: default; }
 
 .card-answer--picked {
   border-color: var(--c-picked-border);
+  outline: 1px solid var(--c-picked-border);
+  outline-offset: -6px;
+  background: var(--c-surface-2);
   box-shadow: var(--sh-md);
 }
 
+/* Номер варианта — маленький круглый штампик в углу. */
 .card-answer__num {
   position: absolute;
   top: var(--sp-1);
   left: var(--sp-2);
+  min-width: calc(var(--sp-5) + var(--sp-1));
+  padding: 0 var(--sp-1);
+  border: 1px solid var(--c-border);
+  border-radius: 50%;
+  font-family: var(--font-display);
+  font-style: italic;
   font-size: var(--fs-xs);
   font-weight: var(--fw-bold);
-  color: var(--c-text-faint);
+  line-height: calc(var(--sp-5) + var(--sp-1));
+  color: var(--c-text);
+  transform: rotate(-8deg);
 }
 
 .card-answer__author {
   flex: 0 0 auto;            /* имя автора не выжимается карточкой — ради него весь шаг */
   margin: 0;
   text-align: center;
-  font-size: var(--fs-screen-small);
-  font-weight: var(--fw-medium);
-  color: var(--c-text);
+  font-family: var(--font-script);
+  font-size: var(--fs-screen-title);
+  line-height: 1;
+  color: var(--c-pink-deep);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -330,15 +449,33 @@ button.card-answer:disabled { cursor: default; }
 
 /* ------------------------------------------------------------------- QR */
 
+/* QR — фотокарточка, приклеенная скотчем. Сам код нетронут: он должен читаться. */
 .qr {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--sp-2);
-  padding: var(--sp-2);
-  background: var(--c-answer-bg);   /* светлая подложка — код точно отсканируется */
-  border-radius: var(--r-md);
+  padding: var(--sp-3);
+  background: var(--c-paper-light);   /* светлая подложка — код точно отсканируется */
+  border: 1px solid var(--c-border);
+  box-shadow: var(--sh-lg);
 }
+
+.qr::before,
+.qr::after {
+  content: "";
+  position: absolute;
+  top: calc(var(--sp-3) * -1);
+  width: calc(var(--sp-8) + var(--sp-4));
+  height: var(--sp-5);
+  background: var(--tape);
+  border: 1px solid var(--c-pink-dusty);
+  pointer-events: none;
+}
+
+.qr::before { left: var(--sp-5); transform: rotate(-7deg); }
+.qr::after  { right: var(--sp-5); transform: rotate(6deg); }
 
 .qr-img {
   display: block;
@@ -354,13 +491,15 @@ button.card-answer:disabled { cursor: default; }
   align-self: stretch;
   justify-content: center;
   overflow: hidden;
-  padding: var(--sp-3);
+  padding: var(--sp-5);
+  transform: rotate(var(--tilt-1));
 }
 
 .qr--corner {
   flex: 0 0 auto;
   margin-top: auto;               /* прижат к низу правой колонки */
   align-self: stretch;
+  transform: rotate(var(--tilt-2));
 }
 
 .qr--corner .qr-img {
@@ -371,7 +510,7 @@ button.card-answer:disabled { cursor: default; }
   max-width: 100%;
   font-family: var(--font-mono-local);
   font-size: var(--fs-sm);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-bold);
   color: var(--c-answer-text);
   white-space: nowrap;
   overflow: hidden;
@@ -385,8 +524,8 @@ button.card-answer:disabled { cursor: default; }
 .lobby {
   display: grid;
   grid-template-columns: minmax(0, 6fr) minmax(0, 5fr) minmax(0, 5fr);
-  gap: var(--sp-5);
-  padding: var(--sp-5);
+  gap: var(--sp-6);
+  padding: var(--sp-6) var(--sp-6) var(--sp-5);
   overflow: hidden;
 }
 
@@ -403,10 +542,32 @@ button.card-answer:disabled { cursor: default; }
   text-align: center;
 }
 
+/* Заголовок лобби — обложка приглашения: огромный курсив, а над ним
+   рукописная строчка «для Оли», налезающая на буквы. */
 .lobby-title {
+  position: relative;
   margin: 0;
-  font-size: var(--fs-screen-title);
-  font-weight: var(--fw-bold);
+  padding-top: var(--sp-6);
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: calc(var(--fs-screen-title) + var(--fs-screen-small));
+  font-weight: var(--fw-normal);
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+}
+
+.lobby-title::before {
+  content: "на день рождения Оли";
+  position: absolute;
+  left: 0;
+  top: 0;
+  white-space: nowrap;
+  font-family: var(--font-script);
+  font-size: var(--fs-screen-body);
+  line-height: 1;
+  color: var(--c-pink-deep);
+  transform: rotate(-4deg);
+  transform-origin: left bottom;
 }
 
 .lobby-url {
@@ -417,7 +578,7 @@ button.card-answer:disabled { cursor: default; }
      нижние хвосты и «sslip» читается как «sslin». */
   flex: 0 0 auto;
   align-self: stretch;
-  margin: 0;
+  margin: var(--sp-2) 0 0;
   font-family: var(--font-mono-local);
   font-weight: var(--fw-bold);
   color: var(--c-text);
@@ -428,26 +589,39 @@ button.card-answer:disabled { cursor: default; }
 
 .lobby-fullscreen { align-self: stretch; }
 
+/* Подзаголовок колонки — рукописный, с росчерком под ним. */
 .lobby-h2 {
   margin: 0;
-  font-size: var(--fs-screen-body);
-  font-weight: var(--fw-bold);
+  padding-bottom: var(--sp-2);
+  font-family: var(--font-script);
+  font-size: var(--fs-screen-title);
+  font-weight: var(--fw-normal);
+  line-height: 1;
   color: var(--c-text);
   display: flex;
   align-items: baseline;
   gap: var(--sp-3);
+  border-bottom: 1px solid var(--c-border);
 }
 
-.lobby-h2 .counter { font-size: var(--fs-screen-body); color: var(--c-accent); }
+.lobby-h2 .counter {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--fs-screen-title);
+  color: var(--c-pink-deep);
+}
 
+/* Блок — бумажная карточка с двойной рамкой, как визитка. */
 .lobby-block {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-3);
-  padding: var(--sp-4);
-  background: var(--c-bg-soft);
+  gap: var(--sp-2);
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--c-surface);
   border: 1px solid var(--c-border);
-  border-radius: var(--r-lg);
+  outline: 1px solid var(--c-border);
+  outline-offset: -6px;
+  box-shadow: var(--sh-sm);
 }
 
 /* Блок со стартом всегда целиком на экране: если колонка не помещается,
@@ -455,18 +629,28 @@ button.card-answer:disabled { cursor: default; }
 .lobby-block--start {
   margin-top: auto;
   flex: 0 0 auto;
+  background: var(--c-surface-2);
+  transform: rotate(var(--tilt-2));
 }
+
+.lobby-block--start .btn--primary { align-self: stretch; }
 
 .lobby-col--settings > .lobby-block:not(.lobby-block--start) {
   min-height: 0;
   overflow: hidden;
 }
 
+/* Настроек стало много (цель, рука, сколько карт просим) — подсказки под
+   ними мельче, чтобы в 768 px по высоте влезали все поля, а не только два. */
+.lobby-col--settings .hint { font-size: var(--fs-base); }
+
 .base-counts {
   margin: 0;
-  font-size: var(--fs-screen-small);
-  font-weight: var(--fw-medium);
-  color: var(--c-text);
+  font-family: var(--font-mono-local);
+  font-size: var(--fs-sm);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--c-text-dim);
 }
 
 .setting {
@@ -478,9 +662,10 @@ button.card-answer:disabled { cursor: default; }
 }
 
 .setting-label {
+  font-family: var(--font-display);
+  font-style: italic;
   font-size: var(--fs-screen-small);
-  font-weight: var(--fw-medium);
-  color: var(--c-text-dim);
+  color: var(--c-text);
 }
 
 .seg { display: flex; gap: var(--sp-2); }
@@ -488,19 +673,23 @@ button.card-answer:disabled { cursor: default; }
 .seg-btn {
   min-width: var(--btn-height);
   padding: 0 var(--sp-4);
+  font-family: var(--font-display);
   font-size: var(--fs-screen-body);
   font-weight: var(--fw-bold);
+  letter-spacing: 0;
 }
 
 .seg-btn--active:not(:disabled) {
   background: var(--c-accent);
   border-color: var(--c-accent);
+  outline-color: var(--c-accent-text);
   color: var(--c-accent-text);
+  transform: rotate(var(--tilt-1));
 }
 
 .duration-hint { color: var(--c-text); }
 
-/* Список игроков в лобби */
+/* Список игроков в лобби — книга гостей: строки с точечной линейкой. */
 
 .player-list {
   flex: 1 1 auto;
@@ -511,7 +700,7 @@ button.card-answer:disabled { cursor: default; }
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--sp-2);
+  gap: 0;
 }
 
 .player-row {
@@ -519,36 +708,39 @@ button.card-answer:disabled { cursor: default; }
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: var(--sp-3);
-  padding: var(--sp-2) var(--sp-3);
-  background: var(--c-surface);
-  border: 1px solid var(--c-border);
-  border-radius: var(--r-md);
+  padding: var(--sp-3) var(--sp-2);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px dotted var(--c-border);
   line-height: 1.15;
 }
 
-.player-list[data-dense="1"] { gap: var(--sp-1); }
+.player-list[data-dense="1"] { gap: 0; }
 .player-list[data-dense="1"] .player-row { padding-block: var(--sp-1); }
 .player-list[data-dense="1"] .badge { font-size: var(--fs-xs); padding-block: 0; }
+.player-row .badge { padding-inline: var(--sp-2); letter-spacing: 0.04em; }
 
-.player-row--ready { border-color: var(--c-ok); }
-.player-row--offline { background: var(--c-bg-soft); }
+.player-row--ready { background: var(--c-surface-2); }
+.player-row--offline { background: transparent; }
 .player-row--offline .player-name { color: var(--c-text-faint); }
 
 .player-name {
+  font-family: var(--font-display);
+  font-style: italic;
   font-size: var(--fs-screen-small);
-  font-weight: var(--fw-medium);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .player-cards {
-  font-size: var(--fs-sm);
+  font-family: var(--font-mono-local);
+  font-size: var(--fs-xs);
   color: var(--c-text-dim);
   white-space: nowrap;
 }
 
-.player-marks { display: flex; align-items: center; gap: var(--sp-1); }
+.player-marks { display: flex; align-items: center; gap: var(--sp-2); }
 
 .warnings {
   list-style: none;
@@ -561,11 +753,11 @@ button.card-answer:disabled { cursor: default; }
 
 .warning {
   padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--r-md);
-  background: var(--c-warn);
-  color: var(--c-text-invert);
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-style: italic;
   font-size: var(--fs-screen-small);
-  font-weight: var(--fw-medium);
 }
 
 /* ----------------------------------------------------------------- игра */
@@ -573,8 +765,8 @@ button.card-answer:disabled { cursor: default; }
 .stage {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 0.34fr);
-  gap: var(--sp-4);
-  padding: var(--sp-5);
+  gap: var(--sp-5);
+  padding: var(--sp-6) var(--sp-6) var(--sp-5);
   overflow: hidden;
 }
 
@@ -590,14 +782,29 @@ button.card-answer:disabled { cursor: default; }
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: var(--sp-3);
+  gap: var(--sp-4);
   min-width: 0;
 }
 
+/* Номер раунда — курсивный антиква, а не штамп: это заголовок страницы. */
+#round-badge {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--fs-screen-title);
+  font-weight: var(--fw-normal);
+  letter-spacing: -0.01em;
+  text-transform: none;
+  transform: none;
+}
+
 .stage-host {
-  font-size: var(--fs-screen-body);
-  font-weight: var(--fw-medium);
-  color: var(--c-text-dim);
+  font-family: var(--font-script);
+  font-size: var(--fs-screen-counter);
+  line-height: 1;
+  color: var(--c-pink-deep);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -627,7 +834,7 @@ button.card-answer:disabled { cursor: default; }
 .stage-body--result > .card-prompt {
   flex: 2 1 0;
   --fit-min: var(--fs-screen-small);
-  padding: var(--sp-4);
+  padding: var(--sp-5) var(--sp-5) var(--sp-6);
 }
 
 .stage-body--result > .judge-grid { flex: 3 1 0; }
@@ -637,7 +844,7 @@ button.card-answer:disabled { cursor: default; }
   --fit-min: var(--fs-sm);
 }
 
-.stage-body--result .card-answer__author { font-size: var(--fs-sm); }
+.stage-body--result .card-answer__author { font-size: var(--fs-screen-body); }
 
 /* Вариантов девять и больше (это 10-12 игроков) — текста на экране физически
    больше, чем в него влезает. Проигравшие варианты только что прочитали вслух,
@@ -679,9 +886,11 @@ button.card-answer:disabled { cursor: default; }
 .stage-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--sp-3);
+  gap: var(--sp-4);
 }
 
+/* Шаг «ведущий тянет карту» — как титульный лист: подпись, огромное имя,
+   росчерк под ним. */
 .stage-draw {
   flex: 1 1 auto;
   min-height: 0;
@@ -693,38 +902,55 @@ button.card-answer:disabled { cursor: default; }
   text-align: center;
 }
 
+.stage-draw::after {
+  content: "";
+  width: calc(var(--sp-8) * 5);
+  max-width: 80%;
+  height: var(--sp-7);
+  background: var(--orn-flourish) center / contain no-repeat;
+}
+
 .stage-draw-label {
   margin: 0;
-  font-size: var(--fs-screen-body);
-  color: var(--c-text-dim);
-  text-transform: uppercase;
+  font-family: var(--font-script);
+  font-size: var(--fs-screen-script);
+  line-height: 1;
+  color: var(--c-pink-deep);
+  transform: rotate(-3deg);
 }
 
 .stage-draw-host {
-  --fit-max: var(--fs-screen-card);
+  --fit-max: var(--fs-screen-hero);
   --fit-min: var(--fs-screen-title);
   --fit-step: var(--sp-1);
   align-self: stretch;
   text-align: center;
-  font-weight: var(--fw-bold);
-  color: var(--c-accent);
-  line-height: 1.1;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: var(--fw-normal);
+  color: var(--c-text);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
 }
 
 .stage-draw-host .fit-inner { white-space: nowrap; }
 
+/* Полоска с вопросом над сеткой вариантов — та же чёрная карта, но короче. */
 .prompt-strip {
   --fit-max: var(--fs-screen-title);
   --fit-min: var(--fs-screen-small);
   --fit-step: var(--sp-1);
-  padding: var(--sp-3) var(--sp-4);
-  background: var(--c-prompt-bg);
+  padding: var(--sp-4) var(--sp-5);
+  background-color: var(--c-prompt-bg);
+  background-image: var(--tex-halftone);
+  background-size: var(--tex-halftone-size);
   color: var(--c-prompt-text);
   border: 1px solid var(--c-prompt-border);
-  border-radius: var(--r-lg);
+  outline: 1px solid var(--c-prompt-text);
+  outline-offset: -6px;
   font-family: var(--font-card);
-  font-weight: var(--fw-bold);
-  line-height: 1.2;
+  font-weight: var(--fw-normal);
+  line-height: 1.15;
   text-align: center;
 }
 
@@ -732,9 +958,10 @@ button.card-answer:disabled { cursor: default; }
   flex: 0 0 auto;
   margin: 0;
   text-align: center;
-  font-size: var(--fs-screen-title);
-  font-weight: var(--fw-bold);
-  color: var(--c-accent);
+  font-family: var(--font-script);
+  font-size: var(--fs-screen-script);
+  line-height: 1;
+  color: var(--c-pink-deep);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -744,9 +971,9 @@ button.card-answer:disabled { cursor: default; }
 .judge-grid {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: var(--sp-1);
   display: grid;
-  gap: var(--sp-3);
+  gap: var(--sp-4);
   grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-auto-rows: minmax(0, 1fr);
   align-content: stretch;
@@ -779,7 +1006,15 @@ button.card-answer:disabled { cursor: default; }
 
 .judge-item > .card-answer { flex: 1 1 auto; min-height: 0; }
 
-/* Таблица очков */
+/* Коллаж: карточки наклеены под разными углами. Наклон маленький, чтобы
+   подгонка текста считала размеры без сюрпризов. */
+.judge-item:nth-child(3n+1) > .card-answer { transform: rotate(var(--tilt-1)); }
+.judge-item:nth-child(3n+2) > .card-answer { transform: rotate(var(--tilt-2)); }
+.judge-item:nth-child(3n)   > .card-answer { transform: rotate(var(--tilt-3)); }
+
+button.card-answer:hover:not(:disabled) { transform: none; }
+
+/* Таблица очков — книга гостей справа. */
 
 .stage-side {
   display: flex;
@@ -798,7 +1033,9 @@ button.card-answer:disabled { cursor: default; }
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--sp-1);
+  gap: 0;
+  background: var(--c-bg);        /* закрывает орнамент из угла — цифры читаются чисто */
+  border-top: 1px solid var(--c-border);
 }
 
 .scoreboard-row {
@@ -806,29 +1043,24 @@ button.card-answer:disabled { cursor: default; }
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: var(--sp-2);
-  padding: var(--sp-2) var(--sp-3);
-  background: var(--c-surface);
-  border: 1px solid var(--c-border);
-  border-radius: var(--r-md);
+  padding: var(--sp-2) var(--sp-2);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px dotted var(--c-border);
   line-height: 1.15;
 }
 
-.scoreboard-row--host {
-  background: var(--c-surface-2);
-  border-color: var(--c-accent);
-}
+.scoreboard-row--host { background: var(--c-surface-2); }
 
-.scoreboard-row--offline {
-  background: var(--c-bg-soft);
-  border-color: var(--c-border);
-}
+.scoreboard-row--offline { background: transparent; }
 
 .scoreboard-row--offline .scoreboard-name,
 .scoreboard-row--offline .scoreboard-score { color: var(--c-text-faint); }
 
 .scoreboard-name {
+  font-family: var(--font-display);
+  font-style: italic;
   font-size: var(--fs-screen-small);
-  font-weight: var(--fw-medium);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -841,6 +1073,7 @@ button.card-answer:disabled { cursor: default; }
 }
 
 .scoreboard-score {
+  font-family: var(--font-display);
   font-size: var(--fs-screen-counter);
   font-weight: var(--fw-bold);
   font-variant-numeric: tabular-nums;
@@ -857,8 +1090,8 @@ button.card-answer:disabled { cursor: default; }
 .gameover {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--sp-5);
-  padding: var(--sp-5);
+  gap: var(--sp-6);
+  padding: var(--sp-6);
   overflow: hidden;
 }
 
@@ -873,19 +1106,27 @@ button.card-answer:disabled { cursor: default; }
 
 .gameover-label {
   margin: 0;
-  font-size: var(--fs-screen-body);
-  color: var(--c-text-dim);
-  text-transform: uppercase;
+  font-family: var(--font-script);
+  font-size: var(--fs-screen-script);
+  line-height: 1;
+  color: var(--c-pink-deep);
+  transform: rotate(-3deg);
+  transform-origin: left bottom;
 }
 
 .gameover-winner {
-  --fit-max: var(--fs-screen-card);
+  --fit-max: var(--fs-screen-hero);
   --fit-min: var(--fs-screen-title);
   --fit-step: var(--sp-1);
   flex: 0 0 auto;
-  font-weight: var(--fw-bold);
-  color: var(--c-accent);
-  line-height: 1.1;
+  padding-bottom: var(--sp-2);
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: var(--fw-normal);
+  color: var(--c-text);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  border-bottom: 1px solid var(--c-border);
 }
 
 .gameover-winner .fit-inner { white-space: nowrap; }
@@ -922,6 +1163,7 @@ button.card-answer:disabled { cursor: default; }
   grid-template-columns: repeat(auto-fill, minmax(14em, 1fr));
   grid-auto-rows: minmax(0, 1fr);
   align-content: stretch;
+  gap: var(--sp-3);
 }
 
 .standings-row {
@@ -930,39 +1172,48 @@ button.card-answer:disabled { cursor: default; }
   align-items: center;
   gap: var(--sp-2);
   padding: var(--sp-1) var(--sp-3);
-  background: var(--c-surface);
-  border: 1px solid var(--c-border);
-  border-radius: var(--r-md);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px dotted var(--c-border);
   font-size: var(--fs-screen-small);
   line-height: 1.15;
 }
 
-.standings-row--first { border-color: var(--c-accent); background: var(--c-surface-2); }
+.standings-row--first {
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  transform: rotate(var(--tilt-1));
+}
 
 .standings-place {
+  font-family: var(--font-display);
+  font-style: italic;
   font-weight: var(--fw-bold);
   color: var(--c-text-faint);
   font-variant-numeric: tabular-nums;
 }
 
 .standings-name {
-  font-weight: var(--fw-medium);
+  font-family: var(--font-display);
+  font-style: italic;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .standings-score {
+  font-family: var(--font-display);
   font-weight: var(--fw-bold);
   font-variant-numeric: tabular-nums;
 }
 
+/* Лучшие карты вечера — вырезки, приклеенные в альбом. */
 .history-item {
-  padding: var(--sp-2) var(--sp-3);
+  position: relative;
+  padding: var(--sp-3) var(--sp-3) var(--sp-2);
   background: var(--c-surface);
-  border-left: solid var(--c-accent);
-  border-left-width: var(--sp-1);
-  border-radius: var(--r-sm);
+  border: 1px solid var(--c-border);
+  box-shadow: var(--sh-sm);
   display: flex;
   flex-direction: column;
   gap: var(--sp-1);
@@ -971,11 +1222,15 @@ button.card-answer:disabled { cursor: default; }
   overflow: hidden;
 }
 
+.history-item:nth-child(2n) { transform: rotate(var(--tilt-2)); }
+.history-item:nth-child(2n+1) { transform: rotate(var(--tilt-1)); }
+
 .history-round {
   flex: 0 0 auto;
-  font-size: var(--fs-sm);
+  font-family: var(--font-mono-local);
+  font-size: var(--fs-xs);
   color: var(--c-text-faint);
-  font-weight: var(--fw-bold);
+  letter-spacing: 0.06em;
 }
 
 /* Ужимается по строкам с многоточием — так карточка не режется по буквам,
@@ -984,6 +1239,7 @@ button.card-answer:disabled { cursor: default; }
   flex: 1 1 auto;
   min-height: 0;
   margin: 0;
+  font-family: var(--font-display);
   font-size: var(--fs-screen-small);
   color: var(--c-text);
   line-height: 1.25;
@@ -998,9 +1254,9 @@ button.card-answer:disabled { cursor: default; }
 .history-winner {
   flex: 0 0 auto;           /* кто выиграл — не выжимаем никогда */
   margin: 0;
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-bold);
-  color: var(--c-text-dim);
+  font-family: var(--font-script);
+  font-size: var(--fs-screen-small);
+  color: var(--c-pink-deep);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1017,10 +1273,11 @@ button.card-answer:disabled { cursor: default; }
   padding: var(--sp-3);
   background: var(--c-danger);
   color: var(--c-accent-text);
+  font-family: var(--font-display);
+  font-style: italic;
   font-size: var(--fs-screen-body);
-  font-weight: var(--fw-bold);
   text-align: center;
-  box-shadow: var(--sh-md);
+  border-bottom: 1px solid var(--c-border);
 }
 
 .toasts {
@@ -1030,21 +1287,36 @@ button.card-answer:disabled { cursor: default; }
   z-index: 40;
   display: flex;
   flex-direction: column;
-  gap: var(--sp-2);
+  gap: var(--sp-3);
   max-width: 40%;
 }
 
 .toast {
+  position: relative;
   padding: var(--sp-3) var(--sp-4);
-  border-radius: var(--r-md);
-  border: 1px solid var(--c-border-strong);
-  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
   color: var(--c-text);
+  font-family: var(--font-display);
+  font-style: italic;
   font-size: var(--fs-screen-small);
   box-shadow: var(--sh-md);
+  transform: rotate(var(--tilt-2));
 }
 
-.toast--info { background: var(--c-surface-2); }
+.toast::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--sp-2) * -1);
+  left: 50%;
+  width: var(--sp-8);
+  height: var(--sp-3);
+  background: var(--tape);
+  border: 1px solid var(--c-pink-dusty);
+  transform: translateX(-50%) rotate(-3deg);
+}
+
+.toast--info { background: var(--c-surface); }
 
 .toast--error {
   background: var(--c-danger);
@@ -1052,6 +1324,7 @@ button.card-answer:disabled { cursor: default; }
   color: var(--c-accent-text);
 }
 
+/* Затемнение — как розовая калька поверх страницы. */
 .overlay {
   position: fixed;
   inset: 0;
@@ -1061,7 +1334,7 @@ button.card-answer:disabled { cursor: default; }
   justify-content: center;
   padding: var(--sp-5);
   background: var(--c-bg-soft);
-  background: color-mix(in srgb, var(--c-bg) 82%, transparent);
+  background: color-mix(in srgb, var(--c-pink-dusty) 55%, transparent);
 }
 
 /* --------------------------------------------------- панель организатора */
@@ -1072,9 +1345,10 @@ button.card-answer:disabled { cursor: default; }
   max-height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--c-surface);
-  border: 1px solid var(--c-border-strong);
-  border-radius: var(--r-lg);
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  outline: 1px solid var(--c-border);
+  outline-offset: -6px;
   box-shadow: var(--sh-lg);
   overflow: hidden;
 }
@@ -1085,15 +1359,18 @@ button.card-answer:disabled { cursor: default; }
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-4);
-  padding: var(--sp-4) var(--sp-5);
-  background: var(--c-bg-soft);
+  padding: var(--sp-4) var(--sp-6);
+  background: var(--c-bg);
   border-bottom: 1px solid var(--c-border);
 }
 
 .admin-panel__title {
   margin: 0;
-  font-size: var(--fs-screen-body);
-  font-weight: var(--fw-bold);
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--fs-screen-title);
+  font-weight: var(--fw-normal);
+  line-height: 1;
 }
 
 /* Единственное место с прокруткой: панель открыта поверх игры и её листают мышкой. */
@@ -1101,7 +1378,7 @@ button.card-answer:disabled { cursor: default; }
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding: var(--sp-5);
+  padding: var(--sp-5) var(--sp-6);
   display: flex;
   flex-direction: column;
   gap: var(--sp-6);
@@ -1115,9 +1392,11 @@ button.card-answer:disabled { cursor: default; }
 
 .admin-h3 {
   margin: 0;
-  font-size: var(--fs-md);
-  font-weight: var(--fw-bold);
-  color: var(--c-text);
+  font-family: var(--font-script);
+  font-size: var(--fs-screen-title);
+  font-weight: var(--fw-normal);
+  line-height: 1;
+  color: var(--c-pink-deep);
 }
 
 .admin-row {
@@ -1143,14 +1422,15 @@ button.card-answer:disabled { cursor: default; }
   align-items: center;
   gap: var(--sp-4);
   padding: var(--sp-2) var(--sp-3);
-  background: var(--c-bg-soft);
-  border: 1px solid var(--c-border);
-  border-radius: var(--r-md);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px dotted var(--c-border);
 }
 
 .admin-player-name {
+  font-family: var(--font-display);
+  font-style: italic;
   font-size: var(--fs-md);
-  font-weight: var(--fw-medium);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1167,15 +1447,20 @@ button.card-answer:disabled { cursor: default; }
 
 .url-item { min-width: 0; display: flex; }
 
+/* Адрес — как есть, без капителей: это не ярлык, а ссылка. */
 .url-btn {
   width: 100%;
   justify-content: flex-start;
   font-family: var(--font-mono-local);
   font-size: var(--fs-base);
+  font-weight: var(--fw-normal);
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .url-btn--active:not(:disabled) {
-  border-color: var(--c-accent);
+  border-color: var(--c-border);
+  outline-style: solid;
   color: var(--c-text);
   background: var(--c-surface-2);
 }
@@ -1197,30 +1482,51 @@ button.card-answer:disabled { cursor: default; }
   margin-top: var(--sp-7);
   padding: var(--sp-4);
   border: 1px solid var(--c-danger);
-  border-radius: var(--r-lg);
+  outline: 1px dashed var(--c-danger);
+  outline-offset: -5px;
 }
+
+.admin-section--danger .admin-h3 { color: var(--c-danger); }
 
 .admin-row--danger { gap: var(--sp-6); }
 
 /* ------------------------------------------------- диалог подтверждения */
 
 .confirm {
+  position: relative;
   width: 100%;
   max-width: calc(var(--phone-max) + var(--sp-8) * 4);
   display: flex;
   flex-direction: column;
   gap: var(--sp-4);
-  padding: var(--sp-6);
-  background: var(--c-surface);
-  border: 1px solid var(--c-border-strong);
-  border-radius: var(--r-lg);
+  padding: var(--sp-7) var(--sp-6) var(--sp-6);
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  outline: 1px solid var(--c-border);
+  outline-offset: -6px;
   box-shadow: var(--sh-lg);
+}
+
+.confirm::before {
+  content: "";
+  position: absolute;
+  right: calc(var(--sp-7) * -1);
+  bottom: calc(var(--sp-7) * -1);
+  width: calc(var(--sp-8) * 2.5);
+  height: calc(var(--sp-8) * 2.5);
+  background: var(--orn-corner) center / contain no-repeat;
+  transform: scaleX(-1);
+  opacity: 0.85;
+  pointer-events: none;
 }
 
 .confirm-title {
   margin: 0;
+  font-family: var(--font-display);
+  font-style: italic;
   font-size: var(--fs-screen-title);
-  font-weight: var(--fw-bold);
+  font-weight: var(--fw-normal);
+  line-height: 1;
 }
 
 .confirm-text {
@@ -1246,6 +1552,7 @@ button.card-answer:disabled { cursor: default; }
   }
   .lobby-col--qr { grid-row: span 2; }
   .base-grid { grid-template-columns: minmax(0, 1fr); }
+  .screen-main::after { width: 22vh; height: 22vh; }
 }
 
 /* 1920×1080 и больше: адрес в углу можно показать крупнее
@@ -1257,5 +1564,14 @@ button.card-answer:disabled { cursor: default; }
 /* Экран с низким разрешением по высоте — карточки вариантов теснее. */
 @media (max-height: 800px) {
   .stage-body { gap: var(--sp-3); }
-  .judge-grid { gap: var(--sp-2); }
+  .judge-grid { gap: var(--sp-3); }
+  .lobby-title { padding-top: var(--sp-4); }
+}
+
+/* Сколько гостей прочитали текущий экран. Видно с трёх метров, но тише карты. */
+.reading-line {
+  margin: var(--sp-2, 8px) 0 0;
+  font-size: clamp(1rem, 1.6vw, 1.5rem);
+  color: var(--c-text-dim);
+  text-align: center;
 }

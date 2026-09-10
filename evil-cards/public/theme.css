@@ -1,68 +1,96 @@
 /* ==========================================================================
    theme.css — ВСЕ цвета, шрифты, размеры, отступы, скругления и тени.
    В play.css и screen.css допускаются ТОЛЬКО var(--…) из этого файла.
-   Дизайн придёт позже — тогда меняется только этот файл, JS не трогается.
+
+   Дизайн: винтажное девичье приглашение на день рождения Оли.
+   Гламур нулевых, кич, старые открытки, кружево, чёрные гравюры-цветы,
+   сканированная бумага. Дорого, но нарочно немного трэшово.
+   Палитра: пудрово-розовый, пыльный румянец, тёплая слоновая кость,
+   глубокий чёрный, чуть бежевого. Никаких скруглений, градиентов и «стекла».
+
+   Картинки-орнаменты лежат в /art/ (svg, рисованы руками, внешних запросов нет).
    ========================================================================== */
 
 :root {
+  /* --- Палитра приглашения --- */
+  --c-ink:           #161210;   /* типографская чёрная краска */
+  --c-ink-soft:      #2b2320;
+  --c-paper:         #f4ecdc;   /* тёплая слоновая кость */
+  --c-paper-light:   #f9f4ea;   /* off-white — карточки */
+  --c-paper-dark:    #e9dcc6;   /* пожелтевшие края */
+  --c-beige:         #d8c7ad;
+  --c-pink:          #efc4cf;   /* пудрово-розовый */
+  --c-pink-dusty:    #d99fb2;   /* пыльный румянец */
+  --c-pink-deep:     #a8536f;   /* помада */
+  --c-wine:          #7d1f33;
+
   /* --- Цвета: поверхности --- */
-  --c-bg:            #14151a;
-  --c-bg-soft:       #1c1e26;
-  --c-surface:       #23262f;
-  --c-surface-2:     #2c303b;
-  --c-border:        #383d4a;
-  --c-border-strong: #4d5464;
+  --c-bg:            var(--c-paper);
+  --c-bg-soft:       var(--c-paper-dark);
+  --c-surface:       var(--c-paper-light);
+  --c-surface-2:     var(--c-pink);
+  --c-border:        var(--c-ink);
+  --c-border-strong: var(--c-ink);
 
   /* --- Цвета: текст --- */
-  --c-text:          #f2f3f7;
-  --c-text-dim:      #a7adbb;
-  --c-text-faint:    #6f7688;
-  --c-text-invert:   #14151a;
+  --c-text:          var(--c-ink);
+  --c-text-dim:      #5c4a46;
+  --c-text-faint:    #8f7d76;
+  --c-text-invert:   var(--c-paper);
 
   /* --- Цвета: акценты --- */
-  --c-accent:        #e0464b;
-  --c-accent-hover:  #f05a5f;
-  --c-accent-text:   #ffffff;
-  --c-ok:            #3fb96b;
-  --c-warn:          #e8a33d;
-  --c-danger:        #d8453f;
-  --c-offline:       #767d8e;
+  --c-accent:        var(--c-ink);       /* главная кнопка — чёрный ярлык */
+  --c-accent-hover:  var(--c-ink-soft);
+  --c-accent-text:   var(--c-paper);
+  --c-ok:            var(--c-pink-deep);
+  --c-warn:          var(--c-pink-dusty);
+  --c-danger:        var(--c-wine);
+  --c-offline:       #9c8d85;
 
   /* --- Карты --- */
-  --c-prompt-bg:     #0f1014;   /* заход — тёмная карта */
-  --c-prompt-text:   #f7f7fa;
-  --c-prompt-border: #2b2e38;
-  --c-answer-bg:     #f4f4f7;   /* ответы — светлые */
-  --c-answer-text:   #16171c;
-  --c-answer-border: #d3d5dd;
-  --c-filled:        #e0464b;   /* подставленный ответ внутри захода */
-  --c-filled-bg:     rgba(224, 70, 75, 0.14);
-  --c-picked-border: #3fb96b;
+  --c-prompt-bg:     var(--c-ink);       /* заход — чёрная карта, как гравюра */
+  --c-prompt-text:   var(--c-paper);
+  --c-prompt-border: var(--c-ink);
+  --c-answer-bg:     var(--c-paper-light);   /* ответы — бумажные */
+  --c-answer-text:   var(--c-ink);
+  --c-answer-border: var(--c-ink);
+  --c-filled:        var(--c-ink);       /* подставленный ответ — помадой по бумаге */
+  --c-filled-bg:     var(--c-pink);
+  --c-picked-border: var(--c-pink-deep);
 
-  /* --- Шрифты (только системные, без внешних загрузок) --- */
-  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-             "Helvetica Neue", Arial, "Noto Sans", sans-serif;
-  --font-card: var(--font-ui);
+  /* --- Шрифты. Внешних загрузок нет: игра живёт в локальной Wi-Fi.
+         Первыми стоят шрифты, которые можно положить в /fonts/ (Playfair
+         Display, Marck Script — свободные, с кириллицей), дальше — системные. --- */
+  --font-display: "Playfair Display", "Bodoni 72", "Didot", "Bodoni MT",
+                  Georgia, "Times New Roman", "Noto Serif", serif;
+  --font-script:  "Marck Script", "Gabriola", "Segoe Script", "Snell Roundhand",
+                  "Savoye LET", "Apple Chancery", "Brush Script MT", cursive;
+  --font-type:    "Courier Prime", "Courier New", Courier, "Nimbus Mono", monospace;
+  --font-ui:      Georgia, "Times New Roman", "Noto Serif", "Palatino Linotype", serif;
+  --font-card:    var(--font-display);
+  --font-mono:    var(--font-type);
   --fw-normal: 400;
-  --fw-medium: 600;
-  --fw-bold: 800;
+  --fw-medium: 400;
+  --fw-bold: 700;
 
   /* --- Размеры текста: телефон --- */
   --fs-xs:   13px;
   --fs-sm:   15px;
   --fs-base: 17px;
-  --fs-md:   19px;
-  --fs-lg:   23px;
-  --fs-xl:   28px;
-  --fs-2xl:  34px;
+  --fs-md:   20px;
+  --fs-lg:   25px;
+  --fs-xl:   32px;
+  --fs-2xl:  40px;
 
   /* --- Размеры текста: ноутбук (читается с 3 метров) --- */
   --fs-screen-card:      64px;   /* базовый размер карты, ужимается скриптом */
   --fs-screen-card-min:  26px;   /* ниже не опускаться */
-  --fs-screen-title:     40px;
+  --fs-screen-title:     44px;
   --fs-screen-body:      26px;
   --fs-screen-small:     20px;
   --fs-screen-counter:   30px;
+  --fs-screen-hero:      112px;  /* заголовок лобби и имя победителя */
+  --fs-screen-script:    56px;   /* рукописные подписи */
 
   /* --- Отступы --- */
   --sp-1: 4px;
@@ -74,33 +102,77 @@
   --sp-7: 48px;
   --sp-8: 64px;
 
-  /* --- Скругления --- */
-  --r-sm: 8px;
-  --r-md: 12px;
-  --r-lg: 18px;
-  --r-xl: 26px;
-  --r-pill: 999px;
+  /* --- Скругления: печатная продукция — углы прямые --- */
+  --r-sm: 0;
+  --r-md: 0;
+  --r-lg: 0;
+  --r-xl: 0;
+  --r-pill: 0;
 
-  /* --- Тени --- */
-  --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
-  --sh-md: 0 4px 14px rgba(0, 0, 0, 0.35);
-  --sh-lg: 0 12px 38px rgba(0, 0, 0, 0.45);
+  /* --- Тени: жёсткий печатный сдвиг вместо размытых теней --- */
+  --sh-sm: 2px 2px 0 var(--c-ink);
+  --sh-md: 3px 3px 0 var(--c-ink);
+  --sh-lg: 6px 6px 0 var(--c-pink-dusty);
 
   /* --- Элементы управления --- */
   --touch-min:    48px;   /* минимальный размер кнопки на телефоне (ТЗ 3.1) */
   --btn-height:   52px;
-  --btn-radius:   var(--r-md);
+  --btn-radius:   0;
   --input-height: 52px;
 
   /* --- Раскладка --- */
   --phone-max:      560px;
   --content-gap:    var(--sp-4);
   --safe-bottom:    env(safe-area-inset-bottom, 0px);
-  --topbar-height:  56px;
+  --topbar-height:  60px;
+
+  /* --- Фактуры и орнаменты --- */
+  --tex-grain:     url("/art/paper.svg");
+  --orn-rose:      url("/art/rose.svg");
+  --orn-corner:    url("/art/corner.svg");
+  --orn-flourish:  url("/art/flourish.svg");
+  --orn-lace:      url("/art/lace.svg");
+  --orn-heart:     url("/art/heart.svg");
+  /* Растр трафаретной печати: точки на чёрных картах */
+  --tex-halftone:  radial-gradient(circle, rgba(244, 236, 220, 0.16) 0.9px, transparent 1.6px);
+  --tex-halftone-size: 7px 7px;
+  /* Сгибы бумаги: две едва заметные складки */
+  --tex-folds: linear-gradient(97deg, transparent 31%, rgba(22, 18, 16, 0.045) 31.3%, transparent 31.8%),
+               linear-gradient(-84deg, transparent 63%, rgba(22, 18, 16, 0.05) 63.2%, transparent 63.9%),
+               linear-gradient(180deg, rgba(255, 255, 255, 0.35), transparent 30%, rgba(22, 18, 16, 0.05));
+  --tape: rgba(239, 196, 207, 0.72);   /* кусочек розового скотча */
+  --tilt-1: -0.8deg;
+  --tilt-2: 0.6deg;
+  --tilt-3: -1.4deg;
 
   /* --- Прочее --- */
-  --focus-ring: 0 0 0 3px rgba(224, 70, 75, 0.45);
+  --focus-ring: 0 0 0 3px var(--c-pink-dusty);
   --transition: 120ms ease;
+}
+
+/* Свои шрифты лежат в /fonts/ (свободная лицензия OFL, файлы OFL-*.txt рядом).
+   Грузятся с того же сервера, интернет не нужен. Playfair Display —
+   переменный (все начертания в одном файле), с кириллицей. */
+@font-face {
+  font-family: "Playfair Display";
+  src: url("/fonts/PlayfairDisplay.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Playfair Display";
+  src: url("/fonts/PlayfairDisplay-Italic.woff2") format("woff2");
+  font-style: italic;
+  font-weight: 400 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Marck Script";
+  src: url("/fonts/MarckScript.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
 }
 
 /* Сброс и общая база — общая для обеих страниц. */
@@ -120,7 +192,25 @@ html, body {
   text-size-adjust: 100%;
 }
 
-body { overflow-x: hidden; }
+/* Бумага: сгибы и зерно поверх всего. Складки — на фоне, зерно — отдельным
+   слоем над контентом, чтобы «сканом» выглядел и чёрный, и розовый. */
+body {
+  overflow-x: hidden;
+  background-image: var(--tex-folds);
+  background-attachment: fixed;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: none;
+  background-image: var(--tex-grain);
+  background-size: 240px 240px;
+  opacity: 0.5;
+  mix-blend-mode: multiply;
+}
 
 button, input, textarea, select {
   font: inherit;
@@ -147,13 +237,27 @@ button { cursor: pointer; }
   border: 0;
 }
 
-/* Подставленный ответ внутри захода — всегда визуально выделен (ТЗ 4.4). */
+/* Подставленный ответ внутри захода — всегда визуально выделен (ТЗ 4.4).
+   Выглядит как подчёркнутое помадой: розовая плашка, курсив. */
 .filled {
   color: var(--c-filled);
   background: var(--c-filled-bg);
   border-radius: var(--r-sm);
-  padding: 0 0.15em;
+  padding: 0 0.18em;
+  font-style: italic;
   font-weight: var(--fw-bold);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* Печатная этикетка: тонкая чёрная рамка и вторая линия внутри.
+   Общий рецепт для кнопок, штампов и карточек — обе страницы. */
+.btn,
+.badge {
+  border-radius: 0;
+  font-family: var(--font-ui);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 @media (prefers-reduced-motion: reduce) {

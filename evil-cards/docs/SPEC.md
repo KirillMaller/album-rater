@@ -420,9 +420,10 @@ Ack нужен там, где важен не только факт ошибки
 
 ---
 
-## 8. Классы CSS (дизайн придёт позже — менять должен только CSS)
+## 8. Классы CSS (оформление живёт только в CSS, JS его не знает)
 
-Обязательные имена, чтобы новый стиль лёг без правки JS:
+Обязательные имена — на них завязаны стили (дизайн «винтажное приглашение»,
+10.09.2026: `theme.css`, `play.css`, `screen.css`, `public/art/`, `public/fonts/`):
 
 `.card-prompt`, `.card-answer`, `.card-answer--picked`, `.filled` (подставленный ответ),
 `.hand`, `.hand-card`, `.scoreboard`, `.scoreboard-row`, `.scoreboard-row--host`,
