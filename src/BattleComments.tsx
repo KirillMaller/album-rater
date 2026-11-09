@@ -138,6 +138,7 @@ export function BattleComments({
             Оставить комментарий
             <textarea value={body} onChange={(event) => setBody(event.target.value)} rows={3} maxLength={1000} required disabled={pending} />
           </label>
+          <small className="muted">Ник и текст комментария увидят все посетители.</small>
           <button type="submit" disabled={loading || pending || !name.trim() || !body.trim()}>Опубликовать</button>
         </form>
       ) : !signedIn ? (

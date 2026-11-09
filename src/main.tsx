@@ -65,6 +65,7 @@ if (redirectedUrl) {
 }
 
 type ViewerProvider = 'google' | 'twitch';
+const twitchEnabled = import.meta.env.VITE_TWITCH_ENABLED === 'true';
 const commentsReturnKey = 'r1f:comments-return';
 const oauthParams = new URLSearchParams(window.location.hash.slice(1));
 const oauthError = oauthParams.get('error_code') ?? oauthParams.get('error');
@@ -1839,11 +1840,16 @@ function App() {
 
 function ScrollMemory() {
   const location = useLocation();
+  const showSiteUpdate = location.pathname === '/' && location.hash === '#site-update';
 
   useEffect(() => {
     const key = `r1frating-scroll:${location.pathname}${location.search}`;
     const saved = Number(sessionStorage.getItem(key) || 0);
-    window.requestAnimationFrame(() => window.scrollTo({ top: saved, left: 0, behavior: 'auto' }));
+    const update = showSiteUpdate ? document.getElementById('site-update') : null;
+    const restore = window.requestAnimationFrame(() => {
+      if (update) update.scrollIntoView();
+      else window.scrollTo({ top: saved, left: 0, behavior: 'auto' });
+    });
 
     let frame = 0;
     const saveNow = () => sessionStorage.setItem(key, String(window.scrollY));
@@ -1858,12 +1864,13 @@ function ScrollMemory() {
 
     return () => {
       saveNow();
+      window.cancelAnimationFrame(restore);
       window.cancelAnimationFrame(frame);
       window.removeEventListener('scroll', save);
       window.removeEventListener('pagehide', save);
       document.removeEventListener('visibilitychange', save);
     };
-  }, [location.pathname, location.search]);
+  }, [location.pathname, location.search, showSiteUpdate]);
 
   return null;
 }
@@ -1928,7 +1935,7 @@ function ConsentModal() {
         <button type="button" className="consent-close" onClick={dismiss} aria-label="Закрыть">×</button>
         <h2 id="consent-title">{forComments ? 'Чтобы комментировать' : 'Чтобы голосовать и комментировать'}</h2>
         <p>
-          Нажимая «Принимаю», ты подтверждаешь, что тебе есть 16 лет и ты согласен с <Link to="/privacy" target="_blank" rel="noopener noreferrer">Политикой конфиденциальности</Link> и <Link to="/terms" target="_blank" rel="noopener noreferrer">Условиями использования</Link>. Это нужно один раз.
+          Нажимая «Принимаю», ты подтверждаешь, что тебе есть 16 лет и ты согласен с <Link to="/privacy" target="_blank" rel="noopener noreferrer">Политикой конфиденциальности</Link> и <Link to="/terms" target="_blank" rel="noopener noreferrer">Условиями использования</Link>. Это нужно один раз для этой редакции.
         </p>
         {error && <div className="consent-error">{error}</div>}
         <div className="consent-actions">
@@ -2122,6 +2129,16 @@ function HomePage() {
           <p className="eyebrow">Оценки R1Fmabes</p>
           <h1>Каталог</h1>
           <p className="lead">Альбомы, треки, баттлы и ссылки на реакции в одном месте: что R1Fmabes слушал, смотрел и разбирал на стримах.</p>
+        </div>
+      </section>
+
+      <section id="site-update" className="panel site-update" aria-labelledby="site-update-title">
+        <h2 id="site-update-title">Обновление сайта</h2>
+        <p className="muted">Новые условия действуют с <time dateTime="2026-11-09">9 ноября 2026 г.</time></p>
+        <p>Под баттлами появились комментарии. {twitchEnabled ? 'Войти можно через Twitch или Google.' : 'Для входа подойдёт Google-аккаунт, которым ты пользуешься на YouTube.'} Чтобы написать комментарий, подтверди обновлённые условия. Ник и текст комментария видны всем. О следующих существенных изменениях сообщим на главной.</p>
+        <div className="site-update-links">
+          <Link to="/privacy">Политика конфиденциальности</Link>
+          <Link to="/terms">Условия использования</Link>
         </div>
       </section>
 
@@ -3944,8 +3961,8 @@ function ViewerSignInDialog() {
       <h2 id="sign-in-title">{oauthError && user ? 'Привязка аккаунта' : 'Войти на сайт'}</h2>
       {(!oauthError || (authReady && !user)) && (
         <div className="sign-in-options">
-          <button type="button" onClick={() => void signIn('twitch')} disabled={busy}>Войти через Twitch</button>
-          <button type="button" className="ghost" onClick={() => void signIn('google')} disabled={busy}>Войти через Google</button>
+          {twitchEnabled && <button type="button" onClick={() => void signIn('twitch')} disabled={busy}>Войти через Twitch</button>}
+          <button type="button" className={twitchEnabled ? 'ghost' : undefined} onClick={() => void signIn('google')} disabled={busy}>Войти через Google</button>
           <small className="muted">Подойдёт аккаунт, которым ты пользуешься на YouTube.</small>
         </div>
       )}
@@ -4026,7 +4043,7 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
   const [twitchLinked, setTwitchLinked] = useState<boolean | null>(null);
 
   useEffect(() => {
-    if (!supabase) return;
+    if (!supabase || !twitchEnabled) return;
     let cancelled = false;
     void supabase.auth.getUserIdentities().then(({ data, error }) => {
       if (cancelled) return;

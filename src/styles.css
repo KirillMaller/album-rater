@@ -3238,6 +3238,12 @@ html[data-design="new"] .admin-auction-amount {
 .sign-in-options { display: grid; gap: 8px; margin-top: 16px; }
 .sign-in-dialog .form-error { margin: 12px 0 0; }
 
+.site-update { margin-bottom: 18px; scroll-margin-top: 90px; }
+.site-update h2 { margin: 0 0 8px; }
+.site-update p { margin: 0 0 8px; }
+.site-update-links { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.site-update-links a { text-decoration: underline; }
+
 .battle-comments { margin-top: 18px; scroll-margin-top: 90px; }
 .battle-comments h2 { margin: 0 0 12px; }
 .battle-comment-form { display: grid; gap: 12px; max-width: 680px; }

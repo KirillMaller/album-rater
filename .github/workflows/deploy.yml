@@ -3,6 +3,7 @@ name: Deploy
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -11,6 +12,7 @@ permissions:
 
 jobs:
   build:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,6 +26,7 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_YANDEX_PROXY_URL: ${{ secrets.VITE_YANDEX_PROXY_URL }}
+          VITE_TWITCH_ENABLED: ${{ vars.VITE_TWITCH_ENABLED }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
