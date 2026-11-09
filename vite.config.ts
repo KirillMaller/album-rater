@@ -9,7 +9,6 @@ export default defineConfig({
       output: {
         manualChunks: {
           react: ['react', 'react-dom', 'react-router-dom'],
-          markdown: ['react-markdown', 'remark-gfm'],
           supabase: ['@supabase/supabase-js'],
           icons: ['lucide-react'],
         },
