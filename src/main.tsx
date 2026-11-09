@@ -55,12 +55,22 @@ import {
   Video,
   X,
 } from 'lucide-react';
+import { BattleComments } from './BattleComments';
 import './styles.css';
 
 const redirectedUrl = sessionStorage.getItem('redirect');
 if (redirectedUrl) {
   sessionStorage.removeItem('redirect');
   history.replaceState(null, '', redirectedUrl);
+}
+
+type ViewerProvider = 'google' | 'twitch';
+const commentsReturnKey = 'r1f:comments-return';
+const oauthParams = new URLSearchParams(window.location.hash.slice(1));
+const oauthError = oauthParams.get('error_code') ?? oauthParams.get('error');
+
+function requestSignIn(returnToComments = false) {
+  window.dispatchEvent(new CustomEvent('r1f:request-sign-in', { detail: returnToComments }));
 }
 
 type ItemType = 'album' | 'battle' | 'track';
@@ -934,12 +944,13 @@ type Store = {
   user: User | null;
   viewerConsentedAt: string | null;
   viewerConsentLoaded: boolean;
+  viewerConsentVersion: number;
   viewerVotesByItem: Map<string, AllVote[]>;
   profileDisplayName: string | null;
   profileAvatarUrl: string | null;
   setAdmin: (value: boolean) => void;
   signIn: (email: string, password: string) => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
+  signInWithProvider: (provider: ViewerProvider) => Promise<void>;
   signOut: () => Promise<void>;
   recordConsent: () => Promise<void>;
   updateProfile: (patch: { displayName?: string | null; avatarUrl?: string | null }) => Promise<void>;
@@ -966,7 +977,7 @@ type Store = {
   reloadAuctions: () => Promise<void>;
 };
 
-const CONSENT_VERSION = 1;
+const CONSENT_VERSION = 2;
 
 // Сжимает аватарку на клиенте ДО загрузки — иначе кто-нибудь закинет 8-мегапиксельное фото
 // с телефона, и каталог начнёт грузиться заметно дольше у всех остальных. Уменьшаем до 256px
@@ -1120,6 +1131,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
   const [auctionsError, setAuctionsError] = useState<string>();
   const [viewerConsentedAt, setViewerConsentedAt] = useState<string | null>(null);
   const [viewerConsentLoaded, setViewerConsentLoaded] = useState(false);
+  const [viewerConsentVersion, setViewerConsentVersion] = useState(0);
   const [viewerVotesByItem, setViewerVotesByItem] = useState<Map<string, AllVote[]>>(new Map());
   const [profileDisplayName, setProfileDisplayName] = useState<string | null>(null);
   const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
@@ -1275,18 +1287,22 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!user) {
       setViewerConsentedAt(null);
       setViewerConsentLoaded(false);
+      setViewerConsentVersion(0);
       setProfileDisplayName(null);
       setProfileAvatarUrl(null);
       return;
     }
 
     setViewerConsentLoaded(false);
+    let cancelled = false;
     supabase
       .from('viewer_profiles')
-      .select('consented_at, display_name, avatar_url')
+      .select('consented_at, consent_version, display_name, avatar_url')
       .eq('user_id', user.id)
       .maybeSingle()
       .then(({ data, error }) => {
+        if (cancelled) return;
+        setViewerConsentVersion(data?.consent_version ?? 0);
         if (error) {
           console.error('Не удалось загрузить профиль зрителя', error);
           setViewerConsentedAt(null);
@@ -1299,6 +1315,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
         }
         setViewerConsentLoaded(true);
       });
+    return () => { cancelled = true; };
   }, [user]);
 
   const upsertViewerVote = async (params: {
@@ -1309,7 +1326,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
     insertFields: Record<string, unknown>;
   }) => {
     if (!supabase) throw new Error('Голосование работает только на проде с Supabase');
-    if (!user) throw new Error('Войди через Google чтобы голосовать');
+    if (!user) throw new Error('Войди, чтобы голосовать');
     if (!viewerConsentedAt) throw new Error('Подтверди условия чтобы голосовать');
     const sb = supabase;
     const userId = user.id;
@@ -1404,12 +1421,12 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
       setUser(nextUser);
       setAdminState(true);
     },
-    async signInWithGoogle() {
-      if (!supabase) throw new Error('Вход через Google доступен только на проде с настроенным Supabase');
-      const cleanReturnUrl = window.location.origin + window.location.pathname;
+    async signInWithProvider(provider) {
+      if (!supabase) throw new Error('Вход доступен только при подключённом Supabase');
+      const { origin, pathname, search } = window.location;
       const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: cleanReturnUrl },
+        provider,
+        options: { redirectTo: origin + pathname + search },
       });
       if (error) throw error;
     },
@@ -1419,11 +1436,12 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
       setAdminState(false);
       setViewerConsentedAt(null);
       setViewerConsentLoaded(false);
+      setViewerConsentVersion(0);
       if (!supabase) localStorage.setItem(authKey, '0');
     },
     async recordConsent() {
       if (!supabase) throw new Error('Согласие работает только на проде с Supabase');
-      if (!user) throw new Error('Войди через Google перед согласием');
+      if (!user) throw new Error('Войди перед согласием');
       const consentedAt = new Date().toISOString();
       const { error } = await supabase.from('viewer_profiles').upsert({
         user_id: user.id,
@@ -1432,10 +1450,11 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
       });
       if (error) throw error;
       setViewerConsentedAt(consentedAt);
+      setViewerConsentVersion(CONSENT_VERSION);
     },
     async updateProfile(patch) {
       if (!supabase) throw new Error('Профиль работает только на проде с Supabase');
-      if (!user) throw new Error('Войди через Google чтобы менять профиль');
+      if (!user) throw new Error('Войди, чтобы менять профиль');
       const row: Record<string, unknown> = { user_id: user.id };
       if (patch.displayName !== undefined) row.display_name = patch.displayName;
       if (patch.avatarUrl !== undefined) row.avatar_url = patch.avatarUrl;
@@ -1446,7 +1465,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
     },
     async uploadAvatar(file) {
       if (!supabase) throw new Error('Загрузка аватара работает только на проде с Supabase');
-      if (!user) throw new Error('Войди через Google чтобы загрузить аватар');
+      if (!user) throw new Error('Войди, чтобы загрузить аватар');
       const blob = await compressAvatarImage(file);
       const path = `${user.id}/avatar.jpg`;
       const { error: uploadError } = await supabase.storage
@@ -1486,19 +1505,32 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
     },
     async loadItemAllVotes(itemId) {
       if (!supabase) return [];
-      const { data, error } = await supabase
-        .from('viewer_votes')
-        .select('viewer_id, score, track_position, round_index, winner_side, is_best')
-        .eq('item_id', itemId);
-      if (error) throw error;
-      return (data ?? []).map((row) => ({
-        viewerId: row.viewer_id,
-        trackPosition: row.track_position,
-        roundIndex: row.round_index,
-        score: row.score == null ? null : (typeof row.score === 'number' ? row.score : Number(row.score)),
-        winner: (row.winner_side ?? null) as BattleSide | null,
-        isBest: Boolean(row.is_best),
-      }));
+      const votes: AllVote[] = [];
+      let afterId: string | undefined;
+      while (true) {
+        let query = supabase
+          .from('viewer_votes')
+          .select('id, viewer_id, score, track_position, round_index, winner_side, is_best')
+          .eq('item_id', itemId)
+          .order('id')
+          .limit(500);
+        if (afterId) query = query.gt('id', afterId);
+        const { data, error } = await query;
+        if (error) throw error;
+        if (!data.length) return votes;
+        for (const row of data) {
+          votes.push({
+            viewerId: row.viewer_id,
+            trackPosition: row.track_position,
+            roundIndex: row.round_index,
+            score: row.score == null ? null : Number(row.score),
+            winner: (row.winner_side ?? null) as BattleSide | null,
+            isBest: Boolean(row.is_best),
+          });
+        }
+        afterId = data[data.length - 1].id;
+        if (data.length < 500) return votes;
+      }
     },
     async toggleMyBestTrack(itemId, position, isBest) {
       await upsertViewerVote({
@@ -1600,6 +1632,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
     },
     viewerConsentedAt,
     viewerConsentLoaded,
+    viewerConsentVersion,
     viewerVotesByItem,
     profileDisplayName,
     profileAvatarUrl,
@@ -1704,7 +1737,7 @@ function StoreProvider({ children }: { children: React.ReactNode }) {
       await loadAuctions();
     },
     reloadAuctions: loadAuctions,
-  }), [admin, authReady, error, items, loading, user, viewerConsentedAt, viewerConsentLoaded, viewerVotesByItem, profileDisplayName, profileAvatarUrl, auctions, auctionRules, auctionsLoading, auctionsError]);  // eslint-disable-line react-hooks/exhaustive-deps
+  }), [admin, authReady, error, items, loading, user, viewerConsentedAt, viewerConsentLoaded, viewerConsentVersion, viewerVotesByItem, profileDisplayName, profileAvatarUrl, auctions, auctionRules, auctionsLoading, auctionsError]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
@@ -1836,7 +1869,8 @@ function ScrollMemory() {
 }
 
 function ConsentModal() {
-  const { user, viewerConsentedAt, viewerConsentLoaded, recordConsent } = useStore();
+  const { user, viewerConsentedAt, viewerConsentLoaded, viewerConsentVersion, recordConsent } = useStore();
+  const [forComments, setForComments] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [dismissed, setDismissed] = useState(false);
@@ -1844,6 +1878,7 @@ function ConsentModal() {
   useEffect(() => {
     if (!user) {
       setDismissed(false);
+      setForComments(false);
       setError('');
       return;
     }
@@ -1851,17 +1886,23 @@ function ConsentModal() {
   }, [user?.id]);
 
   useEffect(() => {
-    const handler = () => {
+    const handler = (event: Event) => {
       if (user) {
+        setForComments(event.type === 'r1f:request-comment-consent');
         sessionStorage.removeItem(`consentDismissed:${user.id}`);
         setDismissed(false);
       }
     };
     window.addEventListener('r1f:request-consent', handler);
-    return () => window.removeEventListener('r1f:request-consent', handler);
+    window.addEventListener('r1f:request-comment-consent', handler);
+    return () => {
+      window.removeEventListener('r1f:request-consent', handler);
+      window.removeEventListener('r1f:request-comment-consent', handler);
+    };
   }, [user?.id]);
 
-  if (!user || !viewerConsentLoaded || viewerConsentedAt || dismissed) return null;
+  const hasConsent = viewerConsentedAt && (!forComments || viewerConsentVersion >= CONSENT_VERSION);
+  if (!user || !viewerConsentLoaded || hasConsent || dismissed) return null;
 
   const dismiss = () => {
     if (user) sessionStorage.setItem(`consentDismissed:${user.id}`, '1');
@@ -1885,7 +1926,7 @@ function ConsentModal() {
     <div className="consent-overlay" role="dialog" aria-modal="true" aria-labelledby="consent-title">
       <div className="consent-modal">
         <button type="button" className="consent-close" onClick={dismiss} aria-label="Закрыть">×</button>
-        <h2 id="consent-title">Чтобы голосовать</h2>
+        <h2 id="consent-title">{forComments ? 'Чтобы комментировать' : 'Чтобы голосовать и комментировать'}</h2>
         <p>
           Нажимая «Принимаю», ты подтверждаешь, что тебе есть 16 лет и ты согласен с <Link to="/privacy" target="_blank" rel="noopener noreferrer">Политикой конфиденциальности</Link> и <Link to="/terms" target="_blank" rel="noopener noreferrer">Условиями использования</Link>. Это нужно один раз.
         </p>
@@ -1931,6 +1972,7 @@ function Shell() {
   return (
     <>
       <ConsentModal />
+      <ViewerSignInDialog />
       <div className="r1f-easter-eggs" aria-hidden="true">
         <span className="r1f-stamp stamp-r1f">R1F / НА РАЗБОРЕ</span>
         <span className="r1f-stamp stamp-bcb">БЧБ · MIC CHECK</span>
@@ -2501,6 +2543,12 @@ function aggregateSingleScore(allVotes: AllVote[]) {
   return { avg: sum / list.length, count: list.length };
 }
 
+const voteCountRules = new Intl.PluralRules('ru');
+function formatVoteCount(count: number) {
+  const form = voteCountRules.select(count);
+  return `${count} ${form === 'one' ? 'голос' : form === 'few' ? 'голоса' : 'голосов'}`;
+}
+
 function aggregateTrack(allVotes: AllVote[], position: number) {
   const list = allVotes.filter((v) => v.trackPosition === position && v.score != null);
   if (!list.length) return null;
@@ -2586,7 +2634,7 @@ function useItemVotes(itemId: string) {
     async saveAlbum(score: number) {
       const prevAlbum = state.album;
       const prevAll = state.allVotes;
-      if (!user) throw new Error('Войди через Google чтобы голосовать');
+      if (!user) throw new Error('Войди, чтобы голосовать');
       setState((prev) => ({ ...prev, album: score, allVotes: upsertScoreVote(prev.allVotes, user.id, null, score), error: '' }));
       try {
         await saveMyAlbumVote(itemId, score);
@@ -2598,7 +2646,7 @@ function useItemVotes(itemId: string) {
     async saveTrack(position: number, score: number) {
       const prevScore = state.tracks.get(position);
       const prevAll = state.allVotes;
-      if (!user) throw new Error('Войди через Google чтобы голосовать');
+      if (!user) throw new Error('Войди, чтобы голосовать');
       setState((prev) => {
         const tracks = new Map(prev.tracks);
         tracks.set(position, score);
@@ -2619,7 +2667,7 @@ function useItemVotes(itemId: string) {
     async saveBattleRound(roundIndex: number, side: BattleSide) {
       const prev = state.battleRounds.get(roundIndex) ?? null;
       const prevAll = state.allVotes;
-      if (!user) throw new Error('Войди через Google чтобы голосовать');
+      if (!user) throw new Error('Войди, чтобы голосовать');
       setState((current) => {
         const rounds = new Map(current.battleRounds);
         rounds.set(roundIndex, side);
@@ -2638,7 +2686,7 @@ function useItemVotes(itemId: string) {
       }
     },
     async toggleBest(position: number) {
-      if (!user) throw new Error('Войди через Google');
+      if (!user) throw new Error('Сначала войди в аккаунт');
       const prev = state.bestTracks.has(position);
       const next = !prev;
       if (next && state.bestTracks.size >= maxBestAlbumTracks) {
@@ -2666,7 +2714,7 @@ function useItemVotes(itemId: string) {
     async saveBattleFinal(side: BattleSide) {
       const prev = state.battleFinal;
       const prevAll = state.allVotes;
-      if (!user) throw new Error('Войди через Google чтобы голосовать');
+      if (!user) throw new Error('Войди, чтобы голосовать');
       setState((current) => ({ ...current, battleFinal: side, allVotes: upsertBattleVote(current.allVotes, user.id, null, side), error: '' }));
       try {
         await saveMyBattleFinalVote(itemId, side);
@@ -2716,7 +2764,7 @@ type AlbumVoteHandle = {
 };
 
 const AlbumVotePanel = forwardRef<AlbumVoteHandle, { item: RatedItem; votes: ItemVotesState; save: (score: number) => Promise<void>; onTouchedChange?: (touched: boolean) => void }>(function AlbumVotePanel({ item, votes, save, onTouchedChange }, ref) {
-  const { user, admin, viewerConsentedAt, viewerConsentLoaded, signInWithGoogle } = useStore();
+  const { user, admin, viewerConsentedAt, viewerConsentLoaded } = useStore();
   const maxScore = admin ? 11 : 10;
   const isAlbum = item.type === 'album';
   const trackStats = isAlbum ? viewerTracksAverage(votes.tracks, item) : { avg: 0, counted: 0, total: 0 };
@@ -2775,8 +2823,8 @@ const AlbumVotePanel = forwardRef<AlbumVoteHandle, { item: RatedItem; votes: Ite
     if (!user) {
       return (
         <div className="viewer-vote-action">
-          <p className="viewer-vote-hint">Войди через Google, чтобы оставить свою оценку.</p>
-          <button type="button" onClick={() => signInWithGoogle().catch((err) => setError(err instanceof Error ? err.message : 'Не удалось начать вход'))}>Войти через Google</button>
+          <p className="viewer-vote-hint">Войди, чтобы оставить свою оценку.</p>
+          <button type="button" onClick={() => requestSignIn()}>Войти</button>
         </div>
       );
     }
@@ -2869,7 +2917,7 @@ type TrackSliderHandle = {
 };
 
 const TrackVoteSlider = forwardRef<TrackSliderHandle, { item: RatedItem; position: number; currentScore: number | null; saveTrack: (score: number) => Promise<void>; onTouchedChange?: (position: number, touched: boolean) => void }>(function TrackVoteSlider({ item, position, currentScore, saveTrack, onTouchedChange }, ref) {
-  const { user, admin, viewerConsentedAt, viewerConsentLoaded, signInWithGoogle } = useStore();
+  const { user, admin, viewerConsentedAt, viewerConsentLoaded } = useStore();
   const maxScore = admin ? 11 : 10;
   const [draftScore, setDraftScore] = useState<number>(currentScore ?? 0);
   const [draftText, setDraftText] = useState<string>(currentScore != null ? currentScore.toFixed(1) : '');
@@ -2927,7 +2975,7 @@ const TrackVoteSlider = forwardRef<TrackSliderHandle, { item: RatedItem; positio
 
   if (!user) {
     return (
-      <button type="button" className="track-vote-cta" onClick={() => signInWithGoogle().catch(() => undefined)}>
+      <button type="button" className="track-vote-cta" onClick={() => requestSignIn()}>
         войти
       </button>
     );
@@ -2935,8 +2983,8 @@ const TrackVoteSlider = forwardRef<TrackSliderHandle, { item: RatedItem; positio
   if (!viewerConsentLoaded) return <span className="muted track-vote-cta">…</span>;
   if (!viewerConsentedAt) {
     return (
-      <button type="button" className="track-vote-cta" onClick={requestConsent}>
-        принять условия
+      <button type="button" className="track-vote-cta" onClick={requestConsent} aria-label="Принять условия голосования">
+        Условия
       </button>
     );
   }
@@ -2972,7 +3020,7 @@ const TrackVoteSlider = forwardRef<TrackSliderHandle, { item: RatedItem; positio
           }
         }}
         className={`vote-input ${touched ? 'vote-input-touched' : ''} ${draftScore > 0 ? scoreClass(draftScore) : ''}`}
-        aria-label={`Твоя оценка треку ${position}`}
+        aria-label={`Моя оценка трека ${position}`}
       />
       {error && <span className="track-vote-error">{error}</span>}
     </div>
@@ -2994,7 +3042,7 @@ const BattleVoteBlock = forwardRef<BattleVoteHandle, {
   saveVote: (side: BattleSide) => Promise<void>;
   onTouchedChange: (key: string, touched: boolean) => void;
 }>(function BattleVoteBlock({ voteKey, sideALabel, sideBLabel, mySide, allVotes, roundIndex, compact, saveVote, onTouchedChange }, ref) {
-  const { user, viewerConsentedAt, viewerConsentLoaded, signInWithGoogle } = useStore();
+  const { user, viewerConsentedAt, viewerConsentLoaded } = useStore();
   const [draftSide, setDraftSide] = useState<BattleSide | null>(mySide);
   const [touched, setTouchedState] = useState(false);
   const [error, setError] = useState('');
@@ -3073,7 +3121,7 @@ const BattleVoteBlock = forwardRef<BattleVoteHandle, {
         !compact && <div className="battle-vote-agg muted">Голосов ещё нет</div>
       )}
       {!user && !compact && (
-        <button type="button" className="track-vote-cta" onClick={() => signInWithGoogle().catch(() => undefined)}>войти, чтобы голосовать</button>
+        <button type="button" className="track-vote-cta" onClick={() => requestSignIn()}>войти, чтобы голосовать</button>
       )}
       {user && viewerConsentLoaded && !viewerConsentedAt && !compact && (
         <button type="button" className="track-vote-cta" onClick={requestConsent}>принять условия</button>
@@ -3085,7 +3133,8 @@ const BattleVoteBlock = forwardRef<BattleVoteHandle, {
 
 function ItemPage() {
   const { slug } = useParams();
-  const { items, admin, loading, error } = useStore();
+  const { items, admin, loading, error, user, authReady,
+    viewerConsentedAt, viewerConsentLoaded, viewerConsentVersion } = useStore();
   const placeholderItemId = '00000000-0000-0000-0000-000000000000';
   const itemForVotes = items.find((entry) => entry.slug === slug);
   const votes = useItemVotes(itemForVotes?.id ?? placeholderItemId);
@@ -3199,6 +3248,7 @@ function ItemPage() {
               )}
               {item.description && !bestAlbumTracksLabel(item) && <p className="lead">{item.description}</p>}
               <p className="detail-hero-meta">{item.releaseYear || 'Без года'} · {item.genre || 'Без жанра'}{item.reviewedAt ? ` · оценено ${formatMSKDate(item.reviewedAt)}` : ''}</p>
+              {item.type === 'battle' && supabase && <a className="button ghost" href="#comments">Обсудить</a>}
               {admin && <p><Link className="button detail-edit-link" to={`/admin/edit/${item.id}`}><Edit3 size={16} /> Редактировать оценку</Link></p>}
             </div>
           </section>
@@ -3281,68 +3331,55 @@ function ItemPage() {
             <>
               <div className="tracklist-head">
                 <h2>Треклист</h2>
-                <div className="tracklist-legend">
-                  {!admin && (
-                    <>
-                      <span>R1F</span>
-                      <span className="track-divider" aria-hidden="true" />
-                    </>
-                  )}
-                  <span>Ты</span>
-                  <span className="track-divider" aria-hidden="true" />
-                  <span>Все</span>
+                <div className="tracklist-legend track-score-grid">
+                  <span>Рифмобес</span>
+                  <span>Моя</span>
+                  <span>Зрители</span>
                 </div>
               </div>
+              {votes.state.error && <p className="form-error" role="alert">Не удалось загрузить оценки зрителей.</p>}
               {item.tracks.map((track) => {
                 const excluded = track.score === '-';
                 const viewerScore = votes.state.tracks.get(track.position) ?? null;
                 const streamerScoreIsNumber = typeof track.score === 'number';
                 const viewerBest = votes.state.bestTracks.has(track.position);
-                const canVote = Boolean(votes.state.loaded);
+                const canVote = votes.state.loaded && !votes.state.error;
+                const audience = aggregateTrack(votes.state.allVotes, track.position);
                 return (
                   <div className={`track ${excluded ? 'track-excluded' : ''}`} key={track.id}>
                     <span className="track-star-cell">
                       {track.isBest && <Star size={14} fill="#ffe600" stroke="#ffe600" aria-label="Лучший по R1Fmabes" />}
                     </span>
                     <span className="track-title">{track.position}. {track.title}</span>
-                    <div className="track-scores">
+                    <div className={excluded ? 'track-scores' : 'track-scores track-score-grid'}>
                       {excluded ? (
                         <span className="track-locked track-locked-wide"><Lock size={12} /> интро / скит</span>
                       ) : (
                         <>
-                          {!admin && (
-                            <>
-                              {streamerScoreIsNumber ? (
-                                <span className={`${scoreClass(track.score as number)} track-badge track-badge-mine`}>{Number(track.score).toFixed(1)}</span>
-                              ) : (
-                                <span className="track-badge track-badge-mine track-badge-empty">—</span>
-                              )}
-                              <span className="track-divider" aria-hidden="true" />
-                            </>
-                          )}
-                          {votes.state.loaded && (
-                            <TrackVoteSlider
-                              ref={(handle) => {
-                                if (handle) trackHandles.current.set(track.position, handle);
-                                else trackHandles.current.delete(track.position);
-                              }}
-                              item={item}
-                              position={track.position}
-                              currentScore={viewerScore}
-                              saveTrack={(score) => votes.saveTrack(track.position, score)}
-                              onTouchedChange={handleTrackTouched}
-                            />
-                          )}
-                          <span className="track-divider" aria-hidden="true" />
-                          {(() => {
-                            const agg = aggregateTrack(votes.state.allVotes, track.position);
-                            if (!agg) return <span className="track-badge track-badge-viewers track-badge-empty" title="Голосов ещё нет">—</span>;
-                            return (
-                              <span className={`${scoreClass(agg.avg)} track-badge track-badge-viewers`} title={`${agg.count} ${agg.count === 1 ? 'голос' : agg.count < 5 ? 'голоса' : 'голосов'}`}>
-                                {agg.avg.toFixed(1)}
-                              </span>
-                            );
-                          })()}
+                          <span className={`track-badge track-badge-mine ${streamerScoreIsNumber ? scoreClass(Number(track.score)) : 'track-badge-empty'}`}>
+                            {streamerScoreIsNumber ? Number(track.score).toFixed(1) : '—'}
+                          </span>
+                          <div className="track-own-score">
+                            {canVote && supabase ? (
+                              <TrackVoteSlider
+                                ref={(handle) => {
+                                  if (handle) trackHandles.current.set(track.position, handle);
+                                  else trackHandles.current.delete(track.position);
+                                }}
+                                item={item}
+                                position={track.position}
+                                currentScore={viewerScore}
+                                saveTrack={(score) => votes.saveTrack(track.position, score)}
+                                onTouchedChange={handleTrackTouched}
+                              />
+                            ) : <span className="track-badge track-badge-empty">—</span>}
+                          </div>
+                          <div className="track-audience">
+                            <span className={`track-badge track-badge-viewers ${audience ? scoreClass(audience.avg) : 'track-badge-empty'}`}>
+                              {audience ? audience.avg.toFixed(1) : '—'}
+                            </span>
+                            {audience && <small>{formatVoteCount(audience.count)}</small>}
+                          </div>
                           <button
                             type="button"
                             className={`track-star-btn ${viewerBest ? 'on' : ''}`}
@@ -3386,6 +3423,20 @@ function ItemPage() {
         <h2>Рецензия</h2>
         <ReactMarkdown remarkPlugins={[remarkGfm]} urlTransform={safeMarkdownUrl}>{item.review || 'Рецензия пока не добавлена.'}</ReactMarkdown>
       </section>
+      {item.type === 'battle' && supabase && authReady && (
+        <BattleComments
+          key={`${item.id}:${user?.id ?? 'guest'}`}
+          supabase={supabase}
+          itemId={item.id}
+          signedIn={Boolean(user)}
+          consentLoaded={viewerConsentLoaded}
+          canPost={Boolean(user && viewerConsentLoaded && viewerConsentedAt && viewerConsentVersion >= CONSENT_VERSION)}
+          formatDate={formatMSK}
+          returnKey={commentsReturnKey}
+          onSignIn={() => requestSignIn(true)}
+          onConsent={() => window.dispatchEvent(new Event('r1f:request-comment-consent'))}
+        />
+      )}
     </main>
   );
 }
@@ -3841,10 +3892,71 @@ function AuctionRulesPage() {
   );
 }
 
-function AuthBadge() {
-  const { user, admin, profileDisplayName, profileAvatarUrl, signInWithGoogle, signOut } = useStore();
-  const [menuOpen, setMenuOpen] = useState(false);
+function ViewerSignInDialog() {
+  const { signInWithProvider, user, authReady } = useStore();
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const returnToComments = useRef(false);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const open = (event: Event) => {
+      returnToComments.current = Boolean((event as CustomEvent<boolean>).detail);
+      setBusy(false);
+      setError('');
+      const dialog = dialogRef.current;
+      if (dialog && !dialog.open) dialog.showModal();
+    };
+    window.addEventListener('r1f:request-sign-in', open);
+    if (oauthError && !oauthParams.has('access_token') && window.location.hash) {
+      returnToComments.current = sessionStorage.getItem(commentsReturnKey) === window.location.pathname + window.location.search;
+      history.replaceState(history.state, '', window.location.pathname + window.location.search);
+      setError(oauthError === 'identity_already_exists'
+        ? 'Этот Twitch уже связан с другим аккаунтом на сайте.'
+        : 'Вход или привязка не завершены. Попробуй ещё раз.');
+      dialogRef.current?.showModal();
+    }
+    return () => window.removeEventListener('r1f:request-sign-in', open);
+  }, []);
+
+  const signIn = async (provider: ViewerProvider) => {
+    setBusy(true);
+    setError('');
+    try {
+      if (returnToComments.current) {
+        sessionStorage.setItem(commentsReturnKey, window.location.pathname + window.location.search);
+      } else {
+        sessionStorage.removeItem(commentsReturnKey);
+      }
+      await signInWithProvider(provider);
+    } catch {
+      sessionStorage.removeItem(commentsReturnKey);
+      setError(provider === 'twitch' ? 'Не удалось открыть вход через Twitch.' : 'Не удалось открыть вход через Google.');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <dialog ref={dialogRef} className="consent-modal sign-in-dialog" aria-labelledby="sign-in-title">
+      <form method="dialog">
+        <button className="consent-close" aria-label="Закрыть">×</button>
+      </form>
+      <h2 id="sign-in-title">{oauthError && user ? 'Привязка аккаунта' : 'Войти на сайт'}</h2>
+      {(!oauthError || (authReady && !user)) && (
+        <div className="sign-in-options">
+          <button type="button" onClick={() => void signIn('twitch')} disabled={busy}>Войти через Twitch</button>
+          <button type="button" className="ghost" onClick={() => void signIn('google')} disabled={busy}>Войти через Google</button>
+          <small className="muted">Подойдёт аккаунт, которым ты пользуешься на YouTube.</small>
+        </div>
+      )}
+      {error && <p className="form-error" role="alert">{error}</p>}
+    </dialog>
+  );
+}
+
+function AuthBadge() {
+  const { user, admin, profileDisplayName, profileAvatarUrl, signOut } = useStore();
+  const [menuOpen, setMenuOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
 
   useEffect(() => {
@@ -3855,23 +3967,7 @@ function AuthBadge() {
   }, [menuOpen]);
 
   if (!user) {
-    return (
-      <button
-        className="ghost"
-        disabled={busy}
-        onClick={async () => {
-          try {
-            setBusy(true);
-            await signInWithGoogle();
-          } catch (error) {
-            alert((error as Error).message || 'Не удалось начать вход через Google');
-            setBusy(false);
-          }
-        }}
-      >
-        {busy ? 'Открываю...' : 'Войти'}
-      </button>
-    );
+    return <button type="button" className="ghost" onClick={() => requestSignIn()}>Войти</button>;
   }
 
   const meta = (user.user_metadata ?? {}) as { full_name?: string; name?: string; avatar_url?: string; picture?: string };
@@ -3918,14 +4014,44 @@ function AuthBadge() {
 function ProfileModal({ onClose }: { onClose: () => void }) {
   const { user, profileDisplayName, profileAvatarUrl, updateProfile, uploadAvatar } = useStore();
   const meta = (user?.user_metadata ?? {}) as { full_name?: string; name?: string; avatar_url?: string; picture?: string };
-  const googleName = meta.full_name || meta.name || user?.email || 'Аккаунт';
-  const googleAvatar = meta.avatar_url || meta.picture || '';
+  const providerName = meta.full_name || meta.name || user?.email || 'Аккаунт';
+  const providerAvatar = meta.avatar_url || meta.picture || '';
 
   const [nameDraft, setNameDraft] = useState(profileDisplayName ?? '');
   const [avatarPreview, setAvatarPreview] = useState<string | null>(profileAvatarUrl);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  const [twitchLinked, setTwitchLinked] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!supabase) return;
+    let cancelled = false;
+    void supabase.auth.getUserIdentities().then(({ data, error }) => {
+      if (cancelled) return;
+      if (error) setError('Не удалось проверить привязку Twitch.');
+      else setTwitchLinked(Boolean(data.identities.some((identity) => identity.provider === 'twitch')));
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const connectTwitch = async () => {
+    if (!supabase) return;
+    setSaving(true);
+    setError('');
+    try {
+      const { origin, pathname, search } = window.location;
+      const { error } = await supabase.auth.linkIdentity({
+        provider: 'twitch',
+        options: { redirectTo: origin + pathname + search },
+      });
+      if (error) throw error;
+    } catch {
+      setError('Не удалось привязать Twitch. Попробуй ещё раз.');
+      setSaving(false);
+    }
+  };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -3983,8 +4109,8 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const shownAvatar = avatarPreview || googleAvatar;
-  const shownInitial = (nameDraft || googleName).trim().charAt(0).toUpperCase() || 'A';
+  const shownAvatar = avatarPreview || providerAvatar;
+  const shownInitial = (nameDraft || providerName).trim().charAt(0).toUpperCase() || 'A';
 
   return (
     <div className="modal-backdrop" onClick={() => !saving && onClose()}>
@@ -4002,17 +4128,21 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
               <input type="file" accept="image/*" onChange={handleFileChange} hidden />
             </label>
             {(avatarPreview || profileAvatarUrl) && (
-              <button type="button" className="ghost" onClick={handleResetAvatar} disabled={saving}>Вернуть аватар Google</button>
+              <button type="button" className="ghost" onClick={handleResetAvatar} disabled={saving}>Вернуть аватар аккаунта</button>
             )}
           </div>
         </div>
 
         <label>
           Ник
-          <input value={nameDraft} onChange={(event) => setNameDraft(event.target.value)} placeholder={googleName} maxLength={32} />
+          <input value={nameDraft} onChange={(event) => setNameDraft(event.target.value)} placeholder={providerName} maxLength={32} />
         </label>
 
-        {error && <p className="form-error">{error}</p>}
+        {twitchLinked === true && <p className="muted">Twitch привязан</p>}
+        {twitchLinked === false && (
+          <button type="button" className="ghost" onClick={() => void connectTwitch()} disabled={saving}>Привязать Twitch</button>
+        )}
+        {error && <p className="form-error" role="alert">{error}</p>}
 
         <div className="modal-actions">
           <button className="ghost" onClick={onClose} disabled={saving}>Отмена</button>

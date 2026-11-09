@@ -76,7 +76,7 @@ html[data-design="new"] body {
   /* Новый Bone: спокойное граффити с именем Рифмабеса, без стикеров и пасхалок. */
   background:
     linear-gradient(90deg, rgba(23, 19, 15, .62) 0%, rgba(23, 19, 15, .18) 48%, rgba(23, 19, 15, .56) 100%),
-    url('/images/r1f-graffiti-bg.png') center 18% / cover fixed,
+    url('/images/r1f-graffiti-bg.webp') center 18% / cover fixed,
     var(--bg);
   position: relative;
   /* FIX-1 (ревью дизайн-Клода): жирный Anton на тёмном фоне без этого даёт
@@ -147,7 +147,7 @@ html[data-design="legacy"] body {
   background:
     radial-gradient(circle at 50% 28%, rgba(25, 32, 76, .08), rgba(4, 7, 22, .64) 84%),
     linear-gradient(90deg, rgba(5, 8, 25, .7) 0%, rgba(5, 8, 25, .27) 48%, rgba(5, 8, 25, .66) 100%),
-    url('/images/r1f-legacy-lore-bg-v2.png') center / cover fixed,
+    url('/images/r1f-legacy-lore-bg-v2.webp') center / cover fixed,
     #090b12;
   position: relative;
 }
@@ -1638,24 +1638,15 @@ html[data-design="new"] .panel { background: var(--panel); }
 html[data-design="new"] .panel:hover { border-color: var(--muted); }
 .tracklist-head { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 14px; margin-bottom: 6px; border-bottom: 2px solid var(--line); }
 .tracklist-head h2 { margin: 0; font-size: 22px; font-weight: 800; }
-.tracklist-legend { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 800; color: var(--text); text-transform: uppercase; letter-spacing: 0.08em; padding-right: 40px; }
-.tracklist-legend > span:nth-child(1) { width: 48px; text-align: center; color: var(--cyan); }
-.tracklist-legend > span:nth-child(3) { width: 48px; text-align: center; color: #ffe600; }
-.tracklist-legend > span:nth-child(5) { width: 48px; text-align: center; color: #ff9f45; }
-.tracklist-legend .track-divider { height: 18px; background: rgba(255,255,255,0.25); }
-/* FIX-2 (ревью дизайн-Клода): «R1F/Ты/Все» были разноцветные (циан/жёлтый/оранжевый) —
-   жёлтый в Bone зарезервирован под суммы ₽, оранжевого в палитре вообще нет. Единый
-   нейтральный mono-стиль для всех трёх колонок. */
-html[data-design="new"] .tracklist-legend {
-  font-family: var(--font-mono);
-  font-weight: 700;
-  letter-spacing: .12em;
+.track-score-grid {
+  display: grid;
+  grid-template-columns: 82px 72px 82px 30px;
+  align-items: center;
+  justify-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
 }
-html[data-design="new"] .tracklist-legend > span:nth-child(1),
-html[data-design="new"] .tracklist-legend > span:nth-child(3),
-html[data-design="new"] .tracklist-legend > span:nth-child(5) {
-  color: var(--text-2);
-}
+.tracklist-legend { font-size: 12px; font-weight: 700; color: var(--muted); }
 .track { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); min-height: 50px; }
 .track-star-cell { width: 18px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
 .track-star-btn { width: 30px; height: 30px; padding: 0; min-height: auto; border-radius: 7px; background: transparent; border: 1px solid transparent; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
@@ -1665,7 +1656,9 @@ html[data-design="new"] .tracklist-legend > span:nth-child(5) {
 .track-title { flex: 1 1 auto; min-width: 0; }
 .track .track-title { font-size: 16px; font-weight: 600; color: var(--text); }
 .track-title { font-size: 16px; font-weight: 600; color: var(--text); flex: 1 1 auto; min-width: 0; }
-.track-scores { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+.track-own-score, .track-audience { display: grid; justify-items: center; min-width: 0; }
+.track-audience { gap: 2px; }
+.track-audience small { color: var(--muted); font-size: 11px; white-space: nowrap; }
 .track-badge { min-width: 48px; height: 32px; font-size: 15px; padding: 0 8px; display: inline-grid; place-items: center; border-radius: 7px; font-family: "JetBrains Mono", ui-monospace, monospace; font-weight: 800; }
 .track-badge-empty { background: rgba(255,255,255,0.05); color: var(--muted); }
 /* Bone: то же разведение «R1F/зрители», что и на карточках — найдено визуально по
@@ -1684,7 +1677,6 @@ html[data-design="new"] .track-badge.track-badge-viewers {
   border: 1px solid var(--line);
 }
 html[data-design="new"] .track-badge-empty { background: var(--panel-2); }
-.track-divider { display: inline-block; width: 1px; height: 24px; background: rgba(255,255,255,0.18); }
 .track-locked { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: rgba(255,255,255,0.04); border: 1px solid var(--line); border-radius: 7px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
 .track-locked-wide { min-width: 130px; justify-content: center; margin-right: 22px; }
 .track-locked svg { opacity: 0.7; }
@@ -2223,18 +2215,17 @@ html[data-design="new"] .auth .panel h1 { font-size: clamp(28px, 8vw, 40px); }
   /* Треклист — компактнее */
   .track-title { font-size: 14px; }
   .track-badge { min-width: 38px; height: 26px; font-size: 12px; padding: 0 6px; }
-  .track-scores { gap: 6px; }
-  .track-divider { height: 20px; }
   .vote-input { width: 40px; min-width: 40px; height: 26px; font-size: 12px; padding: 0; }
   .track-viewer .vote-input { width: 40px; min-width: 40px; }
   .track-star-cell { width: 14px; }
   .track-star-btn { width: 24px; height: 26px; }
   .track-vote-cta { padding: 4px 6px; font-size: 10px; height: 26px; }
   .track-locked-wide { min-width: 90px; padding: 4px 8px; font-size: 10px; margin-right: 14px; }
-  .tracklist-legend { font-size: 12px; gap: 6px; padding-right: 22px; }
-  .tracklist-legend > span:nth-child(1),
-  .tracklist-legend > span:nth-child(3),
-  .tracklist-legend > span:nth-child(5) { width: 38px; }
+  .tracklist-head { display: grid; gap: 8px; }
+  .tracklist-legend { margin-left: 22px; }
+  .track-score-grid { grid-template-columns: 66px 62px 66px 24px; gap: 5px; }
+  .track { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 4px 8px; }
+  .track-scores { grid-column: 2; justify-self: start; }
   /* Hero страницы записи */
   .detail-hero-scores { gap: 12px; flex-wrap: wrap; }
   .vote-side-badge { width: 60px; min-width: 60px; height: 36px; font-size: 16px; }
@@ -3241,3 +3232,23 @@ html[data-design="new"] .admin-auction-amount {
     padding-right: 6px;
   }
 }
+
+.sign-in-dialog { width: min(460px, calc(100% - 32px)); }
+.sign-in-dialog::backdrop { background: rgba(5, 7, 14, 0.72); }
+.sign-in-options { display: grid; gap: 8px; margin-top: 16px; }
+.sign-in-dialog .form-error { margin: 12px 0 0; }
+
+.battle-comments { margin-top: 18px; scroll-margin-top: 90px; }
+.battle-comments h2 { margin: 0 0 12px; }
+.battle-comment-form { display: grid; gap: 12px; max-width: 680px; }
+.battle-comment-form label { display: grid; gap: 5px; font-weight: 600; }
+.battle-comment-form input { width: min(100%, 280px); }
+.battle-comment-form textarea { width: 100%; min-height: 92px; resize: vertical; }
+.battle-comment-form button { justify-self: start; }
+.battle-comment-list { list-style: none; padding: 0; margin: 16px 0; }
+.battle-comment-list li { border-top: 1px solid var(--line); padding: 12px 0; }
+.battle-comment-list li p { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.battle-comment-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
+.battle-comment-meta strong { overflow-wrap: anywhere; }
+.battle-comment-meta time { font-size: 12px; color: var(--muted); }
+.battle-comment-meta button { margin-left: auto; }
