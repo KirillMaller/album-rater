@@ -33,6 +33,7 @@ import {
   List,
   Lock,
   LogOut,
+  MessageCircle,
   Music,
   Plus,
   RefreshCw,
@@ -49,7 +50,7 @@ import {
   Video,
   X,
 } from 'lucide-react';
-import { BattleComments } from './BattleComments';
+import { ItemComments } from './ItemComments';
 import './styles.css';
 
 const MarkdownContent = React.lazy(() => import('./MarkdownContent'));
@@ -2145,7 +2146,7 @@ function HomePage() {
       <section id="site-update" className="panel site-update" aria-labelledby="site-update-title">
         <h2 id="site-update-title">Обновление сайта</h2>
         <p className="muted">Новые условия действуют с <time dateTime="2026-11-09">9 ноября 2026 г.</time></p>
-        <p>Под баттлами есть комментарии. Ник и текст увидят все посетители. {twitchEnabled && 'Доступен вход через Twitch.'} Об изменениях условий сообщаем на главной.</p>
+        <p>К альбомам, трекам и баттлам можно оставить комментарий. {twitchEnabled && 'Доступен вход через Twitch.'} Об изменениях условий сообщаем на главной.</p>
         <div className="site-update-links">
           <Link to="/privacy">Политика конфиденциальности</Link>
           <Link to="/terms">Условия использования</Link>
@@ -3078,6 +3079,20 @@ function ItemDetail({ slug }: { slug?: string }) {
       <MarkdownText>{item.review}</MarkdownText>
     </section>
   );
+  const commentsPanel = supabase && authReady && (
+    <ItemComments
+      key={`${item.id}:${user?.id ?? 'guest'}`}
+      supabase={supabase}
+      itemId={item.id}
+      signedIn={Boolean(user)}
+      consentLoaded={viewerConsentLoaded}
+      canPost={Boolean(user && viewerConsentLoaded && viewerConsentedAt && viewerConsentVersion >= CONSENT_VERSION)}
+      formatDate={formatMSK}
+      returnKey={commentsReturnKey}
+      onSignIn={() => requestSignIn(true)}
+      onConsent={() => window.dispatchEvent(new Event('r1f:request-comment-consent'))}
+    />
+  );
   const scorePanel = <AlbumVotePanel ref={albumHandle} item={item} votes={votes.state} save={votes.saveAlbum} onTouchedChange={setAlbumTouched} />;
   const linksPanel = hasLinks && (
     <section className="panel item-links" aria-label="Ссылки записи">
@@ -3138,12 +3153,12 @@ function ItemDetail({ slug }: { slug?: string }) {
               )}
               {item.description && !bestAlbumTracksLabel(item) && <p className="lead">{item.description}</p>}
               {detailMeta && <p className="detail-hero-meta">{detailMeta}</p>}
-              {isBattle && (reactions.length > 0 || supabase) && (
-                <div className="battle-quick-links">
-                  {reactions.length === 1 && <a className="button" href={reactions[0].url} target="_blank" rel="noreferrer"><Video size={16} /> Смотреть реакцию</a>}
-                  {reactions.length > 1 && <a className="button" href="#item-reactions"><Video size={16} /> Реакции</a>}
-                  {supabase && <a className="button ghost" href="#battle-vote">Оценить</a>}
-                  {supabase && <a className="button ghost" href="#comments">Комментарии</a>}
+              {(supabase || (isBattle && reactions.length > 0)) && (
+                <div className="detail-quick-links">
+                  {isBattle && reactions.length === 1 && <a className="button" href={reactions[0].url} target="_blank" rel="noreferrer"><Video size={16} /> Смотреть реакцию</a>}
+                  {isBattle && reactions.length > 1 && <a className="button" href="#item-reactions"><Video size={16} /> Реакции</a>}
+                  {isBattle && supabase && <a className="button ghost" href="#battle-vote">Оценить</a>}
+                  {supabase && <a className="button ghost" href="#comments"><MessageCircle size={16} aria-hidden="true" /> Комментарии</a>}
                 </div>
               )}
               {admin && <p><Link className="button detail-edit-link" to={`/admin/edit/${item.id}`}><Edit3 size={16} /> Редактировать оценку</Link></p>}
@@ -3188,20 +3203,7 @@ function ItemDetail({ slug }: { slug?: string }) {
             {linksPanel}
             {reviewPanel}
           </div>
-          {supabase && authReady && (
-            <BattleComments
-              key={`${item.id}:${user?.id ?? 'guest'}`}
-              supabase={supabase}
-              itemId={item.id}
-              signedIn={Boolean(user)}
-              consentLoaded={viewerConsentLoaded}
-              canPost={Boolean(user && viewerConsentLoaded && viewerConsentedAt && viewerConsentVersion >= CONSENT_VERSION)}
-              formatDate={formatMSK}
-              returnKey={commentsReturnKey}
-              onSignIn={() => requestSignIn(true)}
-              onConsent={() => window.dispatchEvent(new Event('r1f:request-comment-consent'))}
-            />
-          )}
+          {commentsPanel}
         </div>
       ) : (
         <>
@@ -3285,6 +3287,7 @@ function ItemDetail({ slug }: { slug?: string }) {
           </fieldset>
           {saveBar}
           {reviewPanel}
+          {commentsPanel}
         </>
       )}
     </main>

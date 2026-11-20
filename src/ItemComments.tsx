@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-type BattleComment = {
+type ItemComment = {
   id: string;
   author_name: string;
   body: string;
@@ -29,22 +29,22 @@ async function fetchComments(supabase: SupabaseClient, itemId: string, beforeId:
     p_before_id: beforeId,
   });
   if (error) throw error;
-  return data as BattleComment[];
+  return data as ItemComment[];
 }
 
-export function BattleComments({
+export function ItemComments({
   supabase, itemId, signedIn, consentLoaded, canPost,
   formatDate, returnKey, onSignIn, onConsent,
 }: Props) {
   const section = useRef<HTMLElement>(null);
-  const [comments, setComments] = useState<BattleComment[]>([]);
+  const [comments, setComments] = useState<ItemComment[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [pending, setPending] = useState(false);
   const [actionError, setActionError] = useState('');
-  const [name, setName] = useState('');
   const [body, setBody] = useState('');
+  const normalizedBody = body.trim();
 
   useEffect(() => {
     let active = true;
@@ -62,9 +62,11 @@ export function BattleComments({
   useEffect(() => {
     const { pathname, search, hash } = window.location;
     const returned = sessionStorage.getItem(returnKey) === pathname + search;
-    if (returned) sessionStorage.removeItem(returnKey);
     if (returned || hash === '#comments') {
-      const frame = requestAnimationFrame(() => section.current?.scrollIntoView());
+      const frame = requestAnimationFrame(() => {
+        if (returned) sessionStorage.removeItem(returnKey);
+        section.current?.scrollIntoView();
+      });
       return () => cancelAnimationFrame(frame);
     }
   }, [returnKey]);
@@ -86,14 +88,13 @@ export function BattleComments({
 
   const post = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!canPost || pending || loading || !body.trim() || !name.trim()) return;
+    if (!canPost || pending || loading || !normalizedBody) return;
     setPending(true);
     setActionError('');
     try {
-      const { error } = await supabase.rpc('post_battle_comment', {
+      const { error } = await supabase.rpc('post_item_comment', {
         p_item_id: itemId,
-        p_body: body.trim(),
-        p_author_name: name.trim(),
+        p_body: normalizedBody,
       });
       if (error) {
         setActionError(error.code === 'P0001' ? error.message : 'Не удалось опубликовать комментарий.');
@@ -126,20 +127,21 @@ export function BattleComments({
   };
 
   return (
-    <section id="comments" ref={section} className="panel battle-comments" aria-labelledby="comments-title">
+    <section id="comments" ref={section} className="panel item-comments" aria-labelledby="comments-title" tabIndex={-1}>
       <h2 id="comments-title">Комментарии</h2>
       {canPost ? (
-        <form className="battle-comment-form" onSubmit={post}>
-          <label>
-            Публичный ник
-            <input value={name} onChange={(event) => setName(event.target.value)} maxLength={32} required disabled={pending} />
-          </label>
-          <label>
-            Оставить комментарий
-            <textarea value={body} onChange={(event) => setBody(event.target.value)} rows={3} maxLength={1000} required disabled={pending} />
-          </label>
-          <small className="muted">Ник и текст комментария увидят все посетители.</small>
-          <button type="submit" disabled={loading || pending || !name.trim() || !body.trim()}>Опубликовать</button>
+        <form className="item-comment-form" onSubmit={post}>
+          <textarea
+            aria-label="Текст комментария"
+            placeholder="Написать комментарий"
+            value={body}
+            onChange={(event) => setBody(event.target.value)}
+            rows={2}
+            maxLength={1000}
+            required
+            disabled={pending}
+          />
+          <button type="submit" className="item-comment-submit" disabled={loading || pending || !normalizedBody}>Опубликовать</button>
         </form>
       ) : !signedIn ? (
         <button type="button" className="ghost" onClick={onSignIn}>Войти, чтобы оставить комментарий</button>
@@ -148,26 +150,29 @@ export function BattleComments({
       ) : <p className="muted">Загружаю профиль…</p>}
       {actionError && <p className="form-error" role="alert">{actionError}</p>}
       {comments.length > 0 && (
-        <ul className="battle-comment-list">
+        <ul className="item-comment-list" role="list">
           {comments.map((comment) => (
             <li key={comment.id}>
-              <div className="battle-comment-meta">
-                <strong>{comment.author_name}</strong>
-                <time dateTime={comment.created_at}>{formatDate(comment.created_at)}</time>
+              <span className="item-comment-avatar" aria-hidden="true">{Array.from(comment.author_name.trim())[0] || '•'}</span>
+              <div className="item-comment-content">
+                <div className="item-comment-meta">
+                  <strong dir="auto">{comment.author_name}</strong>
+                  <time dateTime={comment.created_at}>{formatDate(comment.created_at)}</time>
+                </div>
+                <p dir="auto">{comment.body}</p>
                 {comment.can_remove && (
-                  <button type="button" className="ghost" disabled={loading || pending} onClick={() => void remove(comment.id)}>
+                  <button type="button" className="item-comment-remove" aria-label="Убрать комментарий" disabled={loading || pending} onClick={() => void remove(comment.id)}>
                     Убрать
                   </button>
                 )}
               </div>
-              <p>{comment.body}</p>
             </li>
           ))}
         </ul>
       )}
       {loading && <p className="muted" role="status">Загружаю комментарии…</p>}
       {loadError && (
-        <div className="battle-comment-retry">
+        <div className="item-comment-retry">
           <p className="form-error" role="alert">Не удалось загрузить комментарии.</p>
           <button type="button" className="ghost" disabled={pending || loading} onClick={() => void loadPage(cursor)}>Повторить</button>
         </div>

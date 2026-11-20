@@ -3141,30 +3141,66 @@ html[data-design="new"] .admin-auction-amount {
 .site-update-links { display: flex; flex-wrap: wrap; gap: 6px 16px; }
 .site-update-links a { text-decoration: underline; }
 
-.battle-comments {
+.item-detail .item-comments {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 14px;
+  gap: 16px;
   line-height: 1.5;
   scroll-margin-top: 150px;
 }
-.battle-comments h2, .battle-comments p { margin: 0; }
-.battle-comments > button, .battle-comment-retry button { justify-self: start; }
-.battle-comment-form, .battle-comment-retry { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
-.battle-comment-form label { display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; font-weight: 600; }
-.battle-comment-form input { width: 100%; }
-.battle-comment-form textarea { width: 100%; min-height: 92px; resize: vertical; }
-.battle-comment-form button { justify-self: start; }
-.battle-comment-list { list-style: none; padding: 0; margin: 0; }
-.battle-comment-list li { border-top: 1px solid var(--line); padding: 12px 0; }
-.battle-comment-list li p { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.battle-comment-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
-.battle-comment-meta strong { min-width: 0; overflow-wrap: anywhere; }
-.battle-comment-meta time { font-size: 13px; color: var(--text-2); }
-.battle-comment-meta button { margin-left: auto; }
+.item-detail .item-comments.panel {
+  padding: clamp(14px, 2.4vw, 24px);
+  background: linear-gradient(155deg, var(--detail-discussion), var(--panel) 86%);
+}
+.item-detail > .item-comments { grid-template-columns: minmax(0, 840px); justify-content: center; margin-top: 18px; }
+.item-comments h2 { margin: 0; color: var(--bone); line-height: 1.2; }
+.item-comments p { margin: 0; overflow-wrap: anywhere; }
+.item-comments > button, .item-comment-retry button { justify-self: start; max-width: 100%; }
+.item-comment-form, .item-comment-retry { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.item-comment-form textarea { min-height: 78px; resize: vertical; }
+.item-comment-form textarea::placeholder { color: var(--muted); }
+.item-comment-submit { justify-self: end; }
+.item-comment-list { list-style: none; padding: 0; margin: 0; }
+.item-comment-list li {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding: 14px 0;
+}
+.item-comment-list li:last-child { padding-bottom: 0; }
+.item-comment-avatar {
+  display: grid;
+  width: 34px;
+  aspect-ratio: 1;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(150deg, var(--detail-selection), var(--panel-2));
+  color: var(--bone);
+  font-size: 14px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.item-comment-meta { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 10px; font-size: 14px; }
+.item-comment-meta strong { min-width: 0; overflow-wrap: anywhere; }
+.item-comment-meta time { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.item-comment-content p { margin: 4px 0 0; max-width: 72ch; font-size: 15px; white-space: pre-wrap; }
+.item-detail .item-comments .item-comment-remove {
+  min-height: 36px;
+  padding: 4px 8px 4px 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+}
+.item-comments .item-comment-remove:not(:disabled):hover { color: var(--text); text-decoration: underline; }
+.item-comments:focus-visible, .item-comments button:focus-visible, .detail-quick-links a:focus-visible {
+  outline: 2px solid var(--bone);
+  outline-offset: 2px;
+}
 
-/* Мягкие акценты и отдельная поверхность обсуждения на странице баттла. */
-.item-detail-battle {
+/* Палитра страниц записей отделена от каталога. */
+.item-detail {
   --bg: #211f27;
   --panel: #25232d;
   --panel-2: #2d2a34;
@@ -3174,15 +3210,14 @@ html[data-design="new"] .admin-auction-amount {
   --muted: #b4aab6;
   --bone: #cbbbd3;
   --cyan: var(--bone);
-  --battle-discussion: #332c38;
-  --battle-discussion-line: #6e5d75;
-  --battle-control-line: #82768a;
-  --battle-selection: #514359;
-  --battle-action: #614e69;
+  --detail-discussion: #332c38;
+  --detail-control-line: #82768a;
+  --detail-selection: #514359;
+  --detail-action: #614e69;
   color: var(--text);
 }
 
-html[data-design="new"] .item-detail-battle {
+html[data-design="new"] .item-detail {
   --bg: #231e1c;
   --panel: #2c2623;
   --panel-2: #352e2a;
@@ -3191,100 +3226,106 @@ html[data-design="new"] .item-detail-battle {
   --text-2: #d2c3bb;
   --muted: #baaba3;
   --bone: #d7beaf;
-  --battle-discussion: #39302d;
-  --battle-discussion-line: #766158;
-  --battle-control-line: #8b776d;
-  --battle-selection: #57463e;
-  --battle-action: #635044;
+  --detail-discussion: #39302d;
+  --detail-control-line: #8b776d;
+  --detail-selection: #57463e;
+  --detail-action: #635044;
 }
 
-.item-detail-battle .battle-layout .battle-comments {
-  background: var(--battle-discussion);
-  border-color: var(--battle-discussion-line);
+.item-detail :is(.detail-hero, .panel, .viewer-vote-bar) {
+  border: 0;
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, .16), inset 0 1px rgba(255, 255, 255, .04);
 }
 
-.item-detail-battle .battle-comments h2 { color: var(--bone); }
+.item-detail .detail-hero {
+  gap: clamp(16px, 3vw, 26px);
+  min-height: 0;
+  margin-bottom: 18px;
+  padding: clamp(14px, 3vw, 26px);
+  background: linear-gradient(150deg, var(--panel-2), var(--panel) 74%, var(--bg));
+}
+.item-detail .detail-cover { border: 0; box-shadow: 0 12px 26px rgba(0, 0, 0, .22); }
+.item-detail .detail-hero .lead { color: var(--text-2) !important; }
 
-.item-detail-battle button.battle-vote-option { border-color: var(--battle-control-line); }
+.item-detail-battle button.battle-vote-option { border-color: var(--detail-control-line); }
 
 .item-detail-battle .battle-vote-option.on {
-  background: var(--battle-selection);
+  background: var(--detail-selection);
   border-color: var(--bone);
   color: var(--text);
 }
 
-.item-detail-battle :is(.battle-comment-form input, .battle-comment-form textarea, .vote-input) {
+.item-detail-battle .battle-round-view {
+  border: 0;
+  background: linear-gradient(150deg, var(--panel-2), var(--panel));
+  box-shadow: inset 0 1px rgba(255, 255, 255, .05);
+}
+.item-detail-battle :is(.battle-round-scores > div, span.battle-vote-option) { border-color: transparent; }
+
+.item-detail :is(.item-comment-form textarea, .vote-input) {
   background: var(--bg);
-  border-color: var(--battle-control-line);
+  border-color: var(--detail-control-line);
 }
 
-.item-detail-battle :is(.battle-comment-form input, .battle-comment-form textarea, .vote-input):focus {
+.item-detail :is(.item-comment-form textarea, .vote-input):focus {
   border-color: var(--bone);
   box-shadow: 0 0 0 2px var(--bone);
 }
 
-.item-detail-battle :is(button, .button):not(.ghost, .battle-vote-option) {
-  background: var(--battle-action);
+.item-detail :is(button, .button):not(.ghost, .battle-vote-option, .track-star-btn, .item-comment-remove) {
+  background: linear-gradient(145deg, var(--detail-action), var(--detail-selection));
   color: var(--text);
 }
 
-.item-detail-battle button:disabled:not(.ghost, .battle-vote-option) {
+.item-detail button:disabled:not(.ghost, .battle-vote-option, .track-star-btn, .item-comment-remove) {
   background: var(--panel-2);
   color: var(--muted);
   opacity: 1;
 }
 
-.item-detail-battle :is(button, .button).ghost {
-  background: var(--panel-2);
-  border-color: var(--battle-control-line);
-  color: var(--text-2);
-}
-
-.item-detail-battle :is(button, .button).ghost:hover {
-  background: var(--battle-selection);
-  color: var(--text);
-}
-
-.item-detail-battle :is(button, .button):not(:disabled):hover { box-shadow: none; }
-
-html[data-design] .item-detail-battle .detail-hero-scores .vote-side .vote-side-badge {
+.item-detail :is(button, .button).ghost {
   background: var(--panel-2);
   border-color: var(--line);
   color: var(--text-2);
 }
 
-html[data-design] .item-detail-battle .detail-hero-scores .vote-side:first-child .vote-side-badge {
-  background: var(--battle-selection);
+.item-detail :is(button, .button).ghost:hover {
+  background: var(--detail-selection);
+  color: var(--text);
+}
+
+.item-detail :is(button, .button):not(:disabled):hover { box-shadow: none; }
+
+html[data-design] .item-detail .detail-hero-scores .vote-side .vote-side-badge,
+html[data-design] .item-detail .track-badge {
+  background: linear-gradient(155deg, var(--panel-2), var(--bg));
+  border: 0;
+  box-shadow: inset 0 1px rgba(255, 255, 255, .05);
+  color: var(--text-2);
+}
+
+html[data-design] .item-detail .detail-hero-scores .vote-side:first-child .vote-side-badge,
+html[data-design] .item-detail .track-badge-mine:not(.track-badge-empty) {
+  background: linear-gradient(145deg, var(--detail-action), var(--detail-selection));
   color: var(--text);
 }
 
 /* Порядок карточки и состояние оценки общие для обеих тем. */
 .rating-fields { border: 0; padding: 0; margin: 0; min-inline-size: 0; }
-.detail-hero-battle,
-.battle-layout .panel {
-  background: var(--panel);
-  border-radius: 12px;
-}
-.detail-hero-battle {
-  grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
-  align-items: center;
-  gap: clamp(16px, 3vw, 26px);
-  min-height: 0;
-  margin-bottom: 18px;
-  padding: clamp(14px, 3vw, 26px);
-  border: 1px solid var(--line);
-}
+.detail-hero-battle { grid-template-columns: minmax(0, 280px) minmax(0, 1fr); }
 .detail-hero-battle .detail-cover { aspect-ratio: 16 / 9; }
-.detail-hero-battle .vote-side-label { color: var(--text-2); }
+.item-detail .detail-hero-scores .vote-side-label { color: var(--text-2); }
 .detail-hero-no-cover { grid-template-columns: minmax(0, 1fr); }
-.battle-quick-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.detail-quick-links { display: flex; flex-wrap: wrap; gap: 8px; }
 .battle-layout, .battle-main, .battle-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
 .battle-layout { align-items: start; }
 .battle-layout-with-comments { grid-template-columns: minmax(0, 1fr) minmax(300px, 32%); }
 .battle-layout .panel { padding: clamp(14px, 2vw, 22px); overflow-wrap: anywhere; }
 .battle-ballot, .link-group[id] { scroll-margin-top: 150px; }
 .battle-ballot h2, .battle-rounds h2 { margin: 0 0 14px; }
-.battle-ballot h2, .battle-rounds h2, .battle-comments h2 { font-size: clamp(21px, 2.5vw, 25px); }
+.battle-ballot h2, .battle-rounds h2, .item-comments h2 { font-size: clamp(21px, 2.5vw, 25px); }
 .item-links .link-group:first-child { margin-top: 0; }
 .item-links h3 { margin: 0 0 8px; }
 .battle-score-field > p { margin: 0; }
@@ -3302,8 +3343,8 @@ html[data-design] .item-detail-battle .detail-hero-scores .vote-side:first-child
 }
 
 @media (max-width: 560px) {
-  .site-update, .battle-comments, .battle-ballot, .link-group[id], .vote-save-bar { scroll-margin-top: 16px; }
-  .battle-quick-links .button { min-height: 44px; }
+  .site-update, .item-detail .item-comments, .battle-ballot, .link-group[id], .vote-save-bar { scroll-margin-top: 16px; }
+  .detail-quick-links .button, .item-comments > button, .item-comment-submit { min-height: 44px; }
   .battle-vote-options { display: flex; flex-wrap: wrap; }
   .battle-vote-option { flex: 1 1 auto; }
   .featured-strip {
