@@ -2897,32 +2897,49 @@ const BattleVoteBlock = forwardRef<VoteHandle, {
   const compact = roundIndex != null;
   if (!canEdit && !agg && compact) return null;
 
-  const renderOption = (side: BattleSide, label: string) => (
-    <button
-      type="button"
-      className={`battle-vote-option${draftSide === side ? ' on' : ''}${changed && draftSide === side ? ' touched' : ''}`}
-      onClick={() => setDraftSide(side)}
-      aria-pressed={draftSide === side}
-    >{label}</button>
-  );
+  const options: { side: BattleSide; label: string }[] = [
+    { side: 'a', label: sideALabel },
+    { side: 'draw', label: 'Ничья' },
+    { side: 'b', label: sideBLabel },
+  ];
 
   return (
     <div className={`battle-vote${compact ? ' battle-vote-compact' : ''}`}>
-      {canEdit && (
+      <div className="battle-vote-heading">
+        {compact ? (
+          <span>{agg ? 'Голоса зрителей' : 'Голос за раунд'}</span>
+        ) : (
+          <h3>Победитель по голосам зрителей</h3>
+        )}
+        {agg ? (
+          <span className="battle-vote-count">{formatVoteCount(agg.total)}</span>
+        ) : !compact && (
+          <span className="battle-vote-count">Голосов ещё нет</span>
+        )}
+      </div>
+      {(canEdit || agg) && (
         <div className="battle-vote-options" role="group" aria-label={compact ? `Победитель раунда ${roundIndex}` : 'Победитель баттла'}>
-          {renderOption('a', sideALabel)}
-          {renderOption('draw', 'Ничья')}
-          {renderOption('b', sideBLabel)}
+          {options.map(({ side, label }) => {
+            const content = (
+              <span>
+                {label}{agg && <> <span className="battle-vote-percent">{Math.round((agg.counts[side] / agg.total) * 100)}%</span></>}
+              </span>
+            );
+            const selected = draftSide === side;
+            return canEdit ? (
+              <button
+                key={side}
+                type="button"
+                className={`battle-vote-option${selected ? ' on' : ''}${changed && selected ? ' touched' : ''}`}
+                onClick={() => setDraftSide(side)}
+                aria-pressed={selected}
+              >{content}</button>
+            ) : (
+              <span key={side} className="battle-vote-option">{content}</span>
+            );
+          })}
         </div>
       )}
-      {agg ? (
-        <div className="battle-vote-agg">
-          Зрители: <b>{sideALabel}</b> {Math.round((agg.counts.a / agg.total) * 100)}% ·
-          {' '}<b>ничья</b> {Math.round((agg.counts.draw / agg.total) * 100)}% ·
-          {' '}<b>{sideBLabel}</b> {Math.round((agg.counts.b / agg.total) * 100)}%
-          {' '}<span className="muted">({formatVoteCount(agg.total)})</span>
-        </div>
-      ) : !compact && <p className="battle-vote-agg muted">Голосов ещё нет.</p>}
     </div>
   );
 });
@@ -3038,9 +3055,29 @@ function ItemDetail({ slug }: { slug?: string }) {
   const canVote = Boolean(supabase && user && viewerConsentLoaded && viewerConsentedAt && votes.state.loaded && !votes.state.error);
   const extraReactions = isBattle && reactions.length === 1 ? [] : reactions;
   const hasLinks = originals.length > 0 || extraReactions.length > 0;
+  const battleSideA = battle?.sideA || 'A';
+  const battleSideB = battle?.sideB || 'B';
+  const showBattleVotes = supabase && votes.state.loaded && !votes.state.error;
   const detailMeta = [item.releaseYear, !isBattle && item.genre, item.reviewedAt && `оценено ${formatMSKDate(item.reviewedAt)}`].filter(Boolean).join(' · ');
   const showSave = canVote && (isAlbum || isBattle) && Boolean(pendingCount || savingAll || saveAllOk || saveAllError);
   const saveLink = showSave && pendingCount > 0 && <a className="rating-save-link" href="#rating-save">К сохранению</a>;
+  const saveBar = showSave && (
+    <div className="vote-save-bar" id="rating-save" tabIndex={-1}>
+      {pendingCount > 0 && (
+        <button type="button" onClick={saveAll} disabled={savingAll || favoriteSaving} className="vote-save-button">
+          {savingAll ? 'Сохраняю…' : `Сохранить (${pendingCount})`}
+        </button>
+      )}
+      {saveAllOk && !pendingCount && <span className="viewer-vote-saved" role="status">Оценки сохранены</span>}
+      {saveAllError && <span className="track-vote-error" role="alert">{saveAllError}</span>}
+    </div>
+  );
+  const reviewPanel = item.review?.trim() && (
+    <section className="panel markdown item-review">
+      <h2>Рецензия</h2>
+      <MarkdownText>{item.review}</MarkdownText>
+    </section>
+  );
   const scorePanel = <AlbumVotePanel ref={albumHandle} item={item} votes={votes.state} save={votes.saveAlbum} onTouchedChange={setAlbumTouched} />;
   const linksPanel = hasLinks && (
     <section className="panel item-links" aria-label="Ссылки записи">
@@ -3058,8 +3095,8 @@ function ItemDetail({ slug }: { slug?: string }) {
           else battleHandles.current.delete(key);
         }}
         voteKey={key}
-        sideALabel={battle?.sideA || 'A'}
-        sideBLabel={battle?.sideB || 'B'}
+        sideALabel={battleSideA}
+        sideBLabel={battleSideB}
         mySide={roundIndex == null ? votes.state.battleFinal : votes.state.battleRounds.get(roundIndex) ?? null}
         allVotes={votes.state.allVotes}
         roundIndex={roundIndex}
@@ -3115,44 +3152,60 @@ function ItemDetail({ slug }: { slug?: string }) {
         );
       })()}
       {votes.state.error && <p className="form-error" role="alert">Оценки зрителей не загрузились. Обнови страницу, чтобы повторить.</p>}
-      <fieldset disabled={savingAll || favoriteSaving} className="rating-fields" aria-label="Оценки и голоса">
-        {isBattle ? (
-          <div className={supabase || hasLinks ? 'battle-layout' : 'battle-layout battle-layout-single'}>
-            {(supabase || hasLinks) && (
-              <aside className="battle-sidebar">
-                {supabase && (
-                  <section id="battle-vote" className="panel battle-ballot" aria-labelledby="battle-vote-title">
-                    <h2 id="battle-vote-title">Голосование</h2>
-                    {scorePanel}
-                    {votes.state.loaded && !votes.state.error && (
-                      <div className="battle-final">
-                        <h3>{canVote ? 'Кто победил?' : 'Победитель по версии зрителей'}</h3>
-                        {renderBattleVote(null)}
-                      </div>
-                    )}
-                    {saveLink}
-                  </section>
-                )}
-                {linksPanel}
-              </aside>
-            )}
-            <section className="panel battle-rounds">
-              <h2>Раунды</h2>
-              <BattleWinnerSummary battle={battle} />
-              {(battle?.rounds ?? []).map((round) => (
-                <article className="battle-round-view" key={round.id}>
-                  <h3>Раунд {round.position}</h3>
-                  <span>{battle?.sideA || 'A'}: {round.scoreA === '' || round.scoreA == null ? '—' : round.scoreA} · {battle?.sideB || 'B'}: {round.scoreB === '' || round.scoreB == null ? '—' : round.scoreB}</span>
-                  <span>Раунд за: {round.winner === 'a' ? battle?.sideA || 'A' : round.winner === 'b' ? battle?.sideB || 'B' : 'ничья / спорно'}</span>
-                  {round.comment?.trim() && <details className="battle-round-note"><summary>Разбор раунда</summary><p>{round.comment}</p></details>}
-                  {supabase && votes.state.loaded && !votes.state.error && renderBattleVote(round.position)}
-                </article>
-              ))}
-              {!battle?.rounds?.length && <p className="muted">Раунды пока не добавлены.</p>}
-            </section>
+      {isBattle ? (
+        <div className={supabase ? 'battle-layout battle-layout-with-comments' : 'battle-layout'}>
+          <div className="battle-main">
+            <fieldset disabled={savingAll} className="rating-fields battle-fields" aria-label="Оценки и голоса">
+              {supabase && (
+                <section id="battle-vote" className="panel battle-ballot" aria-labelledby="battle-vote-title">
+                  <h2 id="battle-vote-title">Голосование</h2>
+                  {scorePanel}
+                  {showBattleVotes && <div className="battle-final">{renderBattleVote(null)}</div>}
+                  {saveLink}
+                </section>
+              )}
+              <section className="panel battle-rounds" aria-labelledby="battle-rounds-title">
+                <h2 id="battle-rounds-title">Раунды</h2>
+                <BattleWinnerSummary battle={battle} />
+                {(battle?.rounds ?? []).map((round) => (
+                  <article className="battle-round-view" key={round.id}>
+                    <div className="battle-round-head">
+                      <h3>Раунд {round.position}</h3>
+                      <p>Выбор Рифмобеса <strong>{round.winner === 'a' ? battleSideA : round.winner === 'b' ? battleSideB : 'ничья / спорно'}</strong></p>
+                    </div>
+                    <dl className="battle-round-scores">
+                      <div><dt>{battleSideA}</dt><dd>{round.scoreA === '' || round.scoreA == null ? '—' : round.scoreA}</dd></div>
+                      <div><dt>{battleSideB}</dt><dd>{round.scoreB === '' || round.scoreB == null ? '—' : round.scoreB}</dd></div>
+                    </dl>
+                    {round.comment?.trim() && <details className="battle-round-note"><summary>Разбор раунда</summary><p>{round.comment}</p></details>}
+                    {showBattleVotes && renderBattleVote(round.position)}
+                  </article>
+                ))}
+                {!battle?.rounds?.length && <p className="muted">Раунды пока не добавлены.</p>}
+              </section>
+            </fieldset>
+            {saveBar}
+            {linksPanel}
+            {reviewPanel}
           </div>
-        ) : (
-          <>
+          {supabase && authReady && (
+            <BattleComments
+              key={`${item.id}:${user?.id ?? 'guest'}`}
+              supabase={supabase}
+              itemId={item.id}
+              signedIn={Boolean(user)}
+              consentLoaded={viewerConsentLoaded}
+              canPost={Boolean(user && viewerConsentLoaded && viewerConsentedAt && viewerConsentVersion >= CONSENT_VERSION)}
+              formatDate={formatMSK}
+              returnKey={commentsReturnKey}
+              onSignIn={() => requestSignIn(true)}
+              onConsent={() => window.dispatchEvent(new Event('r1f:request-comment-consent'))}
+            />
+          )}
+        </div>
+      ) : (
+        <>
+          <fieldset disabled={savingAll || favoriteSaving} className="rating-fields" aria-label="Оценки и голоса">
             {scorePanel}
             {saveLink}
             <section className={hasLinks && isAlbum ? 'columns' : 'item-content'}>
@@ -3229,39 +3282,10 @@ function ItemDetail({ slug }: { slug?: string }) {
               )}
               {linksPanel}
             </section>
-          </>
-        )}
-      </fieldset>
-      {showSave && (
-        <div className="vote-save-bar" id="rating-save" tabIndex={-1}>
-          {pendingCount > 0 && (
-            <button type="button" onClick={saveAll} disabled={savingAll || favoriteSaving} className="vote-save-button">
-              {savingAll ? 'Сохраняю…' : `Сохранить (${pendingCount})`}
-            </button>
-          )}
-          {saveAllOk && !pendingCount && <span className="viewer-vote-saved" role="status">Оценки сохранены</span>}
-          {saveAllError && <span className="track-vote-error" role="alert">{saveAllError}</span>}
-        </div>
-      )}
-      {item.review?.trim() && (
-        <section className="panel markdown item-review">
-          <h2>Рецензия</h2>
-          <MarkdownText>{item.review}</MarkdownText>
-        </section>
-      )}
-      {item.type === 'battle' && supabase && authReady && (
-        <BattleComments
-          key={`${item.id}:${user?.id ?? 'guest'}`}
-          supabase={supabase}
-          itemId={item.id}
-          signedIn={Boolean(user)}
-          consentLoaded={viewerConsentLoaded}
-          canPost={Boolean(user && viewerConsentLoaded && viewerConsentedAt && viewerConsentVersion >= CONSENT_VERSION)}
-          formatDate={formatMSK}
-          returnKey={commentsReturnKey}
-          onSignIn={() => requestSignIn(true)}
-          onConsent={() => window.dispatchEvent(new Event('r1f:request-comment-consent'))}
-        />
+          </fieldset>
+          {saveBar}
+          {reviewPanel}
+        </>
       )}
     </main>
   );

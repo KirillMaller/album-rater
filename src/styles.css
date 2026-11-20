@@ -1586,21 +1586,23 @@ html[data-design="new"] .track-badge-empty { background: var(--panel-2); }
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 6px 0 16px;
+  margin: 0 0 14px;
   padding: 12px 16px;
   border-radius: 10px;
   background: var(--panel-2);
   border: 1px solid var(--line);
+  border-inline-start: 2px solid var(--bone);
   width: 100%;
   font-size: 15px;
   line-height: 1.2;
   color: var(--text);
+  overflow-wrap: anywhere;
 }
 .battle-winner-label {
   font-size: 15px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: var(--text);
+  color: var(--text-2);
   text-transform: none;
 }
 .battle-winner-name {
@@ -1608,45 +1610,63 @@ html[data-design="new"] .track-badge-empty { background: var(--panel-2); }
   font-weight: 800;
   color: var(--text);
 }
-.battle-winner-note { color: var(--text); font-size: 15px; font-weight: 400; }
-.battle-winner-split { flex-direction: row; align-items: baseline; gap: 18px; flex-wrap: wrap; }
-.battle-winner-split > div { display: flex; gap: 8px; align-items: baseline; }
+.battle-winner-note { color: var(--text-2); }
+.battle-winner-split { align-items: baseline; gap: 8px 18px; }
+.battle-winner-split > div {
+  display: flex;
+  flex: 1 1 180px;
+  flex-wrap: wrap;
+  min-width: 0;
+  gap: 4px 8px;
+  align-items: baseline;
+}
 
 .battle-final { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
-.battle-final h3, .battle-score-field h3 { margin: 0 0 10px; font-size: 16px; }
-.battle-vote { display: flex; flex-direction: column; gap: 12px; }
-.battle-vote-options { display: flex; gap: 10px; flex-wrap: wrap; }
+.battle-score-field h3 { margin: 0 0 10px; font-size: 16px; }
+.battle-vote { display: grid; gap: 8px; }
+.battle-vote-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  color: var(--text-2);
+  font-size: 14px;
+  font-weight: 600;
+}
+.battle-vote-heading h3 { margin: 0; font-size: 16px; color: var(--text); }
+.battle-vote-count { font-size: 13px; font-weight: 400; white-space: nowrap; }
+.battle-vote-options { display: grid; grid-template-columns: minmax(0, 1fr) minmax(80px, auto) minmax(0, 1fr); gap: 8px; }
 .battle-vote-option {
-  flex: 1 1 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  max-width: 100%;
   min-height: 44px;
-  padding: 0 14px;
-  background: rgba(255,255,255,0.04);
+  padding: 8px 10px;
+  background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 8px;
   color: var(--text);
   font-weight: 600;
   font-size: 14px;
-  cursor: pointer;
-  transition: border-color 120ms ease, background 120ms ease;
+  text-align: center;
+  overflow-wrap: anywhere;
 }
-.battle-vote-option:hover { border-color: var(--cyan); }
+.battle-vote-option > span { min-width: 0; }
+button.battle-vote-option:not(:disabled):hover { border-color: var(--bone); box-shadow: none; }
 .battle-vote-option.on { background: var(--bone); color: var(--bone-ink); border-color: var(--bone); }
 .battle-vote-option.touched { outline: 1px solid var(--bone); outline-offset: 2px; }
-.battle-vote-agg { margin: 0; font-size: 13px; color: var(--text-2); }
-.battle-vote-agg b { color: var(--text); }
-
-/* Компактный вариант — под каждым раундом */
-.battle-vote-compact { gap: 6px; margin-top: 6px; padding-top: 6px; border-top: 1px dashed rgba(255,255,255,0.08); }
-.battle-vote-compact .battle-vote-options { gap: 6px; }
-.battle-vote-compact .battle-vote-option {
-  flex: 1 1 60px;
-  min-height: 40px;
-  padding: 4px 10px;
-  font-size: 13px;
-  font-weight: 600;
+.battle-vote-option:focus-visible { outline: 2px solid var(--bone); outline-offset: 2px; }
+.battle-vote-percent {
+  color: var(--bone);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
-.battle-vote-compact .battle-vote-agg { font-size: 13px; color: var(--muted); }
-.battle-vote-compact .battle-vote-agg b { color: var(--text); font-weight: 600; }
+.battle-vote-option.on .battle-vote-percent { color: inherit; }
+.battle-vote-compact { padding-top: 12px; border-top: 1px solid var(--line); }
 .vote-input {
   box-sizing: border-box;
   min-width: 48px;
@@ -1940,14 +1960,40 @@ html[data-design="new"] .auth .panel h1 { font-size: clamp(28px, 8vw, 40px); }
 }
 .battle-round-view {
   display: grid;
-  gap: 5px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--line);
+  gap: 12px;
+  padding: clamp(10px, 2vw, 16px);
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-2);
+  overflow-wrap: anywhere;
 }
 .battle-round-view p {
   margin: 0;
-  color: var(--muted);
+  color: var(--text-2);
 }
+.battle-round-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 14px; }
+.battle-round-head h3 { margin: 0; font-size: 17px; }
+.battle-round-head strong { color: var(--text); }
+.battle-round-scores {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 125px), 1fr));
+  gap: 8px;
+  margin: 0;
+}
+.battle-round-scores > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.battle-round-scores dt { min-width: 0; color: var(--text-2); }
+.battle-round-scores dd { margin: 0; font-weight: 800; font-variant-numeric: tabular-nums; }
 .review-input { min-height: 220px; }
 .score-editor {
   display: grid;
@@ -3095,54 +3141,76 @@ html[data-design="new"] .admin-auction-amount {
 .site-update-links { display: flex; flex-wrap: wrap; gap: 6px 16px; }
 .site-update-links a { text-decoration: underline; }
 
-.battle-comments { margin-top: 18px; scroll-margin-top: 150px; }
-.battle-comments h2 { margin: 0 0 12px; }
-.battle-comment-form { display: grid; gap: 12px; max-width: 680px; }
-.battle-comment-form label { display: grid; gap: 5px; font-weight: 600; }
-.battle-comment-form input { width: min(100%, 280px); }
+.battle-comments {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  line-height: 1.5;
+  scroll-margin-top: 150px;
+}
+.battle-comments h2, .battle-comments p { margin: 0; }
+.battle-comments > button, .battle-comment-retry button { justify-self: start; }
+.battle-comment-form, .battle-comment-retry { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.battle-comment-form label { display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; font-weight: 600; }
+.battle-comment-form input { width: 100%; }
 .battle-comment-form textarea { width: 100%; min-height: 92px; resize: vertical; }
 .battle-comment-form button { justify-self: start; }
-.battle-comment-list { list-style: none; padding: 0; margin: 16px 0; }
+.battle-comment-list { list-style: none; padding: 0; margin: 0; }
 .battle-comment-list li { border-top: 1px solid var(--line); padding: 12px 0; }
 .battle-comment-list li p { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .battle-comment-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
-.battle-comment-meta strong { overflow-wrap: anywhere; }
-.battle-comment-meta time { font-size: 12px; color: var(--muted); }
+.battle-comment-meta strong { min-width: 0; overflow-wrap: anywhere; }
+.battle-comment-meta time { font-size: 13px; color: var(--text-2); }
 .battle-comment-meta button { margin-left: auto; }
 
 /* Порядок карточки и состояние оценки общие для обеих тем. */
 .rating-fields { border: 0; padding: 0; margin: 0; min-inline-size: 0; }
-.detail-hero-battle { grid-template-columns: minmax(0, 220px) minmax(0, 1fr); }
-.detail-hero-battle .detail-cover { aspect-ratio: 16 / 10; }
+.detail-hero-battle,
+.battle-layout .panel {
+  background: var(--panel);
+  border-radius: 12px;
+}
+.detail-hero-battle {
+  grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(16px, 3vw, 26px);
+  min-height: 0;
+  margin-bottom: 18px;
+  padding: clamp(14px, 3vw, 26px);
+  border: 1px solid var(--line);
+}
+.detail-hero-battle .detail-cover { aspect-ratio: 16 / 9; }
+.detail-hero-battle .vote-side-label { color: var(--text-2); }
 .detail-hero-no-cover { grid-template-columns: minmax(0, 1fr); }
 .battle-quick-links { display: flex; flex-wrap: wrap; gap: 8px; }
-.battle-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 370px); gap: 18px; align-items: start; }
-.battle-layout-single { grid-template-columns: minmax(0, 1fr); }
-.battle-rounds { grid-area: 1 / 1; }
-.battle-sidebar { grid-area: 1 / 2; display: grid; gap: 18px; min-width: 0; }
+.battle-layout, .battle-main, .battle-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+.battle-layout { align-items: start; }
+.battle-layout-with-comments { grid-template-columns: minmax(0, 1fr) minmax(300px, 32%); }
+.battle-layout .panel { padding: clamp(14px, 2vw, 22px); overflow-wrap: anywhere; }
 .battle-ballot, .link-group[id] { scroll-margin-top: 150px; }
-.battle-ballot h2 { margin: 0 0 14px; }
+.battle-ballot h2, .battle-rounds h2 { margin: 0 0 14px; }
+.battle-ballot h2, .battle-rounds h2, .battle-comments h2 { font-size: clamp(21px, 2.5vw, 25px); }
 .item-links .link-group:first-child { margin-top: 0; }
 .item-links h3 { margin: 0 0 8px; }
 .battle-score-field > p { margin: 0; }
-.battle-round-view, .track-title { overflow-wrap: anywhere; }
-.battle-round-view h3 { margin: 0; font-size: 16px; }
-.battle-round-view:last-child { border-bottom: 0; }
+.track-title { overflow-wrap: anywhere; }
 .battle-round-note summary { cursor: pointer; color: var(--text-2); }
-.battle-round-note p { margin-top: 6px; }
+.battle-round-note p { margin-top: 6px; white-space: pre-line; }
 .item-review { margin-top: 18px; }
+.battle-main > .vote-save-bar, .battle-main > .item-review { margin-top: 0; }
 .catalog-empty p { margin-top: 0; }
 
 @media (max-width: 900px) {
   .detail-hero-battle { grid-template-columns: minmax(0, 1fr); }
   .detail-hero-battle .detail-cover { max-width: 230px; }
-  .battle-layout { grid-template-columns: minmax(0, 1fr); }
-  .battle-sidebar, .battle-rounds { grid-area: auto; }
+  .battle-layout-with-comments { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 560px) {
   .site-update, .battle-comments, .battle-ballot, .link-group[id], .vote-save-bar { scroll-margin-top: 16px; }
   .battle-quick-links .button { min-height: 44px; }
+  .battle-vote-options { display: flex; flex-wrap: wrap; }
+  .battle-vote-option { flex: 1 1 auto; }
   .featured-strip {
     grid-template-columns: none;
     grid-auto-flow: column;
