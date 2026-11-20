@@ -2014,7 +2014,7 @@ function Shell() {
         <Route path="/admin/auctions/wheel" element={<Navigate to="/admin/auctions" replace />} />
         <Route path="/admin/new" element={<AdminRoute><TypePickerPage /></AdminRoute>} />
         <Route path="/admin/new/:type" element={<AdminRoute><EditorPage /></AdminRoute>} />
-        <Route path="/admin/edit/:id" element={<AdminRoute><EditorPage /></AdminRoute>} />
+        <Route path="/admin/edit/:id" element={<AdminRoute><EditItemPage /></AdminRoute>} />
       </Routes>
       <footer className="site-footer">
         <span className="footer-age">16+</span>
@@ -3318,6 +3318,9 @@ function AdminRowsSkeleton() {
 function LoginPage() {
   const { signIn } = useStore();
   const navigate = useNavigate();
+  const { state } = useLocation();
+  const returnTo = state?.returnTo;
+  const editorPath = typeof returnTo === 'string' && matchPath('/admin/edit/:id', returnTo) ? returnTo : '/admin';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -3328,7 +3331,7 @@ function LoginPage() {
         setError('');
         try {
           await signIn(email, password);
-          navigate('/admin');
+          navigate(editorPath, { replace: true });
         } catch (error) {
           setError(error instanceof Error ? error.message : 'Не удалось войти');
         }
@@ -3347,11 +3350,12 @@ function LoginPage() {
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { admin, authReady } = useStore();
+  const { pathname } = useLocation();
   // Пока supabase не подтвердил (не)авторизацию хотя бы раз — не редиректим. Иначе рабочая сессия
   // после перезагрузки страницы на долю секунды выглядит как admin=false (дефолт состояния) и
   // страница мгновенно перекидывает на /admin/login раньше, чем придёт настоящий ответ.
   if (!authReady) return <main className="empty">Проверяем доступ...</main>;
-  return admin ? <>{children}</> : <Navigate to="/admin/login" replace />;
+  return admin ? <>{children}</> : <Navigate to="/admin/login" state={{ returnTo: pathname }} replace />;
 }
 
 function AdminPage() {
@@ -5666,12 +5670,48 @@ function TypePickerPage() {
   );
 }
 
-function EditorPage() {
+function EditItemPage() {
   const { id } = useParams();
+  const { items } = useStore();
+  const existing = items.find((item) => item.id === id);
+
+  if (supabase && id && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)) {
+    return <EditItemLoader key={id} id={id} />;
+  }
+  if (!supabase && existing) return <EditorPage key={existing.id} existing={existing} />;
+  return <main className="empty">Запись не найдена. <Link to="/admin">В админку</Link></main>;
+}
+
+function EditItemLoader({ id }: { id: string }) {
+  const [result, setResult] = useState<{ item: RatedItem | null; failed: boolean }>();
+  useEffect(() => {
+    if (!supabase) return;
+    const controller = new AbortController();
+    void supabase.from('rated_items')
+      .select('*, track_scores(*), media_links(*)')
+      .eq('id', id)
+      .abortSignal(controller.signal)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (!controller.signal.aborted) setResult({ item: data ? fromDbItem(data) : null, failed: Boolean(error) });
+      });
+    return () => controller.abort();
+  }, [id]);
+
+  if (!result) return <main className="empty">Загружаем запись...</main>;
+  if (!result.item) {
+    return <main className="empty">
+      {result.failed ? 'Не удалось загрузить запись.' : 'Запись не найдена.'} <Link to="/admin">В админку</Link>
+    </main>;
+  }
+  return <EditorPage existing={result.item} />;
+}
+
+function EditorPage({ existing }: { existing?: RatedItem }) {
   const { type } = useParams();
   const { items, saveItem } = useStore();
   const navigate = useNavigate();
-  const existing = items.find((item) => item.id === id);
+  const id = existing?.id;
   const newItemType: ItemType = type === 'battle' || type === 'track' ? type : 'album';
   const editorDraftKey = `${editorDraftPrefix}:${id ? `edit:${id}` : `new:${newItemType}`}`;
   const baseDraft: RatedItem = existing ?? {
@@ -5698,7 +5738,8 @@ function EditorPage() {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
-  const restoredEditorDraft = readEditorDraftBackup(editorDraftKey);
+  const backup = readEditorDraftBackup(editorDraftKey);
+  const restoredEditorDraft = !existing || backup?.draft?.id === existing.id ? backup : null;
   const [draft, setDraft] = useState<RatedItem>(restoredEditorDraft?.draft ?? baseDraft);
   const [trackText, setTrackText] = useState(restoredEditorDraft?.trackText ?? '');
   const [yandexUrl, setYandexUrl] = useState(restoredEditorDraft?.yandexUrl ?? '');
