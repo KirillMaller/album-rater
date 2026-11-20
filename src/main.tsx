@@ -3108,7 +3108,7 @@ function ItemDetail({ slug }: { slug?: string }) {
   };
 
   return (
-    <main className="item-detail">
+    <main className={isBattle ? 'item-detail item-detail-battle' : 'item-detail'}>
       {(() => {
         const heroAgg = isAlbum
           ? aggregateAlbum(votes.state.allVotes, item)

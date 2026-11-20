@@ -3163,6 +3163,101 @@ html[data-design="new"] .admin-auction-amount {
 .battle-comment-meta time { font-size: 13px; color: var(--text-2); }
 .battle-comment-meta button { margin-left: auto; }
 
+/* Мягкие акценты и отдельная поверхность обсуждения на странице баттла. */
+.item-detail-battle {
+  --bg: #211f27;
+  --panel: #25232d;
+  --panel-2: #2d2a34;
+  --line: #4b4552;
+  --text: #e6dfe6;
+  --text-2: #c9c1ca;
+  --muted: #b4aab6;
+  --bone: #cbbbd3;
+  --cyan: var(--bone);
+  --battle-discussion: #332c38;
+  --battle-discussion-line: #6e5d75;
+  --battle-control-line: #82768a;
+  --battle-selection: #514359;
+  --battle-action: #614e69;
+  color: var(--text);
+}
+
+html[data-design="new"] .item-detail-battle {
+  --bg: #231e1c;
+  --panel: #2c2623;
+  --panel-2: #352e2a;
+  --line: #524540;
+  --text: #e7ddd7;
+  --text-2: #d2c3bb;
+  --muted: #baaba3;
+  --bone: #d7beaf;
+  --battle-discussion: #39302d;
+  --battle-discussion-line: #766158;
+  --battle-control-line: #8b776d;
+  --battle-selection: #57463e;
+  --battle-action: #635044;
+}
+
+.item-detail-battle .battle-layout .battle-comments {
+  background: var(--battle-discussion);
+  border-color: var(--battle-discussion-line);
+}
+
+.item-detail-battle .battle-comments h2 { color: var(--bone); }
+
+.item-detail-battle button.battle-vote-option { border-color: var(--battle-control-line); }
+
+.item-detail-battle .battle-vote-option.on {
+  background: var(--battle-selection);
+  border-color: var(--bone);
+  color: var(--text);
+}
+
+.item-detail-battle :is(.battle-comment-form input, .battle-comment-form textarea, .vote-input) {
+  background: var(--bg);
+  border-color: var(--battle-control-line);
+}
+
+.item-detail-battle :is(.battle-comment-form input, .battle-comment-form textarea, .vote-input):focus {
+  border-color: var(--bone);
+  box-shadow: 0 0 0 2px var(--bone);
+}
+
+.item-detail-battle :is(button, .button):not(.ghost, .battle-vote-option) {
+  background: var(--battle-action);
+  color: var(--text);
+}
+
+.item-detail-battle button:disabled:not(.ghost, .battle-vote-option) {
+  background: var(--panel-2);
+  color: var(--muted);
+  opacity: 1;
+}
+
+.item-detail-battle :is(button, .button).ghost {
+  background: var(--panel-2);
+  border-color: var(--battle-control-line);
+  color: var(--text-2);
+}
+
+.item-detail-battle :is(button, .button).ghost:hover {
+  background: var(--battle-selection);
+  color: var(--text);
+}
+
+.item-detail-battle :is(button, .button):not(:disabled):hover { box-shadow: none; }
+
+html[data-design] .item-detail-battle .detail-hero-scores .vote-side .vote-side-badge {
+  background: var(--panel-2);
+  border-color: var(--line);
+  color: var(--text-2);
+}
+
+html[data-design] .item-detail-battle .detail-hero-scores .vote-side:first-child .vote-side-badge {
+  background: var(--battle-selection);
+  color: var(--text);
+}
+
 /* Порядок карточки и состояние оценки общие для обеих тем. */
 .rating-fields { border: 0; padding: 0; margin: 0; min-inline-size: 0; }
 .detail-hero-battle,
