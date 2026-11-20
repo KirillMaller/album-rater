@@ -835,6 +835,7 @@ function battleWinnerLabel(battle?: BattleMetadata) {
 
 function itemAdminMeta(item: RatedItem) {
   const base = `${itemTypeLabel(item.type)} · ${item.published ? 'опубликовано' : 'черновик'} · ${item.finalScore.toFixed(1)}`;
+  if (item.type === 'album') return `${base} · Треков: ${item.tracks.length}`;
   if (item.type !== 'battle') return base;
   return `${base} · Победитель: ${battleWinnerLabel(item.metadata?.battle)}`;
 }
@@ -1977,8 +1978,17 @@ function useLiveWheel(): boolean {
   return isLive;
 }
 
+const ratedItemIdPattern = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+
+function sharedEditorId(search: string) {
+  const id = new URLSearchParams(search).get('edit');
+  return id && ratedItemIdPattern.test(id) ? id : undefined;
+}
+
 function Shell() {
   const { admin } = useStore();
+  const { search } = useLocation();
+  const editorId = sharedEditorId(search);
   const wheelLive = useLiveWheel();
   return (
     <>
@@ -2001,7 +2011,7 @@ function Shell() {
         </nav>
       </header>
       <Routes>
-        <Route path="/" element={<HomePage />} />
+        <Route path="/" element={editorId ? <AdminRoute><EditItemPage sharedId={editorId} /></AdminRoute> : <HomePage />} />
         <Route path="/auctions" element={<AuctionsPage />} />
         <Route path="/auctions/wheel" element={<PublicWheelPage />} />
         <Route path="/auctions/rules" element={<AuctionRulesPage />} />
@@ -3320,7 +3330,10 @@ function LoginPage() {
   const navigate = useNavigate();
   const { state } = useLocation();
   const returnTo = state?.returnTo;
-  const editorPath = typeof returnTo === 'string' && matchPath('/admin/edit/:id', returnTo) ? returnTo : '/admin';
+  const editorPath = typeof returnTo === 'string' && (
+    matchPath('/admin/edit/:id', returnTo) ||
+    (returnTo.startsWith('/?') && sharedEditorId(returnTo.slice(1)))
+  ) ? returnTo : '/admin';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -3350,12 +3363,13 @@ function LoginPage() {
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { admin, authReady } = useStore();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
+  const returnTo = pathname === '/' && sharedEditorId(search) ? pathname + search : pathname;
   // Пока supabase не подтвердил (не)авторизацию хотя бы раз — не редиректим. Иначе рабочая сессия
   // после перезагрузки страницы на долю секунды выглядит как admin=false (дефолт состояния) и
   // страница мгновенно перекидывает на /admin/login раньше, чем придёт настоящий ответ.
   if (!authReady) return <main className="empty">Проверяем доступ...</main>;
-  return admin ? <>{children}</> : <Navigate to="/admin/login" state={{ returnTo: pathname }} replace />;
+  return admin ? <>{children}</> : <Navigate to="/admin/login" state={{ returnTo }} replace />;
 }
 
 function AdminPage() {
@@ -5670,12 +5684,13 @@ function TypePickerPage() {
   );
 }
 
-function EditItemPage() {
-  const { id } = useParams();
+function EditItemPage({ sharedId }: { sharedId?: string }) {
+  const params = useParams();
+  const id = sharedId ?? params.id;
   const { items } = useStore();
   const existing = items.find((item) => item.id === id);
 
-  if (supabase && id && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)) {
+  if (supabase && id && ratedItemIdPattern.test(id)) {
     return <EditItemLoader key={id} id={id} />;
   }
   if (!supabase && existing) return <EditorPage key={existing.id} existing={existing} />;
